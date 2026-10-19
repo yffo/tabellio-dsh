@@ -1,5 +1,11 @@
 # tabellio-dsh 🧠
 
+<p>
+  <a href="https://github.com/yffo/tabellio-dsh/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/yffo/tabellio-dsh/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://www.npmjs.com/package/tabellio-dsh"><img alt="npm" src="https://img.shields.io/npm/v/tabellio-dsh" /></a>
+  <a href="LICENSE"><img alt="license" src="https://img.shields.io/npm/l/tabellio-dsh" /></a>
+</p>
+
 [English](README.en.md) | 简体中文
 
 **给 DeepSeek Harness 加一个「记得住、但你说了算」的记忆。**

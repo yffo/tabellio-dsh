@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3 (2026-10-19)
+
+- 开源仓库上线：https://github.com/yffo/tabellio-dsh（`repository` / `homepage` / `bugs` 元数据）；CI 在 push / PR 上跑 `npm test` 与功能验收。
+- 无运行时行为变化。
+
 ## 0.1.2 (2026-10-19)
 
 - 设置面板新增「自动巩固提案」：`proposals.list` / `proposals.review` 两个 RPC 端点（只读列表 + 批准/拒绝，走 tabellio 的 `reviewProposals` 闸门），面板里逐条显示来源笔记、相似度与目标，可一键批准合并或拒绝。
