@@ -120,7 +120,7 @@ test('status exposes the host last-recall decision, or null before the first tur
 
   const handler = createRpcHandler({
     ...base,
-    getLastRecall: () => ({ at: 123, query: '项目代号是什么', mode: 'shadow', refused: false, count: 2, reason: null, receiptPath: '/tmp/rcp.json' }),
+    getLastRecall: () => ({ at: 123, query: '项目代号是什么', mode: 'shadow', refused: false, count: 2, reason: null, titles: ['项目：青鸟计划'], receiptPath: '/tmp/rcp.json' }),
   });
   const result = await handler('status', {});
   assert.equal(result.value.lastRecall.mode, 'shadow');
@@ -128,6 +128,7 @@ test('status exposes the host last-recall decision, or null before the first tur
   assert.equal(result.value.lastRecall.count, 2);
   assert.equal(result.value.lastRecall.receiptPath, '/tmp/rcp.json');
   assert.equal(result.value.lastRecall.judged, false);
+  assert.deepEqual(result.value.lastRecall.titles, ['项目：青鸟计划']);
 });
 
 test('status exposes judge diagnostics when the judge is enabled', async (t) => {

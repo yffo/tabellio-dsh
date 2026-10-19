@@ -57,6 +57,9 @@ export function apply(ctx, config = {}) {
   // Process-local on purpose — it describes this session's latest decision, not
   // the store's durable history (receipts in runs/ cover that).
   let lastRecall = null;
+  const recallTitles = (value) => (Array.isArray(value?.items)
+    ? value.items.slice(0, 3).map((item) => String(item.title ?? item.id ?? '').slice(0, 40)).filter(Boolean)
+    : []);
 
   registerTools(ctx, { settings, getStore: currentStore, getLastRecall: () => lastRecall });
 
@@ -405,6 +408,7 @@ export function apply(ctx, config = {}) {
           refused: Boolean(result?.refused),
           count: Array.isArray(result?.items) ? result.items.length : 0,
           reason: result?.reason ?? null,
+          titles: recallTitles(result),
           receiptPath: result?.receiptPath ?? null,
         };
         ctx.logger?.info?.('tabellio-dsh: shadow recall recorded (' + (result?.refused ? 'refused' : (result?.items?.length ?? 0) + ' hit(s)') + ')');
@@ -419,6 +423,7 @@ export function apply(ctx, config = {}) {
           refused: true,
           count: 0,
           reason: result?.reason ?? 'no_hits',
+          titles: [],
           receiptPath: result?.receiptPath ?? null,
         };
         return decision;
@@ -440,6 +445,7 @@ export function apply(ctx, config = {}) {
           refused: false,
           count: result.items.length,
           reason: gateVerdict.reason ?? 'no_memory_intent',
+          titles: recallTitles(result),
           receiptPath: result.receiptPath ?? null,
         };
         ctx.logger?.debug?.('tabellio-dsh: recall suppressed (no memory intent): ' + query.slice(0, 60));
@@ -484,6 +490,7 @@ export function apply(ctx, config = {}) {
             refused: false,
             count: 0,
             reason: 'llm_judge_kept_none',
+            titles: [],
             receiptPath: result.receiptPath ?? null,
           };
           return decision;
@@ -508,6 +515,7 @@ export function apply(ctx, config = {}) {
           count: result.items.length,
           reason: judged ? 'llm_judge' : null,
           judged,
+          titles: recallTitles(result),
           receiptPath: result.receiptPath ?? null,
         };
         return decision;
@@ -521,6 +529,7 @@ export function apply(ctx, config = {}) {
           refused: false,
           count: result.items.length,
           reason: 'same_notes_as_last_time',
+          titles: recallTitles(result),
           receiptPath: result.receiptPath ?? null,
         };
         return decision;
@@ -534,6 +543,7 @@ export function apply(ctx, config = {}) {
         count: result.items.length,
         reason: judged ? 'llm_judge' : null,
         judged,
+        titles: recallTitles(result),
         receiptPath: result.receiptPath ?? null,
       };
 
@@ -562,6 +572,7 @@ export function apply(ctx, config = {}) {
         refused: false,
         count: 0,
         reason: error?.message ?? String(error),
+        titles: [],
         receiptPath: null,
       };
       ctx.logger?.warn?.('tabellio-dsh: recall failed: ' + (error?.message ?? error));

@@ -58,6 +58,7 @@ window.__ModuleLoader__.load({
       searchError: '搜索失败：{err}',
       lastRecallLabel: '上次召回',
       lastRecallNone: '本会话还没有触发过召回',
+      lrTitles: '用到的记忆',
       judgedTag: '已裁决',
       judgeLabel: '模型裁决',
       judgeOff: '关闭',
@@ -126,6 +127,7 @@ window.__ModuleLoader__.load({
       searchError: 'Search failed: {err}',
       lastRecallLabel: 'Last recall',
       lastRecallNone: 'No recall yet in this session',
+      lrTitles: 'Memories used',
       judgedTag: 'judged',
       judgeLabel: 'LLM judge',
       judgeOff: 'Off',
@@ -167,7 +169,8 @@ window.__ModuleLoader__.load({
       root: { padding: '4px 2px', color: COLORS.text, fontSize: 13, lineHeight: 1.55 },
       head: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
       title: { fontSize: 16, fontWeight: 600, margin: 0 },
-      sub: { color: COLORS.dim, fontSize: 12, margin: '2px 0 12px' },
+      recallTitles: { margin: '2px 0 0', fontSize: 11, color: 'var(--dsw-alias-text-secondary)' },
+  sub: { color: COLORS.dim, fontSize: 12, margin: '2px 0 12px' },
       button: {
         border: '1px solid ' + COLORS.border,
         background: 'transparent',
@@ -409,6 +412,9 @@ window.__ModuleLoader__.load({
                 ' · ' + t('capture') + '：' + captureLabel,
               ),
               h('p', { style: styles.sub }, t('lastRecallLabel') + '：' + lastRecallLabel(status.lastRecall)),
+              Array.isArray(status.lastRecall && status.lastRecall.titles) && status.lastRecall.titles.length
+                ? h('p', { style: styles.recallTitles }, t('lrTitles') + '：' + status.lastRecall.titles.join(' / '))
+                : null,
               h('p', { style: styles.sub }, t('judgeLabel') + '：' + judgeLabel(status.judge)),
               Array.isArray(status.warnings) && status.warnings.length
                 ? h(

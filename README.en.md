@@ -169,6 +169,7 @@ The optional switches above show the defaults shipped by the plugin patch (`cord
 ```bash
 npm test                      # 62 unit/integration cases
 node tests/acceptance.mjs     # 30 functional acceptance checks
+node tools/cross-host-demo.mjs  # cross-host API walkthrough (temp store)
 python3 tools/blind-eval.py   # blind recall evaluation over 40 frozen queries
 ```
 

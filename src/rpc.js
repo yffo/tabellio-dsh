@@ -26,6 +26,7 @@ function lastRecallView(last) {
     count: Number(last.count) || 0,
     judged: Boolean(last.judged),
     reason: last.reason === null || last.reason === undefined ? null : String(last.reason),
+    titles: Array.isArray(last.titles) ? last.titles.map(String).slice(0, 3) : [],
     receiptPath: last.receiptPath === null || last.receiptPath === undefined ? null : String(last.receiptPath),
   };
 }

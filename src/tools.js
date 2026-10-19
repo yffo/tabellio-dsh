@@ -46,13 +46,14 @@ const normalizeCandidateText = (content) => {
 export function createToolDefinitions({ settings, getStore, getLastRecall = () => null }) {
   const lastRecallView = () => {
     const last = getLastRecall?.();
-    if (!last || typeof last !== 'object') return { mode: 'none', at: 0, query: '', count: 0, reason: '' };
+    if (!last || typeof last !== 'object') return { mode: 'none', at: 0, query: '', count: 0, reason: '', titles: [] };
     return {
       mode: String(last.mode ?? 'none'),
       at: Number(last.at) || 0,
       query: String(last.query ?? '').slice(0, 60),
       count: Number(last.count) || 0,
       reason: String(last.reason ?? ''),
+      titles: Array.isArray(last.titles) ? last.titles.map(String).slice(0, 3) : [],
     };
   };
 
@@ -284,8 +285,9 @@ export function createToolDefinitions({ settings, getStore, getLastRecall = () =
                 query: { type: 'string' },
                 count: { type: 'integer' },
                 reason: { type: 'string' },
+                titles: { type: 'array', items: { type: 'string' } },
               },
-              required: ['mode', 'at', 'query', 'count', 'reason'],
+              required: ['mode', 'at', 'query', 'count', 'reason', 'titles'],
               additionalProperties: false,
             },
             message: { type: 'string' },

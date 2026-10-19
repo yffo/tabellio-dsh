@@ -250,7 +250,7 @@ test('status reports the last recall decision when the host provides it', async 
   registerTools(host.ctx, {
     settings: normalizeConfig({ storePath: dir }),
     getStore: () => store,
-    getLastRecall: () => ({ mode: 'shadow', at: 123, query: '项目代号是什么？', count: 2, reason: 'same_notes_as_last_time' }),
+    getLastRecall: () => ({ mode: 'shadow', at: 123, query: '项目代号是什么？', count: 2, reason: 'same_notes_as_last_time', titles: ['项目：青鸟计划'] }),
   });
   const inspected = await host.tools.find((tool) => tool.name === 'tabellio_status').execute({});
   assert.equal(inspected.last_recall.mode, 'shadow');
@@ -258,6 +258,7 @@ test('status reports the last recall decision when the host provides it', async 
   assert.equal(inspected.last_recall.count, 2);
   assert.equal(inspected.last_recall.reason, 'same_notes_as_last_time');
   assert.ok(inspected.last_recall.query.length <= 60);
+  assert.deepEqual(inspected.last_recall.titles, ['项目：青鸟计划']);
 });
 
 test('auto recall injects one budgeted notice per user message and dedupes', async (t) => {
