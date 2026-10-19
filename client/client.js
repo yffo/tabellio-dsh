@@ -277,16 +277,19 @@ window.__ModuleLoader__.load({
       const load = useCallback(async () => {
         setState((prev) => ({ ...prev, loading: true, error: null }));
         try {
-          const [nextStatus, inbox, listed, report] = await Promise.all([
+          const [nextStatus, inbox, listed] = await Promise.all([
             rpcCall('status', {}),
             rpcCall('inbox.list', {}),
             rpcCall('proposals.list', {}),
-            rpcCall('report', { days: 7, limit: 3 }),
           ]);
           setStatus(nextStatus);
           setItems(Array.isArray(inbox.items) ? inbox.items : []);
           setProposalList(Array.isArray(listed.items) ? listed.items : []);
-          setWeekly(report || null);
+          try {
+            setWeekly(await rpcCall('report', { days: 7, limit: 3 }) || null);
+          } catch {
+            setWeekly(null);
+          }
           setState((prev) => ({ ...prev, loading: false, error: null }));
         } catch (error) {
           setState((prev) => ({ ...prev, loading: false, error: error?.message ?? String(error) }));
