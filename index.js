@@ -21,6 +21,7 @@ import { createRpcHandler } from './src/rpc.js';
 import { mountPanelRoute } from './src/web-rpc.js';
 import { registerTools } from './src/tools.js';
 import { startConsolidationTimer } from './src/consolidate.js';
+import { appendAudit } from './src/audit.js';
 
 export const name = 'tabellio-dsh';
 
@@ -58,6 +59,19 @@ export function apply(ctx, config = {}) {
   // Process-local on purpose — it describes this session's latest decision, not
   // the store's durable history (receipts in runs/ cover that).
   let lastRecall = null;
+
+  // Every recall branch funnels through here: it records the outcome for the
+  // panel and appends one compact audit line so a user can later ask why a
+  // turn did or did not get memory. Auditing must never break the turn.
+  const recordRecall = (entry) => {
+    lastRecall = entry;
+    try {
+      appendAudit(currentStore(), entry);
+    } catch (error) {
+      ctx.logger?.debug?.('tabellio-dsh: recall audit skipped: ' + (error?.message ?? error));
+    }
+    return entry;
+  };
   const recallTitles = (value) => (Array.isArray(value?.items)
     ? value.items.slice(0, 3).map((item) => String(item.title ?? item.id ?? '').slice(0, 40)).filter(Boolean)
     : []);
@@ -434,7 +448,7 @@ export function apply(ctx, config = {}) {
           hits: Array.isArray(result?.items) ? result.items.map((item) => item.id) : [],
           receiptPath: result?.receiptPath ?? null,
         };
-        lastRecall = {
+        lastRecall = recordRecall({
           at: Date.now(),
           query,
           mode: 'shadow',
@@ -444,13 +458,13 @@ export function apply(ctx, config = {}) {
           titles: recallTitles(result),
           elapsedMs: Date.now() - recallStartedAt,
           receiptPath: result?.receiptPath ?? null,
-        };
+        });
         ctx.logger?.info?.('tabellio-dsh: shadow recall recorded (' + (result?.refused ? 'refused' : (result?.items?.length ?? 0) + ' hit(s)') + ')');
         return decision;
       }
 
       if (result?.refused || !Array.isArray(result?.items) || result.items.length === 0) {
-        lastRecall = {
+        lastRecall = recordRecall({
           at: Date.now(),
           query,
           mode: 'refused',
@@ -459,7 +473,7 @@ export function apply(ctx, config = {}) {
           reason: result?.reason ?? 'no_hits',
           titles: [],
           receiptPath: result?.receiptPath ?? null,
-        };
+        });
         return decision;
       }
 
@@ -472,7 +486,7 @@ export function apply(ctx, config = {}) {
         confidentRelevance: settings.recallConfidentRelevance,
       });
       if (!gateVerdict.allowed) {
-        lastRecall = {
+        lastRecall = recordRecall({
           at: Date.now(),
           query,
           mode: 'suppressed',
@@ -482,7 +496,7 @@ export function apply(ctx, config = {}) {
           titles: recallTitles(result),
           elapsedMs: Date.now() - recallStartedAt,
           receiptPath: result.receiptPath ?? null,
-        };
+        });
         ctx.logger?.debug?.('tabellio-dsh: recall suppressed (no memory intent): ' + query.slice(0, 60));
         return decision;
       }
@@ -518,7 +532,7 @@ export function apply(ctx, config = {}) {
             chars: judgeReply.length,
           };
         if (filtered.judged && filtered.items.length === 0) {
-          lastRecall = {
+          lastRecall = recordRecall({
             at: Date.now(),
             query,
             mode: 'judged_out',
@@ -527,7 +541,7 @@ export function apply(ctx, config = {}) {
             reason: 'llm_judge_kept_none',
             titles: [],
             receiptPath: result.receiptPath ?? null,
-          };
+          });
           return decision;
         }
         result.items = filtered.items;
@@ -542,7 +556,7 @@ export function apply(ctx, config = {}) {
         // conversation keeps no visible plugin message.
         latestRecallText = text;
         state.lastInjectedKey = key;
-        lastRecall = {
+        lastRecall = recordRecall({
           at: Date.now(),
           query,
           mode: 'context',
@@ -553,12 +567,12 @@ export function apply(ctx, config = {}) {
           titles: recallTitles(result),
           elapsedMs: Date.now() - recallStartedAt,
           receiptPath: result.receiptPath ?? null,
-        };
+        });
         return decision;
       }
 
       if (state.lastInjectedKey === key) {
-        lastRecall = {
+        lastRecall = recordRecall({
           at: Date.now(),
           query,
           mode: 'deduped',
@@ -568,11 +582,11 @@ export function apply(ctx, config = {}) {
           titles: recallTitles(result),
           elapsedMs: Date.now() - recallStartedAt,
           receiptPath: result.receiptPath ?? null,
-        };
+        });
         return decision;
       }
       state.lastInjectedKey = key;
-      lastRecall = {
+      lastRecall = recordRecall({
         at: Date.now(),
         query,
         mode: 'notice',
@@ -583,7 +597,7 @@ export function apply(ctx, config = {}) {
         titles: recallTitles(result),
         elapsedMs: Date.now() - recallStartedAt,
         receiptPath: result.receiptPath ?? null,
-      };
+      });
 
       return {
         ...decision,
@@ -603,7 +617,7 @@ export function apply(ctx, config = {}) {
       };
     } catch (error) {
       // Recall is best-effort: never break the turn.
-      lastRecall = {
+      lastRecall = recordRecall({
         at: Date.now(),
         query,
         mode: 'error',
@@ -612,7 +626,7 @@ export function apply(ctx, config = {}) {
         reason: error?.message ?? String(error),
         titles: [],
         receiptPath: null,
-      };
+      });
       ctx.logger?.warn?.('tabellio-dsh: recall failed: ' + (error?.message ?? error));
       return decision;
     }

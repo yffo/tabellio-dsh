@@ -139,7 +139,7 @@ dsh plugin --profile desktop add tabellio-dsh
 ### 架构
 
 - **核心 `tabellio`**：存储、索引、BM25 + 共现打分、写入闸门、回执、巩固。这个插件只做 DSH 适配，不复制核心逻辑。
-- **适配层 `tabellio-dsh`**：`agent/pre-step` 召回、`agent/turn-stopping` 捕获、7 个原生工具、设置面板（HTTP RPC，loopback + Origin 校验；状态/直接写记忆/候选与提案批准/搜索（点标题看全文）/上次召回/模型裁决/最近 7 天周报/全部笔记翻页（按类型/时间筛选）/后台巩固状态）。
+- **适配层 `tabellio-dsh`**：`agent/pre-step` 召回、`agent/turn-stopping` 捕获、7 个原生工具、设置面板（HTTP RPC，loopback + Origin 校验；状态/直接写记忆/候选与提案批准/搜索（点标题看全文）/上次召回/模型裁决/最近 7 天周报/全部笔记翻页（按类型/时间筛选）/召回回看/后台巩固状态）。
 - 换宿主时核心不动，只换适配层；库目录、写入闸门、召回口径三个入口共用，走查见 [docs/CROSS-HOST.md](docs/CROSS-HOST.md)。
 
 ### 工具

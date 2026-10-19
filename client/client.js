@@ -62,6 +62,16 @@ window.__ModuleLoader__.load({
       weeklyLabel: '最近 7 天',
       weeklyNone: '最近 7 天没有新记忆',
       weeklyMore: '另有 {n} 条',
+      auditTitle: '最近召回记录',
+      audShadow: '影子',
+      audNotice: '注入',
+      audContext: '静默注入',
+      audSuppressed: '意图闸拦下',
+      audRefused: '没命中',
+      audJudged: '裁决丢弃',
+      audDeduped: '与上次相同',
+      audError: '出错',
+      audUnknown: '其它',
       notesAll: '全部笔记',
       notesCount: '共 {n} 条，点标题可读全文',
       notesMore: '加载更早的笔记',
@@ -158,6 +168,16 @@ window.__ModuleLoader__.load({
       weeklyLabel: 'Last 7 days',
       weeklyNone: 'No new memories in the last 7 days',
       weeklyMore: '+{n} more',
+      auditTitle: 'Recent recalls',
+      audShadow: 'shadow',
+      audNotice: 'injected',
+      audContext: 'silent context',
+      audSuppressed: 'intent gate',
+      audRefused: 'no hit',
+      audJudged: 'judge dropped',
+      audDeduped: 'same as last',
+      audError: 'error',
+      audUnknown: 'other',
       notesAll: 'All notes',
       notesCount: '{n} notes - tap a title to read it',
       notesMore: 'Load older notes',
@@ -286,6 +306,7 @@ window.__ModuleLoader__.load({
       filters: { display: 'flex', gap: '8px', margin: '0 0 6px' },
       select: { fontSize: 12, padding: '3px 6px', borderRadius: 6, border: '1px solid #d4d4d8', background: '#fff', color: '#18181b' },
       weeklyItem: { overflowWrap: 'anywhere' },
+      auditMode: { color: '#1E3A5F', fontWeight: 600 },
       writeBox: { margin: '10px 0 4px' },
       textarea: {
         width: '100%',
@@ -323,6 +344,7 @@ window.__ModuleLoader__.load({
       const [items, setItems] = useState([]);
       const [proposalList, setProposalList] = useState([]);
       const [weekly, setWeekly] = useState(null);
+      const [audited, setAudited] = useState(null);
       const [older, setOlder] = useState({ items: [], total: 0, loading: false });
       const [filters, setFilters] = useState({ kind: '', days: 0 });
       const [note, setNote] = useState(null);
@@ -348,6 +370,12 @@ window.__ModuleLoader__.load({
             setWeekly(await rpcCall('report', { days: 7, limit: 3 }) || null);
           } catch {
             setWeekly(null);
+          }
+          try {
+            const rows = await rpcCall('audit', { limit: 20 });
+            setAudited({ items: Array.isArray(rows.items) ? rows.items : [], counts: rows.counts || {} });
+          } catch {
+            setAudited(null);
           }
           try {
             const page = await rpcCall('notes', { offset: 0, limit: 20 });
@@ -498,6 +526,15 @@ window.__ModuleLoader__.load({
         const hits = mode + ' · ' + t('lrHits').replace('{n}', String(last.count ?? 0)) + (last.elapsedMs ? ' · ' + last.elapsedMs + 'ms' : '');
         return time + ' · 「' + query + '」 · ' + hits + (last.judged ? ' · ' + t('judgedTag') : '');
       };
+      const auditModeLabel = (mode) => {
+        const map = {
+          shadow: 'audShadow', notice: 'audNotice', context: 'audContext',
+          suppressed: 'audSuppressed', refused: 'audRefused', judged_out: 'audJudged',
+          deduped: 'audDeduped', error: 'audError',
+        };
+        return t(map[mode] || 'audUnknown');
+      };
+
       const consolidateLabel = (info) => {
         if (!info || info.mode === 'off') return t('consOff');
         const cadence = info.mode === 'weekly' ? t('consWeekly') : t('consDaily');
@@ -580,6 +617,17 @@ window.__ModuleLoader__.load({
                 ? h('div', { style: styles.firstRun }, t('firstRun'))
                 : null,
               h('p', { style: styles.sub }, t('lastRecallLabel') + '：' + lastRecallLabel(status.lastRecall)),
+              audited && Array.isArray(audited.items) && audited.items.length
+                ? h('div', null,
+                  h('p', { style: styles.sub }, t('auditTitle')),
+                  h('ul', { style: styles.weeklyList },
+                    audited.items.slice(0, 8).map((entry, index) => h('li', { key: String(index), style: styles.weeklyItem },
+                      h('span', { style: styles.auditMode }, auditModeLabel(entry.mode)),
+                      ' · ',
+                      String(entry.query || '—'),
+                      entry.reason ? ' · ' + String(entry.reason) : '',
+                    ))))
+                : null,
               Array.isArray(status.lastRecall && status.lastRecall.titles) && status.lastRecall.titles.length
                 ? h('p', { style: styles.recallTitles }, t('lrTitles') + '：' + status.lastRecall.titles.join(' / '))
                 : null,

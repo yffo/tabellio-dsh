@@ -5,6 +5,7 @@
 import { listCandidates, listProposals, read, remember, reviewCandidates, reviewProposals, search, status } from 'tabellio';
 import { buildNotesPage, buildReport } from './report.js';
 import { readLastRun } from './consolidate.js';
+import { auditCounts, readAudit } from './audit.js';
 
 export const RPC_CHANNEL = '/tabellio-dsh';
 export const MAX_REVIEW_IDS = 50;
@@ -134,6 +135,11 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
             typeof getLastRecall === 'function' ? getLastRecall() : null,
             typeof getJudgeState === 'function' ? getJudgeState() : null,
           ));
+        case 'audit': {
+          const limit = Math.max(5, Math.min(100, Number(payload?.limit) || 20));
+          const items = readAudit(store, { limit });
+          return ok({ items, counts: auditCounts(items), window: limit });
+        }
         case 'inbox.list': {
           const listed = listCandidates(store);
           if (listed?.ok === false) return fail('internal', String(listed.reason ?? 'list failed'));
