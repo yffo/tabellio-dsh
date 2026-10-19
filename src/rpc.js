@@ -244,11 +244,16 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
           const offset = Number.isFinite(rawOffset) ? Math.max(0, Math.trunc(rawOffset)) : 0;
           const rawLimit = Number(payload?.limit);
           const limit = Number.isFinite(rawLimit) ? Math.min(MAX_NOTES_LIMIT, Math.max(5, Math.trunc(rawLimit))) : 20;
-          const page = buildNotesPage(store, { offset, limit });
+          const kind = typeof payload?.kind === 'string' ? payload.kind.trim().slice(0, 40) : '';
+          const rawDays = Number(payload?.days);
+          const days = Number.isFinite(rawDays) ? Math.min(3650, Math.max(0, Math.trunc(rawDays))) : 0;
+          const page = buildNotesPage(store, { offset, limit, kind, days });
           return ok({
             total: page.total,
             offset: page.offset,
             limit: page.limit,
+            kind: page.kind,
+            days: page.days,
             items: page.items.map((note) => ({
               id: String(note.id),
               title: String(note.title),

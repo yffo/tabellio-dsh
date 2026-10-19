@@ -105,3 +105,29 @@ test('notes page reads frontmatter and paginates by valid_from desc', (t) => {
   const next = buildNotesPage(store, { offset: 2, limit: 2 });
   assert.deepEqual(next.items.map((n) => n.id), ['p1']);
 });
+
+test('notes page filters by kind and by days', (t) => {
+  const dir = temp(t);
+  mkdirSync(join(dir, 'notes'), { recursive: true });
+  const write = (id, kind, iso, title) => {
+    writeFileSync(
+      join(dir, 'notes', `${id}.md`),
+      `---\nkind: ${kind}\nvalid_from: ${iso}\n---\n# ${title}\n\n正文。\n`,
+    );
+  };
+  write('s1', 'semantic', '2026-10-18T00:00:00.000Z', '语义笔记');
+  write('p1', 'procedural', '2026-10-18T00:00:00.000Z', '流程笔记');
+  write('s2', 'semantic', '2026-09-01T00:00:00.000Z', '上个月的语义笔记');
+
+  const store = { store: dir };
+  const now = Date.parse('2026-10-19T00:00:00.000Z');
+  const procedural = buildNotesPage(store, { kind: 'procedural', now });
+  assert.deepEqual(procedural.items.map((n) => n.id), ['p1']);
+  assert.equal(procedural.total, 1);
+
+  const recent = buildNotesPage(store, { days: 7, now });
+  assert.deepEqual(recent.items.map((n) => n.id).sort(), ['p1', 's1']);
+
+  const both = buildNotesPage(store, { kind: 'semantic', days: 7, now });
+  assert.deepEqual(both.items.map((n) => n.id), ['s1']);
+});

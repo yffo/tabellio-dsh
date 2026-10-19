@@ -66,6 +66,13 @@ window.__ModuleLoader__.load({
       notesCount: '共 {n} 条，点标题可读全文',
       notesMore: '加载更早的笔记',
       notesLoading: '加载中…',
+      filterAllKinds: '全部类型',
+      filterSemantic: '语义记忆',
+      filterProcedural: '流程记忆',
+      filterAllTime: '全部时间',
+      filter7: '最近 7 天',
+      filter30: '最近 30 天',
+      filter90: '最近 90 天',
       closeNote: '收起',
       addLabel: '直接存一条记忆',
       addPlaceholder: '比如：以后发版都用 tag 加 CI，不走手动上传。',
@@ -149,6 +156,13 @@ window.__ModuleLoader__.load({
       notesCount: '{n} notes - tap a title to read it',
       notesMore: 'Load older notes',
       notesLoading: 'Loading...',
+      filterAllKinds: 'All kinds',
+      filterSemantic: 'Semantic',
+      filterProcedural: 'Procedural',
+      filterAllTime: 'All time',
+      filter7: 'Last 7 days',
+      filter30: 'Last 30 days',
+      filter90: 'Last 90 days',
       closeNote: 'Close',
       addLabel: 'Save a memory',
       addPlaceholder: 'e.g. Releases always go through tags and CI, never manual uploads.',
@@ -263,6 +277,8 @@ window.__ModuleLoader__.load({
       hitTitle: { overflowWrap: 'anywhere' },
       hitScore: { color: COLORS.dim, flexShrink: 0, fontVariantNumeric: 'tabular-nums' },
       weeklyList: { margin: '2px 0 6px', paddingLeft: 18, fontSize: 13, lineHeight: 1.6 },
+      filters: { display: 'flex', gap: '8px', margin: '0 0 6px' },
+      select: { fontSize: 12, padding: '3px 6px', borderRadius: 6, border: '1px solid #d4d4d8', background: '#fff', color: '#18181b' },
       weeklyItem: { overflowWrap: 'anywhere' },
       writeBox: { margin: '10px 0 4px' },
       textarea: {
@@ -302,6 +318,7 @@ window.__ModuleLoader__.load({
       const [proposalList, setProposalList] = useState([]);
       const [weekly, setWeekly] = useState(null);
       const [older, setOlder] = useState({ items: [], total: 0, loading: false });
+      const [filters, setFilters] = useState({ kind: '', days: 0 });
       const [note, setNote] = useState(null);
       const [draft, setDraft] = useState('');
       const [saving, setSaving] = useState(false);
@@ -387,10 +404,23 @@ window.__ModuleLoader__.load({
         [rpcCall],
       );
 
+      const applyFilters = useCallback(async (patch) => {
+        const next = { ...filters, ...patch };
+        setFilters(next);
+        setOlder({ items: [], total: 0, loading: true });
+        try {
+          const page = await rpcCall('notes', { offset: 0, limit: 20, ...next });
+          setOlder({ items: Array.isArray(page.items) ? page.items : [], total: Number(page.total) || 0, loading: false });
+        } catch (error) {
+          setState((prev) => ({ ...prev, error: error?.message ?? String(error) }));
+          setOlder({ items: [], total: 0, loading: false });
+        }
+      }, [filters, rpcCall]);
+
       const loadOlder = useCallback(async () => {
         setOlder((prev) => (prev.loading ? prev : { ...prev, loading: true }));
         try {
-          const page = await rpcCall('notes', { offset: older.items.length, limit: 20 });
+          const page = await rpcCall('notes', { offset: older.items.length, limit: 20, ...filters });
           setOlder((prev) => ({
             items: prev.items.concat(Array.isArray(page.items) ? page.items : []),
             total: Number(page.total) || prev.total,
@@ -400,7 +430,7 @@ window.__ModuleLoader__.load({
           setState((prev) => ({ ...prev, error: error?.message ?? String(error) }));
           setOlder((prev) => ({ ...prev, loading: false }));
         }
-      }, [older.items.length, rpcCall]);
+      }, [older.items.length, filters, rpcCall]);
 
       const review = useCallback(
         async (action, ids) => {
@@ -563,6 +593,33 @@ window.__ModuleLoader__.load({
                     'div',
                     null,
                     h('p', { style: styles.sub }, t('notesAll') + '：' + t('notesCount').replace('{n}', String(older.total))),
+                    h(
+                      'div',
+                      { style: styles.filters },
+                      h(
+                        'select',
+                        {
+                          style: styles.select,
+                          value: filters.kind,
+                          onChange: (event) => applyFilters({ kind: event.target.value }),
+                        },
+                        h('option', { value: '' }, t('filterAllKinds')),
+                        h('option', { value: 'semantic' }, t('filterSemantic')),
+                        h('option', { value: 'procedural' }, t('filterProcedural')),
+                      ),
+                      h(
+                        'select',
+                        {
+                          style: styles.select,
+                          value: String(filters.days),
+                          onChange: (event) => applyFilters({ days: Number(event.target.value) }),
+                        },
+                        h('option', { value: '0' }, t('filterAllTime')),
+                        h('option', { value: '7' }, t('filter7')),
+                        h('option', { value: '30' }, t('filter30')),
+                        h('option', { value: '90' }, t('filter90')),
+                      ),
+                    ),
                     h(
                       'ul',
                       { style: styles.weeklyList },

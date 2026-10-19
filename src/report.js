@@ -51,13 +51,23 @@ function collectNotes(store) {
 }
 
 // 全部笔记的分页视图：面板里不必先搜索也能翻到更早的记忆。
-export function buildNotesPage(store, { offset = 0, limit = 20 } = {}) {
-  const notes = collectNotes(store);
+export function buildNotesPage(store, { offset = 0, limit = 20, kind = '', days = 0, now = Date.now() } = {}) {
+  let notes = collectNotes(store);
+  if (kind) notes = notes.filter((note) => note.kind === kind);
+  if (Number.isFinite(days) && days > 0) {
+    const since = now - days * DAY_MS;
+    notes = notes.filter((note) => {
+      const when = note.valid_from ? Date.parse(note.valid_from) : NaN;
+      return Number.isFinite(when) && when >= since;
+    });
+  }
   const start = Math.max(0, offset);
   return {
     total: notes.length,
     offset: start,
     limit,
+    kind,
+    days,
     items: notes.slice(start, start + Math.max(1, limit)),
   };
 }

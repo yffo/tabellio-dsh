@@ -228,6 +228,26 @@ test('notes pages through the whole store for the panel', async (t) => {
   assert.deepEqual(past.value.items, []);
 });
 
+test('notes echoes and clamps its kind and day filters', async (t) => {
+  const { dir, store } = await tempStore(t);
+  remember(store, { content: '面板筛选测试笔记：项目代号是青鸟计划。' }, { writtenBy: 'test' });
+  const handler = handlerFor(dir, store);
+
+  const filtered = await handler('notes', { kind: 'procedural', days: 30 });
+  assert.equal(filtered.ok, true);
+  assert.equal(filtered.value.kind, 'procedural');
+  assert.equal(filtered.value.days, 30);
+  assert.equal(filtered.value.total, 0);
+
+  const clamped = await handler('notes', { days: 9999 });
+  assert.equal(clamped.value.days, 3650);
+  const negative = await handler('notes', { days: -5 });
+  assert.equal(negative.value.days, 0);
+
+  const semantic = await handler('notes', { kind: 'semantic' });
+  assert.equal(semantic.value.total, 1);
+});
+
 test('read returns note content for the panel viewer and rejects bad ids', async (t) => {
   const { dir, store } = await tempStore(t);
   const written = remember(store, { content: '面板查看测试笔记：项目代号是青鸟计划。' }, { writtenBy: 'test' });
