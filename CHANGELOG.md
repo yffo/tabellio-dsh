@@ -1,8 +1,14 @@
 # Changelog
 
+## 0.1.6 (2026-10-19)
+
+- 「上次召回」补 `elapsedMs`（面板与 `last_recall` 都能看到召回耗时），慢库更容易被发现。
+- 新增英文跨宿主说明 `docs/CROSS-HOST.en.md`（与中文版逐节对应）。
+- 62 个单元/集成测试。
+
 ## 0.1.5 (2026-10-19)
 
-- 每轮记忆可见性：`last_recall` 增加 `titles`（本轮实际用到的记忆标题，最多 3 条），`tabellio_status`、面板「上次召回」都能直接看到「上一轮到底用了哪几条」。
+- 每轮记忆可见性（0.1.5）：`last_recall` 增加 `titles`（本轮实际用到的记忆标题，最多 3 条），`tabellio_status`、面板「上次召回」都能直接看到「上一轮到底用了哪几条」。
 - 新增跨宿主说明 `docs/CROSS-HOST.md` 与 `tools/cross-host-demo.mjs`：一个 Markdown 库，DSH 插件 / CLI / MCP 三个入口共用，含三分钟走查与能力对等的离线验证脚本。
 - 62 个单元/集成测试。
 

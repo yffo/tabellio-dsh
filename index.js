@@ -379,6 +379,7 @@ export function apply(ctx, config = {}) {
     if (!query || [...query].length < settings.minQueryChars || isChitchat(query)) return decision;
 
     try {
+      const recallStartedAt = Date.now();
       const result = recallQuery(currentStore(), query, {
         // Leave a little room for the wrapper and titles.
         budgetTokens: Math.max(100, settings.recallBudgetTokens - 64),
@@ -409,6 +410,7 @@ export function apply(ctx, config = {}) {
           count: Array.isArray(result?.items) ? result.items.length : 0,
           reason: result?.reason ?? null,
           titles: recallTitles(result),
+          elapsedMs: Date.now() - recallStartedAt,
           receiptPath: result?.receiptPath ?? null,
         };
         ctx.logger?.info?.('tabellio-dsh: shadow recall recorded (' + (result?.refused ? 'refused' : (result?.items?.length ?? 0) + ' hit(s)') + ')');
@@ -446,6 +448,7 @@ export function apply(ctx, config = {}) {
           count: result.items.length,
           reason: gateVerdict.reason ?? 'no_memory_intent',
           titles: recallTitles(result),
+          elapsedMs: Date.now() - recallStartedAt,
           receiptPath: result.receiptPath ?? null,
         };
         ctx.logger?.debug?.('tabellio-dsh: recall suppressed (no memory intent): ' + query.slice(0, 60));
@@ -516,6 +519,7 @@ export function apply(ctx, config = {}) {
           reason: judged ? 'llm_judge' : null,
           judged,
           titles: recallTitles(result),
+          elapsedMs: Date.now() - recallStartedAt,
           receiptPath: result.receiptPath ?? null,
         };
         return decision;
@@ -530,6 +534,7 @@ export function apply(ctx, config = {}) {
           count: result.items.length,
           reason: 'same_notes_as_last_time',
           titles: recallTitles(result),
+          elapsedMs: Date.now() - recallStartedAt,
           receiptPath: result.receiptPath ?? null,
         };
         return decision;
@@ -544,6 +549,7 @@ export function apply(ctx, config = {}) {
         reason: judged ? 'llm_judge' : null,
         judged,
         titles: recallTitles(result),
+        elapsedMs: Date.now() - recallStartedAt,
         receiptPath: result.receiptPath ?? null,
       };
 
