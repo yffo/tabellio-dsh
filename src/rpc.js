@@ -4,6 +4,7 @@
 // same approval gate the `tabellio inbox` CLI uses.
 import { listCandidates, listProposals, read, remember, reviewCandidates, reviewProposals, search, status } from 'tabellio';
 import { buildNotesPage, buildReport } from './report.js';
+import { readLastRun } from './consolidate.js';
 
 export const RPC_CHANNEL = '/tabellio-dsh';
 export const MAX_REVIEW_IDS = 50;
@@ -73,6 +74,10 @@ function statusView(settings, store, lastRecall, judgeState) {
     delivery: settings.shadow ? 'shadow' : settings.delivery,
     lastRecall: lastRecallView(lastRecall),
     judge: judgeView(judgeState),
+    consolidate: {
+      mode: settings.consolidate ?? 'off',
+      lastRun: readLastRun(store),
+    },
   };
 }
 

@@ -82,6 +82,12 @@ window.__ModuleLoader__.load({
       lrTitles: '用到的记忆',
       judgedTag: '已裁决',
       judgeLabel: '模型裁决',
+      consolidateLabel: '后台巩固',
+      consDaily: '每日',
+      consWeekly: '每周',
+      consOff: '关闭',
+      consNever: '还没跑过',
+      consLast: '上次 {when}',
       judgeOff: '关闭',
       judgeReady: '已启用',
       judgeNoSelection: '未拿到默认模型',
@@ -492,6 +498,14 @@ window.__ModuleLoader__.load({
         const hits = mode + ' · ' + t('lrHits').replace('{n}', String(last.count ?? 0)) + (last.elapsedMs ? ' · ' + last.elapsedMs + 'ms' : '');
         return time + ' · 「' + query + '」 · ' + hits + (last.judged ? ' · ' + t('judgedTag') : '');
       };
+      const consolidateLabel = (info) => {
+        if (!info || info.mode === 'off') return t('consOff');
+        const cadence = info.mode === 'weekly' ? t('consWeekly') : t('consDaily');
+        if (!info.lastRun) return cadence + ' · ' + t('consNever');
+        const when = new Date(Number(info.lastRun)).toLocaleString();
+        return cadence + ' · ' + t('consLast').replace('{when}', when);
+      };
+
       const judgeLabel = (judge) => {
         if (!judge || judge.mode !== 'llm') return t('judgeOff');
         const last = judge.last || {};
@@ -570,6 +584,7 @@ window.__ModuleLoader__.load({
                 ? h('p', { style: styles.recallTitles }, t('lrTitles') + '：' + status.lastRecall.titles.join(' / '))
                 : null,
               h('p', { style: styles.sub }, t('judgeLabel') + '：' + judgeLabel(status.judge)),
+              h('p', { style: styles.sub }, t('consolidateLabel') + '：' + consolidateLabel(status.consolidate)),
               weekly
                 ? h(
                     'div',

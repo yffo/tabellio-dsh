@@ -40,6 +40,8 @@ test('status reports counts and the current delivery mode', async (t) => {
   assert.equal(result.value.delivery, 'shadow');
   assert.equal(result.value.capture, 'assist');
   assert.equal(result.value.judge.mode, 'off');
+  assert.equal(result.value.consolidate.mode, 'off');
+  assert.equal(result.value.consolidate.lastRun, 0);
 });
 
 test('inbox.list returns candidate views and inbox.review approves them', async (t) => {

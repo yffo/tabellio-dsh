@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2 (2026-10-19)
+
+- 面板状态区新增「后台巩固」：显示每日/每周节奏与上次运行时间（`status.consolidate`），让定时任务可见。
+- 80 个测试 + 30 条验收。
+
 ## 0.4.1 (2026-10-19)
 
 - 新增后台巩固 `consolidate: off|daily|weekly`：到期后在空闲时扫近似重复笔记、写合并提案（最多 3 条/次），不自动合并；状态存 `runs/consolidate-state.json`，失败只 warn。
