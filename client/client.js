@@ -46,6 +46,12 @@ window.__ModuleLoader__.load({
       settingsJudgeLlm: '开启（用小模型裁决）',
       settingsJudgeModel: '裁决模型',
       settingsJudgeDefault: '留空 = 跟随 DSH 当前默认模型',
+      settingsCapture: '自动捕获',
+      settingsDelivery: '记忆怎么给你',
+      settingsDeliveryContext: '静默写上（不占对话）',
+      settingsDeliveryNotice: '作为一条提示消息',
+      settingsMaxNotes: '每轮最多给几条记忆',
+      settingsSourceHint: '还有召回阈值、预算等进阶项：需要时改配置的 recallMin*/recallBudgetTokens。',
       settingsSave: '保存设置',
       settingsSaved: '设置已保存并生效。',
       approveAll: '全部批准',
@@ -498,6 +504,9 @@ window.__ModuleLoader__.load({
               judgeModel: view.judge?.model || '',
               judgeProvider: view.judge?.provider || '',
               consolidate: view.consolidate?.mode || 'off',
+              capture: view.capture?.mode || 'off',
+              delivery: view.delivery?.mode || 'context',
+              recallMaxNotes: String(view.recallMaxNotes || 6),
             });
           } catch {
             setSettingsView(null);
@@ -635,7 +644,7 @@ window.__ModuleLoader__.load({
         if (!settingsDraft) return;
         setSettingsSaving(true);
         try {
-          const view = await rpcCall('settings.set', settingsDraft);
+          const view = await rpcCall('settings.set', { ...settingsDraft, recallMaxNotes: Number(settingsDraft.recallMaxNotes) || 6 });
           setSettingsView(view);
           setState((prev) => ({ ...prev, notice: t('settingsSaved'), error: null }));
           await load();
@@ -981,6 +990,26 @@ window.__ModuleLoader__.load({
                   )
                 : null,
               h('div', { style: styles.formRow },
+                h('label', { style: styles.formLabel }, t('settingsCapture')),
+                h('select', { style: styles.select, value: settingsDraft.capture, onChange: setField('capture') },
+                  h('option', { value: 'off' }, t('capOff')),
+                  h('option', { value: 'explicit' }, t('capExplicit')),
+                  h('option', { value: 'implicit' }, t('capImplicit')),
+                  h('option', { value: 'assist' }, t('capAssist')),
+                ),
+              ),
+              h('div', { style: styles.formRow },
+                h('label', { style: styles.formLabel }, t('settingsDelivery')),
+                h('select', { style: styles.select, value: settingsDraft.delivery, onChange: setField('delivery') },
+                  h('option', { value: 'context' }, t('settingsDeliveryContext')),
+                  h('option', { value: 'notice' }, t('settingsDeliveryNotice')),
+                ),
+              ),
+              h('div', { style: styles.formRow },
+                h('label', { style: styles.formLabel }, t('settingsMaxNotes')),
+                h('input', { style: styles.input, type: 'number', min: 1, max: 20, value: settingsDraft.recallMaxNotes, onChange: setField('recallMaxNotes') }),
+              ),
+              h('div', { style: styles.formRow },
                 h('label', { style: styles.formLabel }, t('consolidateLabel')),
                 h('select', { style: styles.select, value: settingsDraft.consolidate, onChange: setField('consolidate') },
                   h('option', { value: 'off' }, t('consOff')),
@@ -992,6 +1021,7 @@ window.__ModuleLoader__.load({
                 h('button', { type: 'button', style: styles.primary, disabled: settingsSaving, onClick: savePanelSettings },
                   settingsSaving ? t('addSaving') : t('settingsSave')),
               ),
+              h('p', { style: styles.hint }, t('settingsSourceHint')),
             ),
           )
         : null;
@@ -1185,6 +1215,105 @@ window.__ModuleLoader__.load({
       );
     }
 
+    const indicatorStyles = {
+      chip: {
+        display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px',
+        borderRadius: '999px', border: '1px solid var(--dsh-border, #e5e1d8)',
+        background: 'transparent', color: 'inherit', fontSize: '12px', cursor: 'pointer',
+      },
+      dot: { width: '7px', height: '7px', borderRadius: '50%', background: '#E4572E', display: 'inline-block' },
+      wrap: { position: 'relative', display: 'inline-flex' },
+      backdrop: { position: 'fixed', inset: 0, zIndex: 40 },
+      pop: {
+        position: 'absolute', right: 0, top: '30px', zIndex: 41, width: '300px',
+        border: '1px solid var(--dsh-border, #e5e1d8)', borderRadius: '10px',
+        background: 'var(--dsh-surface, #fff)', boxShadow: '0 8px 24px rgba(0,0,0,.12)', padding: '10px',
+      },
+      popTitle: { fontSize: '12px', fontWeight: 600, marginBottom: '6px' },
+      row: { borderTop: '1px solid var(--dsh-border-soft, #f0ece2)', padding: '8px 0', fontSize: '13px' },
+      rowTitle: { marginBottom: '4px', lineHeight: 1.4 },
+      small: { fontSize: '12px', color: 'var(--dsh-muted, #8a8478)', padding: '4px 0' },
+      rowActions: { display: 'flex', gap: '6px' },
+    };
+
+    /** Header chip: pending memories are visible at the top of the session. */
+    function MemoryIndicator({ rpcCall, t }) {
+      const [open, setOpen] = React.useState(false);
+      const [counts, setCounts] = React.useState({ candidates: 0, proposals: 0 });
+      const [items, setItems] = React.useState([]);
+      const [busyId, setBusyId] = React.useState('');
+      const [error, setError] = React.useState('');
+
+      const refresh = React.useCallback(async () => {
+        try {
+          const status = await rpcCall('status', {});
+          setCounts({ candidates: Number(status.candidates) || 0, proposals: Number(status.proposals) || 0 });
+        } catch {
+          // The chip is decoration: a failed poll never surfaces an error.
+        }
+      }, [rpcCall]);
+
+      React.useEffect(() => {
+        refresh();
+        const timer = setInterval(refresh, 30000);
+        return () => clearInterval(timer);
+      }, [refresh]);
+
+      const loadPending = React.useCallback(async () => {
+        setError('');
+        try {
+          const inbox = await rpcCall('inbox.list', {});
+          setItems(Array.isArray(inbox.items) ? inbox.items : []);
+        } catch (cause) {
+          setError(String(cause?.message ?? cause));
+        }
+      }, [rpcCall]);
+
+      const toggle = () => {
+        const next = !open;
+        setOpen(next);
+        if (next) loadPending();
+      };
+
+      const review = async (id, action) => {
+        setBusyId(id);
+        try {
+          await rpcCall('inbox.review', { action, ids: [id] });
+          await Promise.all([loadPending(), refresh()]);
+        } catch (cause) {
+          setError(String(cause?.message ?? cause));
+        } finally {
+          setBusyId('');
+        }
+      };
+
+      const total = counts.candidates + counts.proposals;
+      return h('div', { style: indicatorStyles.wrap },
+        h('button', { type: 'button', style: indicatorStyles.chip, onClick: toggle, title: t('memChipTitle') },
+          total > 0 ? h('span', { style: indicatorStyles.dot }) : null,
+          t('memChipLabel'),
+          total > 0 ? ' ' + total : '',
+        ),
+        open ? h('div', { style: indicatorStyles.backdrop, onClick: () => setOpen(false) }) : null,
+        open ? h('div', { style: indicatorStyles.pop },
+          h('div', { style: indicatorStyles.popTitle }, t('memChipTitle')),
+          error ? h('div', { style: styles.error }, error) : null,
+          items.length === 0
+            ? h('div', { style: indicatorStyles.small }, t('memChipEmpty'))
+            : items.slice(0, 5).map((item) => h('div', { key: item.id, style: indicatorStyles.row },
+                h('div', { style: indicatorStyles.rowTitle }, item.title),
+                h('div', { style: indicatorStyles.small }, item.source || ''),
+                h('div', { style: indicatorStyles.rowActions },
+                  h('button', { type: 'button', style: styles.primary, disabled: busyId === item.id, onClick: () => review(item.id, 'accept') }, t('memApprove')),
+                  h('button', { type: 'button', style: styles.button, disabled: busyId === item.id, onClick: () => review(item.id, 'reject') }, t('memIgnore')),
+                ),
+              )),
+          items.length > 5 ? h('div', { style: indicatorStyles.small }, t('memChipMore').replace('{n}', String(items.length - 5))) : null,
+          h('div', { style: indicatorStyles.small }, t('memChipSettings')),
+        ) : null,
+      );
+    }
+
     function apply(ctx) {
       const rpcCall = (endpoint, payload, signal) =>
         ctx.connection.rpc.call(RPC_CHANNEL, endpoint, payload, signal).then((result) => {
@@ -1195,6 +1324,17 @@ window.__ModuleLoader__.load({
         });
       const translate = ctx.locale.bind(NS);
       ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'tabellio-dsh: locale dictionaries');
+      ctx.slots.inject('conversation.session.header.utilities', () =>
+        ctx.slots.register(
+          {
+            name: 'conversation.session.header.utilities',
+            id: 'tabellio-dsh.memory-indicator',
+            order: 30,
+            inject: () => ({ rpcCall, t: translate }),
+          },
+          MemoryIndicator,
+        ),
+      );
       ctx.slots.inject('settings.section', () =>
         ctx.slots.register(
           {
@@ -1209,6 +1349,6 @@ window.__ModuleLoader__.load({
       );
     }
 
-    return { name, inject, apply, MemoryPanel };
+    return { name, inject, apply, MemoryPanel, MemoryIndicator };
   },
 });

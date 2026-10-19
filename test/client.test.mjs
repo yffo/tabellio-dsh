@@ -32,7 +32,7 @@ async function loadBundle() {
 }
 
 function fakeContext(callImpl) {
-  const registered = {};
+  const registered = { registrations: [] };
   const ctx = {
     connection: { rpc: { call: callImpl } },
     locale: {
@@ -50,6 +50,7 @@ function fakeContext(callImpl) {
       },
       register: (meta, component) => {
         registered.slot = { meta, component };
+        registered.registrations.push({ meta, component });
         return () => {};
       },
     },
@@ -67,10 +68,16 @@ test('client bundle registers the memory settings section', async () => {
   assert.equal(typeof exports.apply, 'function');
   assert.deepEqual(exports.inject, ['slots', 'connection', 'locale']);
   assert.equal(typeof exports.MemoryPanel, 'function');
+  assert.equal(typeof exports.MemoryIndicator, 'function');
 
   const { ctx, registered } = fakeContext(async () => ({ ok: true, value: {} }));
   exports.apply(ctx);
 
+  assert.equal(registered.registrations.length, 2);
+  const indicator = registered.registrations[0];
+  assert.equal(indicator.meta.name, 'conversation.session.header.utilities');
+  assert.equal(indicator.meta.id, 'tabellio-dsh.memory-indicator');
+  assert.equal(indicator.component, exports.MemoryIndicator);
   assert.equal(registered.injectName, 'settings.section');
   assert.equal(registered.slot.meta.name, 'settings.section');
   assert.equal(registered.slot.meta.id, 'tabellio-dsh');

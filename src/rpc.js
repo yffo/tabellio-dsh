@@ -170,6 +170,15 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
           if (patch.consolidate !== undefined && !['off', 'daily', 'weekly'].includes(patch.consolidate)) {
             return fail('bad-request', 'consolidate must be "off", "daily" or "weekly"');
           }
+          if (patch.capture !== undefined && !['off', 'explicit', 'implicit', 'assist'].includes(patch.capture)) {
+            return fail('bad-request', 'capture must be "off", "explicit", "implicit" or "assist"');
+          }
+          if (patch.delivery !== undefined && !['notice', 'context'].includes(patch.delivery)) {
+            return fail('bad-request', 'delivery must be "notice" or "context"');
+          }
+          if (patch.recallMaxNotes !== undefined && (!Number.isInteger(patch.recallMaxNotes) || patch.recallMaxNotes < 1 || patch.recallMaxNotes > 20)) {
+            return fail('bad-request', 'recallMaxNotes must be an integer between 1 and 20');
+          }
           if (patch.semanticEndpoint !== undefined && typeof patch.semanticEndpoint !== 'string') {
             return fail('bad-request', 'semanticEndpoint must be a string');
           }

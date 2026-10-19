@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const SETTINGS_FILE = 'panel-settings.json';
-export const SETTING_KEYS = ['semantic', 'semanticEndpoint', 'semanticModel', 'judge', 'judgeModel', 'judgeProvider', 'consolidate'];
+export const SETTING_KEYS = ['semantic', 'semanticEndpoint', 'semanticModel', 'judge', 'judgeModel', 'judgeProvider', 'consolidate', 'capture', 'delivery', 'recallMaxNotes'];
 
 const str = (value, max) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
 
@@ -22,6 +22,9 @@ export function pickPanelSettings(raw) {
   if (typeof raw.semanticModel === 'string') out.semanticModel = str(raw.semanticModel, 120);
   if (typeof raw.judgeModel === 'string') out.judgeModel = str(raw.judgeModel, 120);
   if (typeof raw.judgeProvider === 'string') out.judgeProvider = str(raw.judgeProvider, 80);
+  if (['off', 'explicit', 'implicit', 'assist'].includes(raw.capture)) out.capture = raw.capture;
+  if (raw.delivery === 'notice' || raw.delivery === 'context') out.delivery = raw.delivery;
+  if (Number.isInteger(raw.recallMaxNotes) && raw.recallMaxNotes >= 1 && raw.recallMaxNotes <= 20) out.recallMaxNotes = raw.recallMaxNotes;
   return out;
 }
 
@@ -48,5 +51,8 @@ export function panelSettingsView(settings) {
     semantic: { mode: settings.semantic === 'local' ? 'local' : 'off', endpoint: settings.semanticEndpoint, model: settings.semanticModel },
     judge: { mode: settings.judge === 'llm' ? 'llm' : 'off', provider: settings.judgeProvider, model: settings.judgeModel },
     consolidate: { mode: settings.consolidate },
+    capture: { mode: settings.capture },
+    delivery: { mode: settings.delivery },
+    recallMaxNotes: settings.recallMaxNotes,
   };
 }

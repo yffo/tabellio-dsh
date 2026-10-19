@@ -170,7 +170,10 @@ export function apply(ctx, config = {}) {
       return '';
     }
   };
-  if (settings.autoRecall && settings.delivery === 'context') {
+  let quietContextMounted = false;
+  const mountQuietContext = () => {
+    if (quietContextMounted) return;
+    quietContextMounted = true;
     const registerQuietContext = (promptCtx) => {
       try {
         // Read the service as a property when this context declares it; older
@@ -180,6 +183,7 @@ export function apply(ctx, config = {}) {
           name: 'tabellio.recall',
           order: 800,
           text: () => {
+            if (settings.delivery !== 'context' || settings.shadow) return '';
             const recall = latestRecallText;
             const notice = candidateNotice();
             if (!recall) return notice;
@@ -206,7 +210,8 @@ export function apply(ctx, config = {}) {
     } else {
       registerQuietContext(ctx);
     }
-  }
+  };
+  if (settings.autoRecall && settings.delivery === 'context') mountQuietContext();
 
   /** Per-agent state: dedupe is per conversation, not global. */
   const states = new Map();
@@ -487,6 +492,7 @@ export function apply(ctx, config = {}) {
     judgeState.mode = settings.judge;
     if (['semantic', 'semanticEndpoint', 'semanticModel'].some((key) => key in next)) startSemanticIndexer();
     if ('consolidate' in next) startConsolidation();
+    if (next.delivery === 'context' && settings.autoRecall) mountQuietContext();
     return panelSettingsView(settings);
   }
 
