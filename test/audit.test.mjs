@@ -101,3 +101,16 @@ test('readAuditSince drops entries older than the window', (t) => {
   const rows = readAuditSince(store, base - 7 * 24 * 60 * 60 * 1000);
   assert.deepEqual(rows.map((row) => row.query), ['new']);
 });
+
+test('summarizeAudit counts judge kept and dropped outcomes', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tabellio-audit-judge-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const store = openStore(dir);
+  const base = Date.now();
+  appendAudit(store, { at: base, query: 'a', mode: 'context', count: 2, judged: true, titles: [] });
+  appendAudit(store, { at: base + 1, query: 'b', mode: 'judged_out', count: 0, judged: false, titles: [] });
+  appendAudit(store, { at: base + 2, query: 'c', mode: 'judged_out', count: 0, judged: false, titles: [] });
+  appendAudit(store, { at: base + 3, query: 'd', mode: 'context', count: 1, judged: false, titles: [] });
+  const summary = summarizeAudit(readAuditSince(store, base - 1000));
+  assert.deepEqual(summary.judge, { kept: 1, dropped: 2 });
+});

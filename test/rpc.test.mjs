@@ -294,3 +294,19 @@ test('remember writes from the panel and rejects empty, short or oversized conte
   assert.equal((await handler('remember', { content: 'x'.repeat(4001) })).ok, false);
   assert.equal(store.scan().notes.length, 1);
 });
+
+test('status reports the semantic supplement state', async (t) => {
+  const { dir, store } = await tempStore(t);
+  const handler = createRpcHandler({
+    settings: normalizeConfig({ storePath: dir, semantic: 'local', semanticModel: 'qwen3-embedding-0.6b' }),
+    getStore: () => store,
+    getSemanticState: () => ({ ready: true, size: 12 }),
+  });
+  const status = (await handler('status', {})).value;
+  assert.equal(status.semantic.mode, 'local');
+  assert.equal(status.semantic.ready, true);
+  assert.equal(status.semantic.size, 12);
+  assert.equal(status.semantic.model, 'qwen3-embedding-0.6b');
+  const off = createRpcHandler({ settings: normalizeConfig({ storePath: dir }), getStore: () => store });
+  assert.equal((await off('status', {})).value.semantic.mode, 'off');
+});

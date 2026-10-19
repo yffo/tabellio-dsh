@@ -130,14 +130,19 @@ export function summarizeAudit(entries) {
   const byMode = {};
   const misses = [];
   const titles = [];
+  let judgeKept = 0;
+  let judgeDropped = 0;
   for (const entry of entries) {
     byMode[entry.mode] = (byMode[entry.mode] ?? 0) + 1;
     if (['suppressed', 'refused', 'judged_out', 'error'].includes(entry.mode)) misses.push(entry.query);
+    if (entry.mode === 'judged_out') judgeDropped += 1;
+    else if (entry.judged && (entry.mode === 'context' || entry.mode === 'notice')) judgeKept += 1;
     for (const title of entry.titles ?? []) titles.push(title);
   }
   return {
     total: entries.length,
     byMode,
+    judge: { kept: judgeKept, dropped: judgeDropped },
     topMisses: topCounts(misses, 5).map((row) => ({ query: row.value, count: row.count })),
     topTitles: topCounts(titles, 5).map((row) => ({ title: row.value, count: row.count })),
   };

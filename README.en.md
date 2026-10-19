@@ -117,6 +117,17 @@ All other advanced settings are in the [developer notes](#for-developers).
 
 The optional switches above show the defaults shipped by the plugin patch (`cordis.patch.yml`). When a key is absent from the config, the code defaults are `capture: explicit` and `delivery: notice`.
 
+## Settings panel (Settings → Memory)
+
+The panel is organised around what you are doing, not around internal state:
+
+- **Waiting for you** — new candidates and merge proposals; nothing enters `notes/` until approved;
+- **Save a memory** — write from the panel, through the same write gate as the chat;
+- **Find a memory** — search (click a title for the full note), the last 7 days, and all notes with paging and kind/time filters;
+- **Recent activity** — what the last recall used, recall quality for 7 days (injected/gated/missed), judge kept/dropped counts, and the recall audit.
+
+Technical detail lives in a collapsed **Advanced status** block: capture mode, recall mode, semantic supplement, judge model and latency, consolidation cadence, store path and index warnings. Configuration is not editable from the panel — point `semanticEndpoint`/`semanticModel` at your service or change the host default model. No local model? Keep `semantic: off`; the panel shows "off", recall stays lexical, everything else works.
+
 ## Privacy
 
 - All reads and writes are local; no network requests (except `judge: llm`, which calls the model you configured).

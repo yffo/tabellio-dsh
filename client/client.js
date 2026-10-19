@@ -21,6 +21,24 @@ window.__ModuleLoader__.load({
       section: '记忆',
       title: '🧠 记忆（tabellio）',
       subtitle: '本地 Markdown 记忆；批准后才成为正式笔记',
+      purpose: '它记住你说过的重要事，聊天时自动带上相关记忆；写入前需要你批准。',
+      pendingTitle: '待你批准',
+      pendingEmpty: '没有待批准的内容。对话里出现约定或纠错时，候选会出现在这里。',
+      candidatesTitle: '新候选',
+      findTitle: '找一条记忆',
+      activityTitle: '最近发生',
+      advancedTitle: '高级状态',
+      pending: '待批准',
+      semLabel: '语义补充',
+      semOff: '未开启',
+      semBuilding: '正在建索引',
+      semReady: '已索引 {n} 条',
+      semError: '不可用（嵌入服务连不上）',
+      semHint: '语义补充需要本地 /v1/embeddings 服务；不可用时会自动退回词面召回，不影响其他功能。',
+      judgeQuality: '模型裁决（近 7 天）',
+      judgeDropped: '丢弃',
+      judgeHint: '用 DSH 当前默认模型做一次小裁决，只保留真正相关的记忆；关掉后只按关键词和覆盖率判断。',
+      semSwitch: '更换语义服务：改 semanticEndpoint / semanticModel 指向任意 OpenAI 风格 /v1/embeddings；没有本地模型就设 semantic: off，召回自动用词面匹配。',
       loading: '读取中…',
       refresh: '刷新',
       notes: '笔记',
@@ -134,6 +152,24 @@ window.__ModuleLoader__.load({
       section: 'Memory',
       title: '🧠 Memory (tabellio)',
       subtitle: 'Local Markdown memory; a candidate becomes a note only after approval',
+      purpose: 'It remembers what matters, brings relevant memories into the chat, and asks you to approve writes.',
+      pendingTitle: 'Waiting for you',
+      pendingEmpty: 'Nothing waiting. When a convention or correction comes up, a candidate will appear here.',
+      candidatesTitle: 'New candidates',
+      findTitle: 'Find a memory',
+      activityTitle: 'Recent activity',
+      advancedTitle: 'Advanced status',
+      pending: 'pending',
+      semLabel: 'Semantic',
+      semOff: 'off',
+      semBuilding: 'indexing',
+      semReady: '{n} notes indexed',
+      semError: 'unavailable (embedding service unreachable)',
+      semHint: 'The semantic supplement needs a local /v1/embeddings service. When it is unavailable, recall falls back to lexical matching and everything else keeps working.',
+      judgeQuality: 'Model judge (7 days)',
+      judgeDropped: 'dropped',
+      judgeHint: 'One small verdict per recall with the current DSH default model; only the relevant notes are kept. Turn it off to rely on lexical and coverage gates alone.',
+      semSwitch: 'To switch: point semanticEndpoint / semanticModel at any OpenAI-style /v1/embeddings service. Without a local model set semantic: off and recall uses lexical matching.',
       loading: 'Loading…',
       refresh: 'Refresh',
       notes: 'Notes',
@@ -247,6 +283,12 @@ window.__ModuleLoader__.load({
     };
 
     const styles = {
+      section: { marginTop: 16, borderTop: '1px solid ' + COLORS.border, paddingTop: 12 },
+      sectionTitle: { fontWeight: 600, fontSize: 13, marginBottom: 8 },
+      subTitle: { color: COLORS.dim, fontSize: 12, margin: '10px 0 4px' },
+      hint: { color: COLORS.dim, fontSize: 12, margin: '4px 0' },
+      details: { marginTop: 16, borderTop: '1px solid ' + COLORS.border, paddingTop: 12 },
+      summary: { cursor: 'pointer', fontWeight: 600, fontSize: 13, marginBottom: 8 },
       sectionTitle: { marginTop: 18, marginBottom: 6, fontSize: 13, fontWeight: 600, color: COLORS.dim },
       root: { padding: '4px 2px', color: COLORS.text, fontSize: 13, lineHeight: 1.55 },
       head: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
@@ -565,8 +607,9 @@ window.__ModuleLoader__.load({
 
       const judgeLabel = (judge) => {
         if (!judge || judge.mode !== 'llm') return t('judgeOff');
+        const selection = judge.selection ? ' · ' + String(judge.selection.model || judge.selection.provider || '') : '';
         const last = judge.last || {};
-        if (last.stage === 'verdict') return t('judgeReady') + ' · ' + t('judgeKept') + ' ' + String(last.kept ?? 0) + ' ' + t('notes');
+        if (last.stage === 'verdict') return t('judgeReady') + selection + ' · ' + t('judgeKept') + ' ' + String(last.kept ?? 0) + ' ' + t('notes');
         if (last.stage === 'no_selection') return t('judgeNoSelection');
         if (last.stage === 'no_llm') return t('judgeNoSelection');
         if (last.stage === 'no_verdict') {
@@ -597,73 +640,227 @@ window.__ModuleLoader__.load({
           h('div', { style: styles.metricValue }, value),
         );
 
-      return h(
-        'div',
-        { style: styles.root, 'data-tabellio-panel': '1' },
+      const sem = status ? status.semantic : null;
+      const semState = !sem || sem.mode !== 'local'
+        ? t('semOff')
+        : sem.ready
+          ? t('semReady').replace('{n}', String(sem.size))
+          : sem.error ? t('semError') : t('semBuilding');
+      const pendingTotal = status ? Number(status.candidates || 0) + Number(status.proposals || 0) : 0;
+
+      const section = (title, children, key) =>
         h(
           'div',
-          { style: styles.head },
-          h('h2', { style: styles.title }, t('title')),
-          h('button', { type: 'button', style: styles.button, onClick: load, disabled: state.loading }, t('refresh')),
+          { key: key || title, style: styles.section },
+          h('div', { style: styles.sectionTitle }, title),
+          children,
+        );
+      const hint = (text) => h('p', { style: styles.hint }, text);
+
+      const pendingSection = !status
+        ? null
+        : section(
+            t('pendingTitle'),
+            pendingTotal === 0
+              ? hint(t('pendingEmpty'))
+              : h(
+                  React.Fragment,
+                  null,
+                  proposalList.length === 0
+                    ? null
+                    : h(
+                        React.Fragment,
+                        null,
+                        h('div', { style: styles.subTitle }, t('proposalsTitle')),
+                        proposalList.map((proposal) =>
+                          h(
+                            'div',
+                            { key: 'prop-' + proposal.id, style: styles.card },
+                            h('div', { style: styles.cardTitle }, (proposal.sourceTitles || []).join(' + ') || proposal.id),
+                            h(
+                              'div',
+                              { style: styles.cardMeta },
+                              t('propSources').replace('{n}', String(proposal.sourceCount))
+                                + (typeof proposal.similarity === 'number' ? ' · ' + t('propSimilarity').replace('{n}', String(Math.round(proposal.similarity * 100))) : '')
+                                + (proposal.created ? ' · ' + proposal.created : ''),
+                            ),
+                            h(
+                              'div',
+                              { style: styles.actions },
+                              h(
+                                'button',
+                                { type: 'button', style: styles.primary, disabled: busyId !== '', onClick: () => reviewProposal('accept', [proposal.id]) },
+                                t('propApprove'),
+                              ),
+                              h(
+                                'button',
+                                { type: 'button', style: styles.button, disabled: busyId !== '', onClick: () => reviewProposal('reject', [proposal.id]) },
+                                t('propReject'),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  items.length === 0
+                    ? null
+                    : h(
+                        React.Fragment,
+                        null,
+                        h('div', { style: styles.subTitle }, t('candidatesTitle')),
+                        items.map((item) =>
+                          h(
+                            'div',
+                            { key: item.id, style: styles.card },
+                            h('div', { style: styles.cardTitle }, item.title),
+                            h(
+                              'div',
+                              { style: styles.cardMeta },
+                              (item.kind || 'semantic') + ' · ' + t('chars').replace('{n}', String(item.chars)) + (item.created ? ' · ' + item.created : '') + (item.source ? ' · ' + item.source : ''),
+                            ),
+                            h(
+                              'div',
+                              { style: styles.actions },
+                              h(
+                                'button',
+                                { type: 'button', style: styles.primary, disabled: busyId !== '', onClick: () => review('accept', [item.id]) },
+                                t('approve'),
+                              ),
+                              h(
+                                'button',
+                                { type: 'button', style: styles.button, disabled: busyId !== '', onClick: () => review('reject', [item.id]) },
+                                t('reject'),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                ),
+          );
+
+      const writeSection = section(
+        t('addLabel'),
+        h(
+          'div',
+          { style: styles.writeBox },
+          h('textarea', {
+            style: styles.textarea,
+            rows: 3,
+            value: draft,
+            placeholder: t('addPlaceholder'),
+            'aria-label': t('addLabel'),
+            onChange: (event) => setDraft(event.target.value),
+          }),
+          h(
+            'div',
+            { style: styles.actions },
+            h(
+              'button',
+              { type: 'button', style: styles.primary, disabled: saving || draft.trim() === '', onClick: saveMemory },
+              saving ? t('addSaving') : t('addButton'),
+            ),
+          ),
         ),
-        h('p', { style: styles.sub }, t('subtitle')),
+      );
 
-        state.error
-          ? h('div', { style: styles.error }, String(state.error))
-          : null,
-        state.notice ? h('div', { style: styles.notice }, state.notice) : null,
+      const findSection = section(
+        t('findTitle'),
+        h(
+          React.Fragment,
+          null,
+          h(
+            'div',
+            { style: styles.searchRow },
+            h('input', {
+              type: 'search',
+              style: styles.input,
+              value: query,
+              placeholder: t('searchPlaceholder'),
+              'aria-label': t('searchTitle'),
+              onChange: (event) => setQuery(event.target.value),
+              onKeyDown: (event) => {
+                if (event.key === 'Enter') find();
+              },
+            }),
+            h(
+              'button',
+              { type: 'button', style: styles.button, disabled: searching || query.trim() === '', onClick: find },
+              searching ? t('loading') : t('searchButton'),
+            ),
+          ),
+          found
+            ? found.error
+              ? h('div', { style: styles.error }, t('searchError').replace('{err}', String(found.error)))
+              : found.refused
+                ? h('div', { style: styles.notice }, t('searchRefused'))
+                : !Array.isArray(found.hits) || found.hits.length === 0
+                  ? h('div', { style: styles.notice }, t('searchEmpty'))
+                  : found.hits.map((hit) =>
+                      h(
+                        'div',
+                        { key: 'hit-' + hit.id, style: styles.hitRow, onClick: () => openNote(hit.id) },
+                        h('span', { style: styles.hitTitle }, hit.title || hit.id),
+                        h(
+                          'span',
+                          { style: styles.hitScore },
+                          typeof hit.score === 'number' ? Math.round(hit.score * 100) + '%' : '',
+                        ),
+                      ),
+                    )
+            : null,
+          note
+            ? h(
+                'div',
+                { style: styles.card },
+                h(
+                  'div',
+                  { style: styles.cardTitle },
+                  String(note.title || note.id || ''),
+                  h(
+                    'button',
+                    { type: 'button', style: Object.assign({}, styles.button, { marginLeft: 8 }), onClick: () => setNote(null) },
+                    t('closeNote'),
+                  ),
+                ),
+                note.loading
+                  ? h('div', { style: styles.notice }, t('loading'))
+                  : note.error
+                    ? h('div', { style: styles.error }, String(note.error))
+                    : h(
+                        React.Fragment,
+                        null,
+                        h('div', { style: styles.cardMeta }, (note.kind || 'semantic') + (note.scope ? ' · ' + note.scope : '') + (note.validFrom ? ' · ' + String(note.validFrom).slice(0, 10) : '')),
+                        h('pre', { style: styles.noteBody }, String(note.body || '')),
+                      ),
+              )
+            : null,
+        ),
+      );
 
-        status
-          ? h(
+      const activitySection = !status
+        ? null
+        : section(
+            t('activityTitle'),
+            h(
               React.Fragment,
               null,
-              h(
-                'div',
-                { style: styles.metrics },
-                metric(t('notes'), status.notes),
-                metric(t('candidates'), status.candidates),
-                metric(t('proposals'), status.proposals),
-                metric(t('mode'), modeLabel),
-                metric(t('index'), indexLabel),
-              ),
-              h(
-                'p',
-                { style: styles.sub },
-                t('store') + '：',
-                h('span', { style: styles.code }, status.store),
-                ' · ' + t('capture') + '：' + captureLabel,
-              ),
-              status.notes === 0
-                ? h('div', { style: styles.firstRun }, t('firstRun'))
-                : null,
               h('p', { style: styles.sub }, t('lastRecallLabel') + '：' + lastRecallLabel(status.lastRecall)),
+              Array.isArray(status.lastRecall && status.lastRecall.titles) && status.lastRecall.titles.length
+                ? h('p', { style: styles.recallTitles }, t('lrTitles') + '：' + status.lastRecall.titles.join(' / '))
+                : null,
               quality && quality.total > 0
                 ? h('div', null,
                   h('p', { style: styles.sub }, t('qualityLabel') + '：' + t('qualityTotal').replace('{n}', String(quality.total))
                     + ' · ' + t('qualityInjected') + ' ' + String((quality.byMode?.context || 0) + (quality.byMode?.notice || 0))
                     + ' · ' + t('qualityBlocked') + ' ' + String((quality.byMode?.suppressed || 0) + (quality.byMode?.judged_out || 0))
                     + ' · ' + t('qualityMissed') + ' ' + String((quality.byMode?.refused || 0) + (quality.byMode?.error || 0))),
+                  quality.judge && (quality.judge.kept || quality.judge.dropped)
+                    ? h('p', { style: styles.sub }, t('judgeQuality') + '：' + t('judgeKept') + ' ' + String(quality.judge.kept) + ' · ' + t('judgeDropped') + ' ' + String(quality.judge.dropped))
+                    : null,
                   Array.isArray(quality.topMisses) && quality.topMisses.length
                     ? h('ul', { style: styles.weeklyList }, quality.topMisses.slice(0, 3).map((row, index) => h('li', { key: String(index), style: styles.weeklyItem },
                       t('qualityTopMiss') + '：', String(row.query), ' ×' + String(row.count))))
                     : null)
                 : null,
-              audited && Array.isArray(audited.items) && audited.items.length
-                ? h('div', null,
-                  h('p', { style: styles.sub }, t('auditTitle')),
-                  h('ul', { style: styles.weeklyList },
-                    audited.items.slice(0, 8).map((entry, index) => h('li', { key: String(index), style: styles.weeklyItem },
-                      h('span', { style: styles.auditMode }, auditModeLabel(entry.mode)),
-                      ' · ',
-                      String(entry.query || '—'),
-                      entry.reason ? ' · ' + String(entry.reason) : '',
-                    ))))
-                : null,
-              Array.isArray(status.lastRecall && status.lastRecall.titles) && status.lastRecall.titles.length
-                ? h('p', { style: styles.recallTitles }, t('lrTitles') + '：' + status.lastRecall.titles.join(' / '))
-                : null,
-              h('p', { style: styles.sub }, t('judgeLabel') + '：' + judgeLabel(status.judge)),
-              h('p', { style: styles.sub }, t('consolidateLabel') + '：' + consolidateLabel(status.consolidate)),
               weekly
                 ? h(
                     'div',
@@ -738,181 +935,86 @@ window.__ModuleLoader__.load({
                       : null,
                   )
                 : null,
-              Array.isArray(status.warnings) && status.warnings.length
-                ? h(
-                    'div',
-                    { style: styles.notice },
-                    t('warnings') + '：' + status.warnings.slice(0, 3).join('；'),
-                  )
+              audited && Array.isArray(audited.items) && audited.items.length
+                ? h('div', null,
+                  h('p', { style: styles.sub }, t('auditTitle')),
+                  h('ul', { style: styles.weeklyList },
+                    audited.items.slice(0, 8).map((entry, index) => h('li', { key: String(index), style: styles.weeklyItem },
+                      h('span', { style: styles.auditMode }, auditModeLabel(entry.mode)),
+                      ' · ',
+                      String(entry.query || '—'),
+                      entry.reason ? ' · ' + String(entry.reason) : '',
+                    ))))
                 : null,
+            ),
+          );
+
+      const advancedSection = !status
+        ? null
+        : h(
+            'details',
+            { style: styles.details },
+            h('summary', { style: styles.summary }, t('advancedTitle')),
+            h('p', { style: styles.sub }, t('judgeLabel') + '：' + judgeLabel(status.judge)),
+            hint(t('judgeHint')),
+            h('p', { style: styles.sub }, t('consolidateLabel') + '：' + consolidateLabel(status.consolidate)),
+            h('p', { style: styles.sub }, t('semLabel') + '：' + semState + (sem && sem.model ? ' · ' + String(sem.model) : '') + (sem && sem.endpoint ? ' · ' + String(sem.endpoint) : '')),
+            hint(t('semHint')),
+            hint(t('semSwitch')),
+            h('p', { style: styles.sub }, t('store') + '：', h('span', { style: styles.code }, status.store)),
+            h('p', { style: styles.sub }, t('capture') + '：' + captureLabel + ' · ' + t('index') + '：' + indexLabel),
+            Array.isArray(status.warnings) && status.warnings.length
+              ? h('div', { style: styles.notice }, t('warnings') + '：' + status.warnings.slice(0, 3).join('；'))
+              : null,
+          );
+
+      return h(
+        'div',
+        { style: styles.root, 'data-tabellio-panel': '1' },
+        h(
+          'div',
+          { style: styles.head },
+          h('h2', { style: styles.title }, t('title')),
+          h('button', { type: 'button', style: styles.button, onClick: load, disabled: state.loading }, t('refresh')),
+        ),
+        h('p', { style: styles.sub }, t('subtitle')),
+        h('p', { style: styles.hint }, t('purpose')),
+
+        state.error
+          ? h('div', { style: styles.error }, String(state.error))
+          : null,
+        state.notice ? h('div', { style: styles.notice }, state.notice) : null,
+
+        status
+          ? h(
+              React.Fragment,
+              null,
+              h(
+                'div',
+                { style: styles.metrics },
+                metric(t('notes'), status.notes),
+                metric(t('pending'), pendingTotal),
+                metric(t('index'), indexLabel),
+              ),
+              h(
+                'p',
+                { style: styles.sub },
+                t('capture') + '：' + captureLabel + ' · ' + t('mode') + '：' + modeLabel + ' · ' + t('semLabel') + '：' + semState,
+              ),
+              status.notes === 0
+                ? h('div', { style: styles.firstRun }, t('firstRun'))
+                : null,
+              pendingSection,
+              writeSection,
+              findSection,
+              activitySection,
+              advancedSection,
             )
           : null,
 
         state.loading && !status
           ? h('div', { style: styles.notice }, t('loading'))
           : null,
-
-        h(
-          'div',
-          { style: styles.writeBox },
-          h('div', { style: styles.cardTitle }, t('addLabel')),
-          h('textarea', {
-            style: styles.textarea,
-            rows: 3,
-            value: draft,
-            placeholder: t('addPlaceholder'),
-            'aria-label': t('addLabel'),
-            onChange: (event) => setDraft(event.target.value),
-          }),
-          h(
-            'div',
-            { style: styles.actions },
-            h(
-              'button',
-              { type: 'button', style: styles.primary, disabled: saving || draft.trim() === '', onClick: saveMemory },
-              saving ? t('addSaving') : t('addButton'),
-            ),
-          ),
-        ),
-
-        h(
-          'div',
-          { style: styles.searchRow },
-          h('input', {
-            type: 'search',
-            style: styles.input,
-            value: query,
-            placeholder: t('searchPlaceholder'),
-            'aria-label': t('searchTitle'),
-            onChange: (event) => setQuery(event.target.value),
-            onKeyDown: (event) => {
-              if (event.key === 'Enter') find();
-            },
-          }),
-          h(
-            'button',
-            { type: 'button', style: styles.button, disabled: searching || query.trim() === '', onClick: find },
-            searching ? t('loading') : t('searchButton'),
-          ),
-        ),
-        found
-          ? found.error
-            ? h('div', { style: styles.error }, t('searchError').replace('{err}', String(found.error)))
-            : found.refused
-              ? h('div', { style: styles.notice }, t('searchRefused'))
-              : !Array.isArray(found.hits) || found.hits.length === 0
-                ? h('div', { style: styles.notice }, t('searchEmpty'))
-                : found.hits.map((hit) =>
-                    h(
-                      'div',
-                      { key: 'hit-' + hit.id, style: styles.hitRow, onClick: () => openNote(hit.id) },
-                      h('span', { style: styles.hitTitle }, hit.title || hit.id),
-                      h(
-                        'span',
-                        { style: styles.hitScore },
-                        typeof hit.score === 'number' ? Math.round(hit.score * 100) + '%' : '',
-                      ),
-                    ),
-                  )
-          : null,
-
-        note
-          ? h(
-              'div',
-              { style: styles.card },
-              h(
-                'div',
-                { style: styles.cardTitle },
-                String(note.title || note.id || ''),
-                h(
-                  'button',
-                  { type: 'button', style: Object.assign({}, styles.button, { marginLeft: 8 }), onClick: () => setNote(null) },
-                  t('closeNote'),
-                ),
-              ),
-              note.loading
-                ? h('div', { style: styles.notice }, t('loading'))
-                : note.error
-                  ? h('div', { style: styles.error }, String(note.error))
-                  : h(
-                      React.Fragment,
-                      null,
-                      h('div', { style: styles.cardMeta }, (note.kind || 'semantic') + (note.scope ? ' · ' + note.scope : '') + (note.validFrom ? ' · ' + String(note.validFrom).slice(0, 10) : '')),
-                      h('pre', { style: styles.noteBody }, String(note.body || '')),
-                    ),
-            )
-          : null,
-
-        items.length === 0
-          ? h('div', { style: styles.notice }, t('empty'))
-          : items.map((item) =>
-              h(
-                'div',
-                { key: item.id, style: styles.card },
-                h('div', { style: styles.cardTitle }, item.title),
-                h(
-                  'div',
-                  { style: styles.cardMeta },
-                  (item.kind || 'semantic') + ' · ' + t('chars').replace('{n}', String(item.chars)) + (item.created ? ' · ' + item.created : '') + (item.source ? ' · ' + item.source : ''),
-                ),
-                h(
-                  'div',
-                  { style: styles.actions },
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      style: styles.primary,
-                      disabled: busyId !== '',
-                      onClick: () => review('accept', [item.id]),
-                    },
-                    t('approve'),
-                  ),
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      style: styles.button,
-                      disabled: busyId !== '',
-                      onClick: () => review('reject', [item.id]),
-                    },
-                    t('reject'),
-                  ),
-                ),
-              ),
-            ),
-
-        h('div', { style: styles.sectionTitle }, t('proposalsTitle')),
-        proposalList.length === 0
-          ? h('div', { style: styles.notice }, t('proposalsEmpty'))
-          : proposalList.map((proposal) =>
-              h(
-                'div',
-                { key: 'prop-' + proposal.id, style: styles.card },
-                h('div', { style: styles.cardTitle }, (proposal.sourceTitles || []).join(' + ') || proposal.id),
-                h(
-                  'div',
-                  { style: styles.cardMeta },
-                  t('propSources').replace('{n}', String(proposal.sourceCount))
-                    + (typeof proposal.similarity === 'number' ? ' · ' + t('propSimilarity').replace('{n}', String(Math.round(proposal.similarity * 100))) : '')
-                    + (proposal.created ? ' · ' + proposal.created : ''),
-                ),
-                h(
-                  'div',
-                  { style: styles.actions },
-                  h(
-                    'button',
-                    { type: 'button', style: styles.primary, disabled: busyId !== '', onClick: () => reviewProposal('accept', [proposal.id]) },
-                    t('propApprove'),
-                  ),
-                  h(
-                    'button',
-                    { type: 'button', style: styles.button, disabled: busyId !== '', onClick: () => reviewProposal('reject', [proposal.id]) },
-                    t('propReject'),
-                  ),
-                ),
-              ),
-            ),
 
         h(
           'div',

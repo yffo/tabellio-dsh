@@ -98,3 +98,58 @@ test('client rpcCall unwraps ok envelopes and rejects failures', async () => {
   next = { ok: false, error: { code: 'bad-request', message: 'boom' } };
   await assert.rejects(() => rpcCall('inbox.review', { action: 'accept', ids: ['x'] }), /boom/);
 });
+
+test('panel renders the sectioned layout with a populated status', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const code = await readFile(path.join(root, 'client', 'client.js'), 'utf8');
+  let spec;
+  new Function('window', code)({ __ModuleLoader__: { load: (candidate) => { spec = candidate; } } });
+
+  let hook = 0;
+  const initial = [
+    { loading: false, error: null, notice: '' },
+    {
+      notes: 795, candidates: 1, proposals: 0, mode: 'inject', capture: 'assist',
+      indexExists: true, indexStale: false, store: '/tmp/store', warnings: [],
+      semantic: { mode: 'local', model: 'qwen3-embedding-0.6b', endpoint: 'http://127.0.0.1:8080/v1/embeddings', ready: true, size: 795, error: null },
+      judge: { mode: 'llm', selection: { model: 'deepseek-flash' }, last: { stage: 'verdict', kept: 1 } },
+      consolidate: { mode: 'daily', lastRun: 1792360000000 },
+      lastRecall: { at: 1792360000000, query: '上次说的阈值', mode: 'context', count: 1, elapsedMs: 900, judged: true, titles: ['阈值'] },
+    },
+    [{ id: 'cand-1', title: '一条候选', chars: 20 }],
+    [],
+    { notes_added: 3, truncated: 0, items: [] },
+    { items: [], counts: {} },
+    { total: 5, byMode: { context: 2, suppressed: 1, refused: 1, judged_out: 1 }, judge: { kept: 2, dropped: 1 }, topMisses: [{ query: '天气', count: 2 }] },
+    { items: [], total: 0, loading: false },
+    { kind: '', days: 0 },
+    null, '', false, '', '', null, false,
+  ];
+  const react = {
+    createElement: (type, props, ...children) => ({ type, props, children }),
+    Fragment: 'Fragment',
+    useState: () => { const value = initial[hook] ?? undefined; hook += 1; return [value, () => {}]; },
+    useEffect: () => {},
+    useCallback: (fn) => fn,
+  };
+  const exports = spec.factory((name) => {
+    if (name !== 'react') throw new Error('unexpected require ' + name);
+    return react;
+  });
+  const tree = exports.MemoryPanel({ rpcCall: async () => ({}), t: (key) => 'zh:' + key });
+  const texts = [];
+  const walk = (node) => {
+    if (node === null || node === undefined || node === false) return;
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (typeof node === 'string' || typeof node === 'number') { texts.push(String(node)); return; }
+    if (typeof node !== 'object') return;
+    walk(node.children);
+  };
+  walk(tree);
+  const flat = texts.join('|');
+  for (const key of ['zh:purpose', 'zh:pendingTitle', 'zh:findTitle', 'zh:activityTitle', 'zh:advancedTitle', 'zh:semLabel']) {
+    assert.ok(flat.includes(key), 'missing ' + key);
+  }
+  assert.ok(flat.includes('795'), 'notes metric missing');
+  assert.ok(flat.includes('一条候选'), 'candidate title missing');
+});
