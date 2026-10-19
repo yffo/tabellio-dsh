@@ -62,6 +62,7 @@ window.__ModuleLoader__.load({
       weeklyLabel: '最近 7 天',
       weeklyNone: '最近 7 天没有新记忆',
       weeklyMore: '另有 {n} 条',
+      closeNote: '收起',
       lrTitles: '用到的记忆',
       judgedTag: '已裁决',
       judgeLabel: '模型裁决',
@@ -135,6 +136,7 @@ window.__ModuleLoader__.load({
       weeklyLabel: 'Last 7 days',
       weeklyNone: 'No new memories in the last 7 days',
       weeklyMore: '+{n} more',
+      closeNote: 'Close',
       lrTitles: 'Memories used',
       judgedTag: 'judged',
       judgeLabel: 'LLM judge',
@@ -244,6 +246,19 @@ window.__ModuleLoader__.load({
       hitScore: { color: COLORS.dim, flexShrink: 0, fontVariantNumeric: 'tabular-nums' },
       weeklyList: { margin: '2px 0 6px', paddingLeft: 18, fontSize: 13, lineHeight: 1.6 },
       weeklyItem: { overflowWrap: 'anywhere' },
+      noteBody: {
+        whiteSpace: 'pre-wrap',
+        overflowWrap: 'anywhere',
+        fontSize: 13,
+        lineHeight: 1.7,
+        margin: '6px 0 0',
+        padding: 10,
+        borderRadius: 8,
+        background: COLORS.card,
+        border: '1px solid ' + COLORS.border,
+        maxHeight: 320,
+        overflow: 'auto',
+      },
     };
 
     function MemoryPanel(props) {
@@ -253,6 +268,7 @@ window.__ModuleLoader__.load({
       const [items, setItems] = useState([]);
       const [proposalList, setProposalList] = useState([]);
       const [weekly, setWeekly] = useState(null);
+      const [note, setNote] = useState(null);
       const [busyId, setBusyId] = useState('');
       const [query, setQuery] = useState('');
       const [found, setFound] = useState(null);
@@ -294,6 +310,20 @@ window.__ModuleLoader__.load({
           setSearching(false);
         }
       }, [query, rpcCall, searching]);
+
+      const openNote = useCallback(
+        async (id) => {
+          if (!id) return;
+          setNote({ id, loading: true });
+          try {
+            const result = await rpcCall('read', { id });
+            setNote({ ...result, loading: false });
+          } catch (error) {
+            setNote({ id, loading: false, error: error?.message ?? String(error) });
+          }
+        },
+        [rpcCall],
+      );
 
       const review = useCallback(
         async (action, ids) => {
@@ -495,7 +525,7 @@ window.__ModuleLoader__.load({
                 : found.hits.map((hit) =>
                     h(
                       'div',
-                      { key: 'hit-' + hit.id, style: styles.hitRow },
+                      { key: 'hit-' + hit.id, style: styles.hitRow, onClick: () => openNote(hit.id) },
                       h('span', { style: styles.hitTitle }, hit.title || hit.id),
                       h(
                         'span',
@@ -504,6 +534,33 @@ window.__ModuleLoader__.load({
                       ),
                     ),
                   )
+          : null,
+
+        note
+          ? h(
+              'div',
+              { style: styles.card },
+              h(
+                'div',
+                { style: styles.cardTitle },
+                String(note.title || note.id || ''),
+                h(
+                  'button',
+                  { type: 'button', style: Object.assign({}, styles.button, { marginLeft: 8 }), onClick: () => setNote(null) },
+                  t('closeNote'),
+                ),
+              ),
+              note.loading
+                ? h('div', { style: styles.notice }, t('loading'))
+                : note.error
+                  ? h('div', { style: styles.error }, String(note.error))
+                  : h(
+                      React.Fragment,
+                      null,
+                      h('div', { style: styles.cardMeta }, (note.kind || 'semantic') + (note.scope ? ' · ' + note.scope : '') + (note.validFrom ? ' · ' + String(note.validFrom).slice(0, 10) : '')),
+                      h('pre', { style: styles.noteBody }, String(note.body || '')),
+                    ),
+            )
           : null,
 
         items.length === 0

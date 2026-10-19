@@ -2,13 +2,14 @@
 // reject, and search the store. Every endpoint is a thin projection of the
 // tabellio API — the panel never writes memory directly, it only exercises the
 // same approval gate the `tabellio inbox` CLI uses.
-import { listCandidates, listProposals, reviewCandidates, reviewProposals, search, status } from 'tabellio';
+import { listCandidates, listProposals, read, reviewCandidates, reviewProposals, search, status } from 'tabellio';
 import { buildReport } from './report.js';
 
 export const RPC_CHANNEL = '/tabellio-dsh';
 export const MAX_REVIEW_IDS = 50;
 export const MAX_SEARCH_LIMIT = 20;
 export const MAX_REPORT_DAYS = 90;
+export const MAX_NOTE_CHARS = 4000;
 
 const fail = (code, message) => ({ ok: false, error: { code, message, details: {} } });
 const ok = (value) => ({ ok: true, value });
@@ -193,6 +194,25 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
               title: String(hit.title ?? ''),
               score: Number.isFinite(hit.score) ? Number(hit.score) : null,
             })),
+          });
+        }
+        case 'read': {
+          const id = typeof payload?.id === 'string' ? payload.id.trim() : '';
+          if (!id) return fail('bad-request', 'id must be a non-empty string');
+          if (id.length > 64) return fail('bad-request', 'id is too long');
+          const result = read(store, id);
+          if (!result || result.ok === false) {
+            return fail('not-found', String(result?.reason ?? 'note not found'));
+          }
+          const body = String(result.body ?? '');
+          return ok({
+            id: String(result.id ?? id),
+            title: String(result.title ?? ''),
+            body: body.length > MAX_NOTE_CHARS ? body.slice(0, MAX_NOTE_CHARS) + '\n…' : body,
+            truncated: body.length > MAX_NOTE_CHARS,
+            scope: String(result.note?.scope ?? ''),
+            kind: String(result.note?.kind ?? ''),
+            validFrom: String(result.note?.valid_from ?? ''),
           });
         }
         case 'report': {

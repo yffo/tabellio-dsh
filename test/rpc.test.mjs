@@ -200,3 +200,19 @@ test('report returns the recent window and clamps its inputs', async (t) => {
   assert.equal(clamped.value.days, 90);
   assert.ok(clamped.value.items.length <= 10);
 });
+
+test('read returns note content for the panel viewer and rejects bad ids', async (t) => {
+  const { dir, store } = await tempStore(t);
+  const written = remember(store, { content: '面板查看测试笔记：项目代号是青鸟计划。' }, { writtenBy: 'test' });
+  const handler = handlerFor(dir, store);
+
+  const view = await handler('read', { id: written.id });
+  assert.equal(view.ok, true);
+  assert.match(view.value.title, /面板查看测试笔记/);
+  assert.match(view.value.body, /青鸟计划/);
+  assert.equal(view.value.truncated, false);
+
+  assert.equal((await handler('read', {})).ok, false);
+  assert.equal((await handler('read', { id: 'x'.repeat(80) })).ok, false);
+  assert.equal((await handler('read', { id: 'DOES-NOT-EXIST' })).ok, false);
+});

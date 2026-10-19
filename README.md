@@ -136,7 +136,7 @@ dsh plugin --profile desktop add tabellio-dsh
 ### 架构
 
 - **核心 `tabellio`**：存储、索引、BM25 + 共现打分、写入闸门、回执、巩固。这个插件只做 DSH 适配，不复制核心逻辑。
-- **适配层 `tabellio-dsh`**：`agent/pre-step` 召回、`agent/turn-stopping` 捕获、7 个原生工具、设置面板（HTTP RPC，loopback + Origin 校验；状态/候选批准/提案批准/搜索/上次召回/模型裁决/最近 7 天周报）。
+- **适配层 `tabellio-dsh`**：`agent/pre-step` 召回、`agent/turn-stopping` 捕获、7 个原生工具、设置面板（HTTP RPC，loopback + Origin 校验；状态/候选批准/提案批准/搜索（点标题看全文）/上次召回/模型裁决/最近 7 天周报）。
 - 换宿主时核心不动，只换适配层；库目录、写入闸门、召回口径三个入口共用，走查见 [docs/CROSS-HOST.md](docs/CROSS-HOST.md)。
 
 ### 工具
@@ -173,7 +173,7 @@ dsh plugin --profile desktop add tabellio-dsh
 ### 测试与评测
 
 ```bash
-npm test                      # 67 个单元/集成用例
+npm test                      # 68 个单元/集成用例
 node tests/acceptance.mjs     # 30 条功能验收
 node tools/cross-host-demo.mjs  # 跨宿主 API 走查（临时库）
 python3 tools/blind-eval.py <外部数据集.json>  # 冻结查询的召回盲测（数据集含个人记忆，不入库）
