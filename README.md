@@ -149,10 +149,10 @@ dsh plugin --profile desktop add tabellio-dsh
 | `recallBudgetTokens` | `500` | 召回预算，100–4000 |
 | `recallMaxNotes` | `6` | 最多几条，1–20 |
 | `recallIntentGate` | `true` | 没有记忆意图的问句不注入 |
-| `recallConfidentRelevance` | `0.92` | 首条相关度到这条线时，即使没有意图词也放行 |
-| `recallMinCoverage` | `0.6` | 覆盖率闸（线上建议 0.33） |
-| `recallMinScore` | `0.18` | 最低分（线上建议 0.1） |
-| `recallMinRelevance` | `0.15` | 最低相关度（线上建议 0.12） |
+| `recallConfidentRelevance` | `0.9` | 首条相关度到这条线时，即使没有意图词也放行 |
+| `recallMinCoverage` | `0.33` | 覆盖率闸；长问句会被稀释，默认按对话场景调松 |
+| `recallMinScore` | `0.1` | 最低分 |
+| `recallMinRelevance` | `0.12` | 最低相关度 |
 | `includeCore` | `true` | 是否包含 core 笔记 |
 | `minQueryChars` | `4` | 更短消息不召回 |
 | `queryChars` | `400` | 超长消息保留头尾 |

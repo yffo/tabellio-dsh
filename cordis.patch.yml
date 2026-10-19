@@ -28,3 +28,8 @@
         # Off by default: one small host-model call per recall when enabled.
         judge: off
         recallIntentGate: true
+        # Tuned for auto-injection into ordinary conversation (see src/config.js).
+        recallMinRelevance: 0.12
+        recallMinScore: 0.1
+        recallMinCoverage: 0.33
+        recallConfidentRelevance: 0.9

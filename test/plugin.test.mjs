@@ -98,11 +98,11 @@ test('plugin metadata and config normalization are safe', () => {
   assert.equal(clamped.refreshSeconds, 3600);
   assert.equal(clamped.maxCandidatesPerTurn, 5);
   assert.equal(clamped.captureMaxSentenceChars, 40);
-  assert.equal(normalizeConfig({}).recallMinCoverage, 0.6);
+  assert.equal(normalizeConfig({}).recallMinCoverage, 0.33);
   assert.equal(normalizeConfig({ recallMinCoverage: 0.3 }).recallMinCoverage, 0.3);
   assert.equal(normalizeConfig({ recallMinCoverage: 3 }).recallMinCoverage, 1);
   assert.equal(normalizeConfig({ recallMinScore: -1 }).recallMinScore, 0);
-  assert.equal(normalizeConfig({ recallMinRelevance: 'nope' }).recallMinRelevance, 0.15);
+  assert.equal(normalizeConfig({ recallMinRelevance: 'nope' }).recallMinRelevance, 0.12);
   assert.equal(normalizeConfig({ enabled: false }).enabled, false);
 });
 
@@ -760,7 +760,7 @@ test('credential phrasing that hides a value behind a policy sentence is still d
 });
 
 test('intent gate lets history references and very strong hits through', () => {
-  assert.equal(normalizeConfig({}).recallConfidentRelevance, 0.92);
+  assert.equal(normalizeConfig({}).recallConfidentRelevance, 0.9);
   assert.equal(normalizeConfig({ recallConfidentRelevance: 3 }).recallConfidentRelevance, 1);
   assert.equal(normalizeConfig({ recallConfidentRelevance: -1 }).recallConfidentRelevance, 0);
   assert.deepEqual(intentGateAllows('我们上次说的项目代号是什么？').allowed, true);

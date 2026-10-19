@@ -9,13 +9,14 @@ export const DEFAULTS = Object.freeze({
   recallBudgetTokens: 500,
   recallMaxNotes: 6,
   // Recall gates, in tabellio's own units (see tabellio `recall` docs).
-  // Defaults match tabellio's: conservative, tuned on short queries. For
-  // auto-inject into ordinary conversation, loosen minCoverage first — long
-  // natural questions dilute the query-coverage ratio and get silently
-  // refused (实测：796 篇语料上 minCoverage 0.6 时 12 问只中 1 问)。
-  recallMinRelevance: 0.15,
-  recallMinScore: 0.18,
-  recallMinCoverage: 0.6,
+  // The plugin default is tuned for auto-injection into ordinary conversation,
+  // not for short CLI queries: a 796-note store answered 1/12 realistic
+  // questions at coverage 0.6 but 6/12 at 0.3, because long natural questions
+  // dilute the query-coverage ratio and get silently refused. These looser
+  // values are then covered by the intent gate and the optional LLM judge.
+  recallMinRelevance: 0.12,
+  recallMinScore: 0.1,
+  recallMinCoverage: 0.33,
   includeCore: true,
   minQueryChars: 4,
   queryChars: 400,
@@ -24,7 +25,7 @@ export const DEFAULTS = Object.freeze({
   // A very strong lexical hit may skip the intent gate: blind eval (2026-10-19)
   // put ordinary work questions at relevance 0.93-0.98 while every off-topic
   // question in the same set stayed at or below 0.911.
-  recallConfidentRelevance: 0.92,
+  recallConfidentRelevance: 0.9,
   capture: 'explicit',
   // How a recall reaches the model: 'notice' appends one visible user notice;
   // 'context' registers it as quiet runtime context in the system prompt.

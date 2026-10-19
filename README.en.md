@@ -149,10 +149,10 @@ The optional switches above show the defaults shipped by the plugin patch (`cord
 | `recallBudgetTokens` | `500` | Recall budget, 100–4000 |
 | `recallMaxNotes` | `6` | Maximum notes, 1–20 |
 | `recallIntentGate` | `true` | Do not inject when the question has no memory intent |
-| `recallConfidentRelevance` | `0.92` | Bypass the intent gate when the top hit is at least this relevant |
-| `recallMinCoverage` | `0.6` | Coverage gate (0.33 recommended in production) |
-| `recallMinScore` | `0.18` | Minimum score (0.1 in production) |
-| `recallMinRelevance` | `0.15` | Minimum relevance (0.12 in production) |
+| `recallConfidentRelevance` | `0.9` | Bypass the intent gate when the top hit is at least this relevant |
+| `recallMinCoverage` | `0.33` | Coverage gate; long questions dilute it, tuned for chat |
+| `recallMinScore` | `0.1` | Minimum score |
+| `recallMinRelevance` | `0.12` | Minimum relevance |
 | `includeCore` | `true` | Whether core notes are included |
 | `minQueryChars` | `4` | Shorter messages are not recalled |
 | `queryChars` | `400` | Long messages keep head and tail |

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.7 (2026-10-19)
+
+- 出厂召回阈值改为「对话场景」调过的值：`recallMinRelevance 0.12` / `recallMinScore 0.1` / `recallMinCoverage 0.33` / `recallConfidentRelevance 0.9`。此前出厂值沿用 tabellio 的短查询口径（0.15/0.18/0.6），新用户装上后长问句几乎召回不到东西（796 篇语料实测 1/12），现在是 6/12，再由意图闸与可选 judge 兜底。
+- `cordis.patch.yml` 明确写出这四个键，避免补丁整段覆盖时回落到旧默认。
+- 62 个单元/集成测试 + 30 条验收。
+
 ## 0.1.6 (2026-10-19)
 
 - 「上次召回」补 `elapsedMs`（面板与 `last_recall` 都能看到召回耗时），慢库更容易被发现。
