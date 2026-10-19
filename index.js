@@ -22,7 +22,8 @@ import { mountPanelRoute } from './src/web-rpc.js';
 import { registerTools } from './src/tools.js';
 import { startConsolidationTimer } from './src/consolidate.js';
 import { appendAudit } from './src/audit.js';
-import { mergeSemanticResult, semanticTop, startIndexer } from './src/semantic.js';
+import { mergeSemanticResult, probeEmbedding, semanticTop, startIndexer } from './src/semantic.js';
+import { loadPanelSettings, panelSettingsView, pickPanelSettings, savePanelSettings } from './src/settings-file.js';
 
 export const name = 'tabellio-dsh';
 
@@ -46,6 +47,9 @@ export function apply(ctx, config = {}) {
   // small interval so edits made by the CLI or another host become visible
   // without paying a full scan on every turn.
   const store = openStore(settings.storePath);
+  // Panel-editable overrides (semantic / judge / consolidation) live with the
+  // store so an ordinary user can change them without editing host YAML.
+  Object.assign(settings, loadPanelSettings(store));
   let lastRefresh = 0;
   const currentStore = () => {
     const age = Date.now() - lastRefresh;
@@ -123,10 +127,26 @@ export function apply(ctx, config = {}) {
   // Optional background consolidation: while the session is idle, look for
   // near-duplicate notes and write merge proposals. Nothing is applied here —
   // the panel's proposal review is still the only approval path.
-  if (settings.consolidate !== 'off') {
+  let stopConsolidationTimer = null;
+  const startConsolidation = () => {
+    try {
+      stopConsolidationTimer?.();
+    } catch {
+      // A dying timer must never block a settings change.
+    }
+    stopConsolidationTimer = null;
+    if (settings.consolidate === 'off') return;
     const stopTimer = startConsolidationTimer({ getStore: currentStore, settings, logger: ctx.logger });
-    if (typeof stopTimer === 'function') ctx.effect?.(() => stopTimer, 'tabellio-dsh: consolidation timer');
-  }
+    stopConsolidationTimer = typeof stopTimer === 'function' ? stopTimer : null;
+  };
+  startConsolidation();
+  ctx.effect?.(() => () => {
+    try {
+      stopConsolidationTimer?.();
+    } catch {
+      // teardown only
+    }
+  }, 'tabellio-dsh: consolidation timer');
 
   // Optional quiet delivery: instead of appending a visible user notice, the
   // last recall is registered as runtime context in the system prompt. The
@@ -422,14 +442,52 @@ export function apply(ctx, config = {}) {
   // Build the embedding index in the background; until it is ready every turn
   // behaves exactly like the lexical version.
   let semanticIndexer = null;
-  if (settings.semantic === 'local') {
+  const startSemanticIndexer = () => {
+    try {
+      semanticIndexer?.dispose?.();
+    } catch {
+      // rebuilding the index must never break the current session
+    }
+    semanticIndexer = null;
+    if (settings.semantic !== 'local') return;
     semanticIndexer = startIndexer({
       store: currentStore(),
       endpoint: settings.semanticEndpoint,
       model: settings.semanticModel,
       logger: ctx.logger,
     });
-    ctx.effect?.(() => () => semanticIndexer?.dispose?.(), 'tabellio-dsh: semantic indexer');
+  };
+  startSemanticIndexer();
+  ctx.effect?.(() => () => {
+    try {
+      semanticIndexer?.dispose?.();
+    } catch {
+      // teardown only
+    }
+    semanticIndexer = null;
+  }, 'tabellio-dsh: semantic indexer');
+
+  // Panel "settings" writes: validate, persist next to the store, and restart
+  // only the pieces that changed. Judge picks settings up per call, so it needs
+  // no restart; semantic and consolidation own timers/indexers.
+  function applyRuntimeSettings(patch) {
+    const next = pickPanelSettings(patch);
+    const wantsLocal = (next.semantic ?? settings.semantic) === 'local';
+    const endpoint = next.semanticEndpoint ?? settings.semanticEndpoint;
+    const model = next.semanticModel ?? settings.semanticModel;
+    if (wantsLocal && (!endpoint || !/^https?:\/\//.test(endpoint))) {
+      throw new Error('语义服务地址必须是 http(s) URL');
+    }
+    if (wantsLocal && !model) throw new Error('语义模型名不能为空');
+    if (next.judge === 'llm' && (!next.judgeModel && !settings.judgeModel)) {
+      // Empty model means "follow the host default", which is supported.
+    }
+    Object.assign(settings, next);
+    savePanelSettings(store, next);
+    judgeState.mode = settings.judge;
+    if (['semantic', 'semanticEndpoint', 'semanticModel'].some((key) => key in next)) startSemanticIndexer();
+    if ('consolidate' in next) startConsolidation();
+    return panelSettingsView(settings);
   }
 
   ctx.on('agent/pre-step', async (payload, next) => {

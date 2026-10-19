@@ -124,6 +124,10 @@ test('panel renders the sectioned layout with a populated status', async () => {
     { items: [], total: 0, loading: false },
     { kind: '', days: 0 },
     null, '', false, '', '', null, false,
+    { semantic: { mode: 'local', endpoint: 'http://x', model: 'm' }, judge: { mode: 'llm', model: '' }, consolidate: { mode: 'daily' } },
+    { semantic: 'local', semanticEndpoint: 'http://x', semanticModel: 'm', judge: 'llm', judgeModel: '', judgeProvider: '', consolidate: 'daily' },
+    false,
+    null,
   ];
   const react = {
     createElement: (type, props, ...children) => ({ type, props, children }),
@@ -147,7 +151,7 @@ test('panel renders the sectioned layout with a populated status', async () => {
   };
   walk(tree);
   const flat = texts.join('|');
-  for (const key of ['zh:purpose', 'zh:pendingTitle', 'zh:findTitle', 'zh:activityTitle', 'zh:advancedTitle', 'zh:semLabel']) {
+  for (const key of ['zh:purpose', 'zh:pendingTitle', 'zh:findTitle', 'zh:activityTitle', 'zh:settingsTitle', 'zh:advancedTitle', 'zh:semLabel']) {
     assert.ok(flat.includes(key), 'missing ' + key);
   }
   assert.ok(flat.includes('795'), 'notes metric missing');

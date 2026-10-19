@@ -131,7 +131,7 @@ function reviewPayload(payload) {
  * Build the channel handler. One store instance is shared with the tools and
  * auto recall, so a hot store invalidate is reflected everywhere.
  */
-export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeState, getSemanticState }) {
+export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeState, getSemanticState, getSettingsView, updateSettings, testSemantic }) {
   return async function handler(endpoint, payload) {
     try {
       const store = getStore();
@@ -155,6 +155,40 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
           const entries = readAuditSince(store, since, { max: 2000 });
           const summary = summarizeAudit(entries);
           return ok({ days, since, ...summary });
+        }
+        case 'settings.get':
+          return ok(typeof getSettingsView === 'function' ? getSettingsView() : {});
+        case 'settings.set': {
+          if (typeof updateSettings !== 'function') return fail('unsupported', 'settings are read-only on this host');
+          const patch = payload ?? {};
+          if (patch.semantic !== undefined && !['off', 'local'].includes(patch.semantic)) {
+            return fail('bad-request', 'semantic must be "off" or "local"');
+          }
+          if (patch.judge !== undefined && !['off', 'llm'].includes(patch.judge)) {
+            return fail('bad-request', 'judge must be "off" or "llm"');
+          }
+          if (patch.consolidate !== undefined && !['off', 'daily', 'weekly'].includes(patch.consolidate)) {
+            return fail('bad-request', 'consolidate must be "off", "daily" or "weekly"');
+          }
+          if (patch.semanticEndpoint !== undefined && typeof patch.semanticEndpoint !== 'string') {
+            return fail('bad-request', 'semanticEndpoint must be a string');
+          }
+          if (typeof patch.semanticEndpoint === 'string' && patch.semanticEndpoint.length > 200) {
+            return fail('bad-request', 'semanticEndpoint is too long');
+          }
+          for (const key of ['semanticModel', 'judgeModel', 'judgeProvider']) {
+            if (patch[key] !== undefined && typeof patch[key] !== 'string') return fail('bad-request', key + ' must be a string');
+            if (typeof patch[key] === 'string' && patch[key].length > 120) return fail('bad-request', key + ' is too long');
+          }
+          return ok(updateSettings(patch));
+        }
+        case 'semantic.test': {
+          if (typeof testSemantic !== 'function') return fail('unsupported', 'semantic test is unavailable');
+          try {
+            return ok(await testSemantic());
+          } catch (error) {
+            return ok({ ok: false, error: String(error?.message ?? error) });
+          }
         }
         case 'inbox.list': {
           const listed = listCandidates(store);

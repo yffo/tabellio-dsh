@@ -35,7 +35,25 @@ window.__ModuleLoader__.load({
       semReady: '已索引 {n} 条',
       semError: '不可用（嵌入服务连不上）',
       semHint: '语义补充需要本地 /v1/embeddings 服务；不可用时会自动退回词面召回，不影响其他功能。',
-      judgeQuality: '模型裁决（近 7 天）',
+      settingsTitle: '设置',
+      settingsHint: '这里改的是存储目录里的 panel-settings.json，不用编辑宿主配置；保存后立即生效。',
+      settingsSemanticLocal: '本地嵌入',
+      settingsEndpoint: '服务地址',
+      settingsModel: '模型',
+      settingsTest: '测试连接',
+      settingsTestOk: '连接成功：{dims} 维，{ms}ms',
+      settingsTestFail: '连接失败：{err}',
+      settingsJudgeLlm: '开启（用小模型裁决）',
+      settingsJudgeModel: '裁决模型',
+      settingsJudgeDefault: '留空 = 跟随 DSH 当前默认模型',
+      settingsSave: '保存设置',
+      settingsSaved: '设置已保存并生效。',
+      approveAll: '全部批准',
+      sourceConversation: '来自对话',
+      sourceTool: '来自工具调用',
+      sourceImport: '从旧库导入',
+      sourceUnknown: '来源未知',
+      rejectAll: '全部忽略',
       judgeDropped: '丢弃',
       judgeHint: '用 DSH 当前默认模型做一次小裁决，只保留真正相关的记忆；关掉后只按关键词和覆盖率判断。',
       semSwitch: '更换语义服务：改 semanticEndpoint / semanticModel 指向任意 OpenAI 风格 /v1/embeddings；没有本地模型就设 semantic: off，召回自动用词面匹配。',
@@ -166,7 +184,25 @@ window.__ModuleLoader__.load({
       semReady: '{n} notes indexed',
       semError: 'unavailable (embedding service unreachable)',
       semHint: 'The semantic supplement needs a local /v1/embeddings service. When it is unavailable, recall falls back to lexical matching and everything else keeps working.',
-      judgeQuality: 'Model judge (7 days)',
+      settingsTitle: 'Settings',
+      settingsHint: 'These are stored in panel-settings.json inside the memory folder, not in host config, and apply immediately.',
+      settingsSemanticLocal: 'Local embeddings',
+      settingsEndpoint: 'Endpoint',
+      settingsModel: 'Model',
+      settingsTest: 'Test connection',
+      settingsTestOk: 'Connected: {dims} dims in {ms}ms',
+      settingsTestFail: 'Connection failed: {err}',
+      settingsJudgeLlm: 'On (small model verdict)',
+      settingsJudgeModel: 'Judge model',
+      settingsJudgeDefault: 'Empty = use the current DSH default model',
+      settingsSave: 'Save settings',
+      settingsSaved: 'Settings saved and applied.',
+      approveAll: 'Approve all',
+      sourceConversation: 'from conversation',
+      sourceTool: 'from a tool call',
+      sourceImport: 'imported',
+      sourceUnknown: 'unknown source',
+      rejectAll: 'Reject all',
       judgeDropped: 'dropped',
       judgeHint: 'One small verdict per recall with the current DSH default model; only the relevant notes are kept. Turn it off to rely on lexical and coverage gates alone.',
       semSwitch: 'To switch: point semanticEndpoint / semanticModel at any OpenAI-style /v1/embeddings service. Without a local model set semantic: off and recall uses lexical matching.',
@@ -287,6 +323,8 @@ window.__ModuleLoader__.load({
       sectionTitle: { fontWeight: 600, fontSize: 13, marginBottom: 8 },
       subTitle: { color: COLORS.dim, fontSize: 12, margin: '10px 0 4px' },
       hint: { color: COLORS.dim, fontSize: 12, margin: '4px 0' },
+      formRow: { display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' },
+      formLabel: { width: 96, flexShrink: 0, color: COLORS.dim, fontSize: 12 },
       details: { marginTop: 16, borderTop: '1px solid ' + COLORS.border, paddingTop: 12 },
       summary: { cursor: 'pointer', fontWeight: 600, fontSize: 13, marginBottom: 8 },
       sectionTitle: { marginTop: 18, marginBottom: 6, fontSize: 13, fontWeight: 600, color: COLORS.dim },
@@ -411,6 +449,10 @@ window.__ModuleLoader__.load({
       const [query, setQuery] = useState('');
       const [found, setFound] = useState(null);
       const [searching, setSearching] = useState(false);
+      const [settingsView, setSettingsView] = useState(null);
+      const [settingsDraft, setSettingsDraft] = useState(null);
+      const [settingsSaving, setSettingsSaving] = useState(false);
+      const [semanticTest, setSemanticTest] = useState(null);
 
       const load = useCallback(async () => {
         setState((prev) => ({ ...prev, loading: true, error: null }));
@@ -444,6 +486,21 @@ window.__ModuleLoader__.load({
             setOlder({ items: Array.isArray(page.items) ? page.items : [], total: Number(page.total) || 0, loading: false });
           } catch {
             setOlder({ items: [], total: 0, loading: false });
+          }
+          try {
+            const view = await rpcCall('settings.get', {});
+            setSettingsView(view);
+            setSettingsDraft({
+              semantic: view.semantic?.mode || 'off',
+              semanticEndpoint: view.semantic?.endpoint || '',
+              semanticModel: view.semantic?.model || '',
+              judge: view.judge?.mode || 'off',
+              judgeModel: view.judge?.model || '',
+              judgeProvider: view.judge?.provider || '',
+              consolidate: view.consolidate?.mode || 'off',
+            });
+          } catch {
+            setSettingsView(null);
           }
           setState((prev) => ({ ...prev, loading: false, error: null }));
         } catch (error) {
@@ -574,6 +631,31 @@ window.__ModuleLoader__.load({
         [rpcCall, load, t],
       );
 
+      const savePanelSettings = useCallback(async () => {
+        if (!settingsDraft) return;
+        setSettingsSaving(true);
+        try {
+          const view = await rpcCall('settings.set', settingsDraft);
+          setSettingsView(view);
+          setState((prev) => ({ ...prev, notice: t('settingsSaved'), error: null }));
+          await load();
+        } catch (error) {
+          setState((prev) => ({ ...prev, notice: '', error: error?.message ?? String(error) }));
+        } finally {
+          setSettingsSaving(false);
+        }
+      }, [settingsDraft, rpcCall, load, t]);
+
+      const runSemanticTest = useCallback(async () => {
+        setSemanticTest({ loading: true });
+        try {
+          const result = await rpcCall('semantic.test', {});
+          setSemanticTest(result);
+        } catch (error) {
+          setSemanticTest({ ok: false, error: String(error?.message ?? error) });
+        }
+      }, [rpcCall]);
+
       const modeLabel = status
         ? { inject: t('modeInject'), shadow: t('modeShadow'), off: t('modeOff') }[status.mode] || status.mode
         : '';
@@ -587,6 +669,13 @@ window.__ModuleLoader__.load({
         const query = [...text].length > 24 ? [...text].slice(0, 24).join('') + '…' : text;
         const hits = mode + ' · ' + t('lrHits').replace('{n}', String(last.count ?? 0)) + (last.elapsedMs ? ' · ' + last.elapsedMs + 'ms' : '');
         return time + ' · 「' + query + '」 · ' + hits + (last.judged ? ' · ' + t('judgedTag') : '');
+      };
+      const sourceLabel = (source) => {
+        const text = String(source || '');
+        if (text.startsWith('dsh:')) return t('sourceConversation');
+        if (text.startsWith('capture:')) return t('sourceTool');
+        if (text.startsWith('import:')) return t('sourceImport');
+        return text || t('sourceUnknown');
       };
       const auditModeLabel = (mode) => {
         const map = {
@@ -707,6 +796,12 @@ window.__ModuleLoader__.load({
                         React.Fragment,
                         null,
                         h('div', { style: styles.subTitle }, t('candidatesTitle')),
+                        h(
+                          'div',
+                          { style: styles.actions },
+                          h('button', { type: 'button', style: styles.primary, disabled: busyId !== '', onClick: () => review('accept', items.map((item) => item.id)) }, t('approveAll')),
+                          h('button', { type: 'button', style: styles.button, disabled: busyId !== '', onClick: () => review('reject', items.map((item) => item.id)) }, t('rejectAll')),
+                        ),
                         items.map((item) =>
                           h(
                             'div',
@@ -715,7 +810,7 @@ window.__ModuleLoader__.load({
                             h(
                               'div',
                               { style: styles.cardMeta },
-                              (item.kind || 'semantic') + ' · ' + t('chars').replace('{n}', String(item.chars)) + (item.created ? ' · ' + item.created : '') + (item.source ? ' · ' + item.source : ''),
+                              (item.kind || 'semantic') + ' · ' + t('chars').replace('{n}', String(item.chars)) + (item.created ? ' · ' + item.created : '') + ' · ' + sourceLabel(item.source),
                             ),
                             h(
                               'div',
@@ -835,6 +930,71 @@ window.__ModuleLoader__.load({
             : null,
         ),
       );
+
+      const setField = (key) => (event) => setSettingsDraft((prev) => ({ ...prev, [key]: event.target.value }));
+      const settingsSection = settingsDraft
+        ? section(
+            t('settingsTitle'),
+            h(
+              React.Fragment,
+              null,
+              h('p', { style: styles.hint }, t('settingsHint')),
+              h('div', { style: styles.formRow },
+                h('label', { style: styles.formLabel }, t('semLabel')),
+                h('select', { style: styles.select, value: settingsDraft.semantic, onChange: setField('semantic') },
+                  h('option', { value: 'off' }, t('semOff')),
+                  h('option', { value: 'local' }, t('settingsSemanticLocal')),
+                ),
+              ),
+              settingsDraft.semantic === 'local'
+                ? h(React.Fragment, null,
+                    h('div', { style: styles.formRow },
+                      h('label', { style: styles.formLabel }, t('settingsEndpoint')),
+                      h('input', { style: styles.input, value: settingsDraft.semanticEndpoint, onChange: setField('semanticEndpoint'), placeholder: 'http://127.0.0.1:8080/v1/embeddings' }),
+                    ),
+                    h('div', { style: styles.formRow },
+                      h('label', { style: styles.formLabel }, t('settingsModel')),
+                      h('input', { style: styles.input, value: settingsDraft.semanticModel, onChange: setField('semanticModel'), placeholder: 'qwen3-embedding-0.6b' }),
+                    ),
+                    h('div', { style: styles.actions },
+                      h('button', { type: 'button', style: styles.button, disabled: semanticTest?.loading === true, onClick: runSemanticTest },
+                        semanticTest?.loading ? t('loading') : t('settingsTest')),
+                      semanticTest && !semanticTest.loading
+                        ? h('span', { style: styles.hint }, semanticTest.ok
+                          ? t('settingsTestOk').replace('{dims}', String(semanticTest.dims)).replace('{ms}', String(semanticTest.ms))
+                          : t('settingsTestFail').replace('{err}', String(semanticTest.error || '')))
+                        : null,
+                    ),
+                  )
+                : null,
+              h('div', { style: styles.formRow },
+                h('label', { style: styles.formLabel }, t('judgeLabel')),
+                h('select', { style: styles.select, value: settingsDraft.judge, onChange: setField('judge') },
+                  h('option', { value: 'off' }, t('judgeOff')),
+                  h('option', { value: 'llm' }, t('settingsJudgeLlm')),
+                ),
+              ),
+              settingsDraft.judge === 'llm'
+                ? h('div', { style: styles.formRow },
+                    h('label', { style: styles.formLabel }, t('settingsJudgeModel')),
+                    h('input', { style: styles.input, value: settingsDraft.judgeModel, onChange: setField('judgeModel'), placeholder: t('settingsJudgeDefault') }),
+                  )
+                : null,
+              h('div', { style: styles.formRow },
+                h('label', { style: styles.formLabel }, t('consolidateLabel')),
+                h('select', { style: styles.select, value: settingsDraft.consolidate, onChange: setField('consolidate') },
+                  h('option', { value: 'off' }, t('consOff')),
+                  h('option', { value: 'daily' }, t('consDaily')),
+                  h('option', { value: 'weekly' }, t('consWeekly')),
+                ),
+              ),
+              h('div', { style: styles.actions },
+                h('button', { type: 'button', style: styles.primary, disabled: settingsSaving, onClick: savePanelSettings },
+                  settingsSaving ? t('addSaving') : t('settingsSave')),
+              ),
+            ),
+          )
+        : null;
 
       const activitySection = !status
         ? null
@@ -1008,6 +1168,7 @@ window.__ModuleLoader__.load({
               writeSection,
               findSection,
               activitySection,
+              settingsSection,
               advancedSection,
             )
           : null,

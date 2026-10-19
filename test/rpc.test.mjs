@@ -310,3 +310,42 @@ test('status reports the semantic supplement state', async (t) => {
   const off = createRpcHandler({ settings: normalizeConfig({ storePath: dir }), getStore: () => store });
   assert.equal((await off('status', {})).value.semantic.mode, 'off');
 });
+
+test('settings endpoints read, validate and persist panel overrides', async (t) => {
+  const { dir, store } = await tempStore(t);
+  let view = { semantic: { mode: 'off', endpoint: '', model: '' }, judge: { mode: 'off', provider: '', model: '' }, consolidate: { mode: 'off' } };
+  const applied = [];
+  const handler = createRpcHandler({
+    settings: normalizeConfig({ storePath: dir }),
+    getStore: () => store,
+    getSettingsView: () => view,
+    updateSettings: (patch) => { applied.push(patch); view = { ...view, semantic: { mode: patch.semantic ?? 'off', endpoint: patch.semanticEndpoint ?? '', model: patch.semanticModel ?? '' } }; return view; },
+  });
+  assert.equal((await handler('settings.get', {})).value.semantic.mode, 'off');
+  const saved = await handler('settings.set', { semantic: 'local', semanticEndpoint: 'http://127.0.0.1:8080/v1/embeddings', semanticModel: 'qwen3-embedding-0.6b', judge: 'llm', consolidate: 'daily' });
+  assert.equal(saved.ok, true);
+  assert.equal(saved.value.semantic.mode, 'local');
+  assert.equal(applied.length, 1);
+  assert.equal(applied[0].judge, 'llm');
+  assert.equal((await handler('settings.set', { semantic: 'nope' })).error.code, 'bad-request');
+  assert.equal((await handler('settings.set', { judge: 'maybe' })).error.code, 'bad-request');
+  assert.equal((await handler('settings.set', { semanticModel: 42 })).error.code, 'bad-request');
+});
+
+test('semantic.test returns the probe result or a soft failure', async (t) => {
+  const { dir, store } = await tempStore(t);
+  const okHandler = createRpcHandler({
+    settings: normalizeConfig({ storePath: dir }),
+    getStore: () => store,
+    testSemantic: async () => ({ ok: true, dims: 1024, ms: 61 }),
+  });
+  assert.deepEqual((await okHandler('semantic.test', {})).value, { ok: true, dims: 1024, ms: 61 });
+  const downHandler = createRpcHandler({
+    settings: normalizeConfig({ storePath: dir }),
+    getStore: () => store,
+    testSemantic: async () => { throw new Error('ECONNREFUSED'); },
+  });
+  const down = (await downHandler('semantic.test', {})).value;
+  assert.equal(down.ok, false);
+  assert.match(down.error, /ECONNREFUSED/);
+});

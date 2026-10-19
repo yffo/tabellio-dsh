@@ -208,3 +208,14 @@ export function mergeSemanticResult(result, { hits = [], readNote, maxNotes = 6 
   const chars = merged.reduce((sum, item) => sum + String(item.title ?? '').length + String(item.content ?? '').length, 0);
   return { ...result, refused: false, reason: null, items: merged, tokens: Math.round(chars / 4) };
 }
+
+/**
+ * One-shot connectivity check used by the panel's "test" button. Returns the
+ * embedding dimension and latency instead of throwing, so the caller can keep
+ * the UI honest about whether semantic recall will actually work.
+ */
+export async function probeEmbedding({ endpoint, model, timeoutMs = 2500 }) {
+  const started = Date.now();
+  const vectors = await embedMany({ endpoint, model, texts: ['ping'], timeoutMs });
+  return { ok: true, dims: vectors[0].length, ms: Date.now() - started };
+}

@@ -126,7 +126,9 @@ The panel is organised around what you are doing, not around internal state:
 - **Find a memory** — search (click a title for the full note), the last 7 days, and all notes with paging and kind/time filters;
 - **Recent activity** — what the last recall used, recall quality for 7 days (injected/gated/missed), judge kept/dropped counts, and the recall audit.
 
-Technical detail lives in a collapsed **Advanced status** block: capture mode, recall mode, semantic supplement, judge model and latency, consolidation cadence, store path and index warnings. Configuration is not editable from the panel — point `semanticEndpoint`/`semanticModel` at your service or change the host default model. No local model? Keep `semantic: off`; the panel shows "off", recall stays lexical, everything else works.
+Technical detail lives in a collapsed **Advanced status** block: capture mode, recall mode, semantic supplement, judge model and latency, consolidation cadence, store path and index warnings.
+
+Ordinary users never touch a config file: the panel edits the **semantic supplement** (on/off, endpoint, model, test connection), the **model judge** (on/off, judge model; empty means the current DSH default model) and **background consolidation** (off/daily/weekly). Changes apply immediately and are stored in `panel-settings.json` inside the memory folder, so they travel with the store and never touch host config. No local model? Keep it off; recall stays lexical and everything else works.
 
 ## Privacy
 
