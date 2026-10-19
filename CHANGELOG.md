@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.9 (2026-10-19)
+
+- 个人评测语料（`tools/blind-queries.json`、`tools/recall-eval.py`）移出仓库，只在本地 `archive/` 保留；README 的评测命令改成接收外部数据集路径。发布包附带 `tools/cross-host-demo.mjs` 与 `tools/judge-eval.mjs`（通用脚本，不含个人数据），README 里的走查命令装完即可运行。
+- README 增「模型裁决（可选）」实测快照：本地 35B 模型 30 条冻结问句，gold 保留 18/19、保留项相关率 85.7%。
+- 62 个单元/集成测试 + 30 条验收。
+
 ## 0.1.8 (2026-10-19)
 
 - 首次使用引导：面板在库为空时直接告诉用户下一步做什么（在对话里说「记住：…」，或交一份 Markdown 笔记），而不是只显示 0。

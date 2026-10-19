@@ -116,6 +116,12 @@ dsh plugin --profile desktop add tabellio-dsh
 
 > 上表是插件补丁（`cordis.patch.yml`）下发的默认值；配置里不写这些键时，代码内置默认是 `capture: explicit`、`delivery: notice`。
 
+### 模型裁决（可选）
+
+开启 `judge: llm` 后，每轮召回多一次小模型调用：把「问题 + 最多 4 条候选」一起给模型，只留真正回答问题的笔记。默认关闭；模型用宿主当前默认（也可以 `judgeProvider`/`judgeModel` 指定）。
+
+真实模型抽样（本地 Qwen3.6-35B，30 条冻结问句 + 人工 gold）：gold 召回 19/20，judge 后保留 18/19（94.7%），保留笔记里 85.7% 是相关项；1 条 gold 被误杀、1 条无关笔记被留下、1 次格式失败按「失败即放行」回退。这是 2026-10-19 的快照，不是长期承诺。
+
 ## 隐私
 
 - 全部本地读写，无网络请求（开启 `judge: llm` 时例外：会调用你自己配置的模型）。
@@ -170,7 +176,8 @@ dsh plugin --profile desktop add tabellio-dsh
 npm test                      # 62 个单元/集成用例
 node tests/acceptance.mjs     # 30 条功能验收
 node tools/cross-host-demo.mjs  # 跨宿主 API 走查（临时库）
-python3 tools/blind-eval.py   # 40 条冻结查询的召回盲测
+python3 tools/blind-eval.py <外部数据集.json>  # 冻结查询的召回盲测（数据集含个人记忆，不入库）
+node tools/judge-eval.mjs <带 gold 的查询集.json>  # 真实模型裁判抽样（本地/任意 OpenAI 兼容端点）
 ```
 
 发布前四路独立测试报告归档在 `~/yffto/archive/2026-10/scratch/tabellio-dsh-validation/final/`。

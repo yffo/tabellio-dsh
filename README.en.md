@@ -170,7 +170,8 @@ The optional switches above show the defaults shipped by the plugin patch (`cord
 npm test                      # 62 unit/integration cases
 node tests/acceptance.mjs     # 30 functional acceptance checks
 node tools/cross-host-demo.mjs  # cross-host API walkthrough (temp store)
-python3 tools/blind-eval.py   # blind recall evaluation over 40 frozen queries
+python3 tools/blind-eval.py <dataset.json>  # frozen-query blind test (personal data stays outside the repo)
+node tools/judge-eval.mjs <labeled-set.json>  # real-model judge sample
 ```
 
 The four independent pre-release test reports are archived under `~/yffto/archive/2026-10/scratch/tabellio-dsh-validation/final/`.

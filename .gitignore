@@ -4,3 +4,7 @@ node_modules/
 tmp/
 .DS_Store
 .env
+
+# Personal evaluation corpora stay outside the repo.
+tools/blind-queries.json
+tools/recall-eval.py
