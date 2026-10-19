@@ -376,6 +376,19 @@ test('quiet delivery puts the recall in runtime context, not the conversation', 
   assert.equal(host.contexts[0].text(), '');
 });
 
+test('a waiting candidate is mentioned once in quiet context, not every turn', async (t) => {
+  const dir = temp(t);
+  const store = openStore(dir);
+  addCandidate(store, { text: '以后发版走 tag 加 CI。', source: 'test', kind: 'semantic', tags: ['test'] }, { writtenBy: 'test' });
+  const host = fakeHost();
+  apply(host.ctx, { storePath: dir, autoRecall: true, delivery: 'context', capture: 'off', refreshSeconds: 0 });
+
+  const first = host.contexts[0].text();
+  assert.match(first, /1 条候选/);
+  // Six-hour cooldown: the same queue must not nag on every turn.
+  assert.equal(host.contexts[0].text(), '');
+});
+
 test('auto recall stays silent in an empty store and when disabled', async (t) => {
   const dir = temp(t);
   const host = fakeHost();

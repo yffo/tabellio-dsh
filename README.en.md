@@ -75,6 +75,7 @@ recalled automatically (budgeted, capped, silent on small talk)
 
 Things you may care about:
 
+- **One nudge for waiting candidates.** When candidates are waiting for approval, the quiet context adds one line (at most once every six hours); open Settings → Memory to approve them.
 - **No hidden model calls.** By default it calls no model and makes no network requests. Only when you turn on the "LLM judge" switch does it ask your already-configured DSH model for one small relevance decision (off by default).
 - **It does not store whole conversations.** It only picks sentences like agreements, preferences and corrections that are worth remembering long-term.
 - **It does not write down passwords.** Sentences containing a plaintext password or token are skipped; policy lines such as "credentials live in 1Password" are kept.

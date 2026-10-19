@@ -11,7 +11,7 @@
  * human approves it with `tabellio inbox`.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import { addCandidate, openStore, recallQuery } from 'tabellio';
+import { addCandidate, listCandidates, openStore, recallQuery } from 'tabellio';
 import { normalizeConfig } from './src/config.js';
 import { delegationDepth, isHumanMessage, isChitchat, latestHuman, textOf, trimQuery, intentGateAllows } from './src/messages.js';
 import { extractCandidates, hasSecretHint, looksLikeCredentialLeak } from './src/capture.js';
@@ -109,6 +109,23 @@ export function apply(ctx, config = {}) {
   // provider is host-scoped, so on a single-user desktop only the latest recall
   // is live (documented limitation); 'notice' remains the default.
   let latestRecallText = '';
+  // Ordinary users do not open settings on their own, so a queue of candidates
+  // would sit unseen forever. Mention it in the quiet context at most once per
+  // six hours; approval still happens only in the panel. The nudge is a line of
+  // text, not a second write path.
+  const CANDIDATE_NOTICE_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+  let lastCandidateNoticeAt = 0;
+  const candidateNotice = () => {
+    try {
+      const count = (listCandidates(currentStore())?.candidates ?? []).length;
+      if (count === 0) return '';
+      if (Date.now() - lastCandidateNoticeAt < CANDIDATE_NOTICE_COOLDOWN_MS) return '';
+      lastCandidateNoticeAt = Date.now();
+      return `tabellio 记忆库有 ${count} 条候选待批准：打开设置页「记忆」，逐条确认要不要入库。`;
+    } catch {
+      return '';
+    }
+  };
   if (settings.autoRecall && settings.delivery === 'context') {
     const registerQuietContext = (promptCtx) => {
       try {
@@ -118,7 +135,13 @@ export function apply(ctx, config = {}) {
         const dispose = prompt?.context?.({
           name: 'tabellio.recall',
           order: 800,
-          text: () => latestRecallText,
+          text: () => {
+            const recall = latestRecallText;
+            const notice = candidateNotice();
+            if (!recall) return notice;
+            if (!notice) return recall;
+            return recall + '\n\n' + notice;
+          },
         });
         if (typeof dispose !== 'function') {
           ctx.logger?.warn?.('tabellio-dsh: quiet context is active but the recall slot was not registered');
