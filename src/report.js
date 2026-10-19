@@ -17,7 +17,7 @@ function field(frontmatter, name) {
   return match ? match[1].trim() : '';
 }
 
-export function buildReport(store, { days = 7, limit = 10, now = Date.now() } = {}) {
+function collectNotes(store) {
   const dir = join(store.store, 'notes');
   let files = [];
   try {
@@ -25,9 +25,7 @@ export function buildReport(store, { days = 7, limit = 10, now = Date.now() } = 
   } catch {
     files = [];
   }
-
-  const since = now - days * DAY_MS;
-  const added = [];
+  const notes = [];
   for (const name of files) {
     let raw;
     try {
@@ -37,12 +35,10 @@ export function buildReport(store, { days = 7, limit = 10, now = Date.now() } = 
     }
     const { frontmatter, body } = readFrontmatter(raw);
     const validFrom = field(frontmatter, 'valid_from');
-    const when = validFrom ? Date.parse(validFrom) : NaN;
-    if (!Number.isFinite(when) || when < since) continue;
     const heading = /^#\s+(.+)$/m.exec(body);
     const firstLine = body.split('\n').map((line) => line.trim()).find((line) => line.length > 0) ?? '';
     const id = name.replace(/\.md$/, '');
-    added.push({
+    notes.push({
       id,
       title: heading ? heading[1].trim() : (firstLine.replace(/^#+\s*/, '').slice(0, 80) || id),
       valid_from: validFrom,
@@ -50,7 +46,29 @@ export function buildReport(store, { days = 7, limit = 10, now = Date.now() } = 
       scope: field(frontmatter, 'scope'),
     });
   }
-  added.sort((a, b) => Date.parse(b.valid_from) - Date.parse(a.valid_from));
+  notes.sort((a, b) => (Date.parse(b.valid_from) || 0) - (Date.parse(a.valid_from) || 0));
+  return notes;
+}
+
+// 全部笔记的分页视图：面板里不必先搜索也能翻到更早的记忆。
+export function buildNotesPage(store, { offset = 0, limit = 20 } = {}) {
+  const notes = collectNotes(store);
+  const start = Math.max(0, offset);
+  return {
+    total: notes.length,
+    offset: start,
+    limit,
+    items: notes.slice(start, start + Math.max(1, limit)),
+  };
+}
+
+export function buildReport(store, { days = 7, limit = 10, now = Date.now() } = {}) {
+  const since = now - days * DAY_MS;
+  const all = collectNotes(store);
+  const added = all.filter((note) => {
+    const when = note.valid_from ? Date.parse(note.valid_from) : NaN;
+    return Number.isFinite(when) && when >= since;
+  });
 
   let candidates = 0;
   let proposals = 0;
@@ -68,7 +86,7 @@ export function buildReport(store, { days = 7, limit = 10, now = Date.now() } = 
   return {
     days,
     since: new Date(since).toISOString(),
-    notes_total: files.length,
+    notes_total: all.length,
     notes_added: added.length,
     candidates,
     proposals,

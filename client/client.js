@@ -62,6 +62,10 @@ window.__ModuleLoader__.load({
       weeklyLabel: '最近 7 天',
       weeklyNone: '最近 7 天没有新记忆',
       weeklyMore: '另有 {n} 条',
+      notesAll: '全部笔记',
+      notesCount: '共 {n} 条，点标题可读全文',
+      notesMore: '加载更早的笔记',
+      notesLoading: '加载中…',
       closeNote: '收起',
       addLabel: '直接存一条记忆',
       addPlaceholder: '比如：以后发版都用 tag 加 CI，不走手动上传。',
@@ -141,6 +145,10 @@ window.__ModuleLoader__.load({
       weeklyLabel: 'Last 7 days',
       weeklyNone: 'No new memories in the last 7 days',
       weeklyMore: '+{n} more',
+      notesAll: 'All notes',
+      notesCount: '{n} notes - tap a title to read it',
+      notesMore: 'Load older notes',
+      notesLoading: 'Loading...',
       closeNote: 'Close',
       addLabel: 'Save a memory',
       addPlaceholder: 'e.g. Releases always go through tags and CI, never manual uploads.',
@@ -293,6 +301,7 @@ window.__ModuleLoader__.load({
       const [items, setItems] = useState([]);
       const [proposalList, setProposalList] = useState([]);
       const [weekly, setWeekly] = useState(null);
+      const [older, setOlder] = useState({ items: [], total: 0, loading: false });
       const [note, setNote] = useState(null);
       const [draft, setDraft] = useState('');
       const [saving, setSaving] = useState(false);
@@ -316,6 +325,12 @@ window.__ModuleLoader__.load({
             setWeekly(await rpcCall('report', { days: 7, limit: 3 }) || null);
           } catch {
             setWeekly(null);
+          }
+          try {
+            const page = await rpcCall('notes', { offset: 0, limit: 20 });
+            setOlder({ items: Array.isArray(page.items) ? page.items : [], total: Number(page.total) || 0, loading: false });
+          } catch {
+            setOlder({ items: [], total: 0, loading: false });
           }
           setState((prev) => ({ ...prev, loading: false, error: null }));
         } catch (error) {
@@ -371,6 +386,21 @@ window.__ModuleLoader__.load({
         },
         [rpcCall],
       );
+
+      const loadOlder = useCallback(async () => {
+        setOlder((prev) => (prev.loading ? prev : { ...prev, loading: true }));
+        try {
+          const page = await rpcCall('notes', { offset: older.items.length, limit: 20 });
+          setOlder((prev) => ({
+            items: prev.items.concat(Array.isArray(page.items) ? page.items : []),
+            total: Number(page.total) || prev.total,
+            loading: false,
+          }));
+        } catch (error) {
+          setState((prev) => ({ ...prev, error: error?.message ?? String(error) }));
+          setOlder((prev) => ({ ...prev, loading: false }));
+        }
+      }, [older.items.length, rpcCall]);
 
       const review = useCallback(
         async (action, ids) => {
@@ -524,6 +554,35 @@ window.__ModuleLoader__.load({
                           weekly.items.map((note) =>
                             h('li', { key: note.id, style: styles.weeklyItem }, String(note.valid_from || '').slice(0, 10) + ' ' + String(note.title || '')),
                           ),
+                        )
+                      : null,
+                  )
+                : null,
+              older.items.length || older.total
+                ? h(
+                    'div',
+                    null,
+                    h('p', { style: styles.sub }, t('notesAll') + '：' + t('notesCount').replace('{n}', String(older.total))),
+                    h(
+                      'ul',
+                      { style: styles.weeklyList },
+                      older.items.map((note) =>
+                        h(
+                          'li',
+                          {
+                            key: note.id,
+                            style: { ...styles.weeklyItem, cursor: 'pointer' },
+                            onClick: () => openNote(note.id),
+                          },
+                          String(note.valid_from || '').slice(0, 10) + ' ' + String(note.title || ''),
+                        ),
+                      ),
+                    ),
+                    older.items.length < older.total
+                      ? h(
+                          'button',
+                          { type: 'button', style: styles.button, onClick: loadOlder, disabled: older.loading },
+                          older.loading ? t('notesLoading') : t('notesMore'),
                         )
                       : null,
                   )

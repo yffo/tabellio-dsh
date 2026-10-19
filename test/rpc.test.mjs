@@ -201,6 +201,33 @@ test('report returns the recent window and clamps its inputs', async (t) => {
   assert.ok(clamped.value.items.length <= 10);
 });
 
+test('notes pages through the whole store for the panel', async (t) => {
+  const { dir, store } = await tempStore(t);
+  for (let i = 0; i < 7; i += 1) {
+    remember(store, { content: `面板分页测试笔记第 ${i + 1} 号：项目代号是青鸟计划。` }, { writtenBy: 'test' });
+  }
+  const handler = handlerFor(dir, store);
+
+  const first = await handler('notes', { offset: 0, limit: 5 });
+  assert.equal(first.ok, true);
+  assert.equal(first.value.total, 7);
+  assert.equal(first.value.items.length, 5);
+
+  const second = await handler('notes', { offset: 5, limit: 5 });
+  assert.equal(second.value.items.length, 2);
+  assert.equal(new Set(first.value.items.concat(second.value.items).map((n) => n.id)).size, 7);
+
+  const clamped = await handler('notes', { offset: -3, limit: 999 });
+  assert.equal(clamped.value.offset, 0);
+  assert.equal(clamped.value.limit, 50);
+
+  const defaults = await handler('notes', {});
+  assert.equal(defaults.value.limit, 20);
+
+  const past = await handler('notes', { offset: 100 });
+  assert.deepEqual(past.value.items, []);
+});
+
 test('read returns note content for the panel viewer and rejects bad ids', async (t) => {
   const { dir, store } = await tempStore(t);
   const written = remember(store, { content: '面板查看测试笔记：项目代号是青鸟计划。' }, { writtenBy: 'test' });

@@ -3,12 +3,13 @@
 // tabellio API — the panel never writes memory directly, it only exercises the
 // same approval gate the `tabellio inbox` CLI uses.
 import { listCandidates, listProposals, read, remember, reviewCandidates, reviewProposals, search, status } from 'tabellio';
-import { buildReport } from './report.js';
+import { buildNotesPage, buildReport } from './report.js';
 
 export const RPC_CHANNEL = '/tabellio-dsh';
 export const MAX_REVIEW_IDS = 50;
 export const MAX_SEARCH_LIMIT = 20;
 export const MAX_REPORT_DAYS = 90;
+export const MAX_NOTES_LIMIT = 50;
 export const MAX_NOTE_CHARS = 4000;
 export const MAX_WRITE_CHARS = 4000;
 
@@ -236,6 +237,24 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
             scope: String(result.note?.scope ?? ''),
             kind: String(result.note?.kind ?? ''),
             validFrom: String(result.note?.valid_from ?? ''),
+          });
+        }
+        case 'notes': {
+          const rawOffset = Number(payload?.offset);
+          const offset = Number.isFinite(rawOffset) ? Math.max(0, Math.trunc(rawOffset)) : 0;
+          const rawLimit = Number(payload?.limit);
+          const limit = Number.isFinite(rawLimit) ? Math.min(MAX_NOTES_LIMIT, Math.max(5, Math.trunc(rawLimit))) : 20;
+          const page = buildNotesPage(store, { offset, limit });
+          return ok({
+            total: page.total,
+            offset: page.offset,
+            limit: page.limit,
+            items: page.items.map((note) => ({
+              id: String(note.id),
+              title: String(note.title),
+              valid_from: String(note.valid_from),
+              kind: String(note.kind ?? ''),
+            })),
           });
         }
         case 'report': {

@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openStore, remember } from 'tabellio';
-import { buildReport, renderReport } from '../src/report.js';
+import { buildNotesPage, buildReport, renderReport } from '../src/report.js';
 import { createToolDefinitions } from '../src/tools.js';
 import { normalizeConfig } from '../src/config.js';
 
@@ -81,4 +81,27 @@ test('tabellio_report tool returns the window and respects limit', async (t) => 
   assert.equal(value.truncated, 1);
   assert.equal(typeof value.plain, 'string');
   assert.match(tool.output.render({}, value)[0].text, /记忆周报/);
+});
+
+test('notes page reads frontmatter and paginates by valid_from desc', (t) => {
+  const dir = temp(t);
+  mkdirSync(join(dir, 'notes'), { recursive: true });
+  const write = (id, day, title) => {
+    writeFileSync(
+      join(dir, 'notes', `${id}.md`),
+      `---\nkind: semantic\nvalid_from: 2026-10-${day}T00:00:00.000Z\n---\n# ${title}\n\n正文。\n`,
+    );
+  };
+  write('p1', '14', '较早的笔记');
+  write('p2', '18', '最新的笔记');
+  write('p3', '16', '中间的笔记');
+
+  const store = { store: dir };
+  const page = buildNotesPage(store, { offset: 0, limit: 2 });
+  assert.equal(page.total, 3);
+  assert.deepEqual(page.items.map((n) => n.id), ['p2', 'p3']);
+  assert.equal(page.items[0].title, '最新的笔记');
+
+  const next = buildNotesPage(store, { offset: 2, limit: 2 });
+  assert.deepEqual(next.items.map((n) => n.id), ['p1']);
 });
