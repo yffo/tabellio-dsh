@@ -59,6 +59,9 @@ window.__ModuleLoader__.load({
       searchError: '搜索失败：{err}',
       lastRecallLabel: '上次召回',
       lastRecallNone: '本会话还没有触发过召回',
+      weeklyLabel: '最近 7 天',
+      weeklyNone: '最近 7 天没有新记忆',
+      weeklyMore: '另有 {n} 条',
       lrTitles: '用到的记忆',
       judgedTag: '已裁决',
       judgeLabel: '模型裁决',
@@ -129,6 +132,9 @@ window.__ModuleLoader__.load({
       searchError: 'Search failed: {err}',
       lastRecallLabel: 'Last recall',
       lastRecallNone: 'No recall yet in this session',
+      weeklyLabel: 'Last 7 days',
+      weeklyNone: 'No new memories in the last 7 days',
+      weeklyMore: '+{n} more',
       lrTitles: 'Memories used',
       judgedTag: 'judged',
       judgeLabel: 'LLM judge',
@@ -236,6 +242,8 @@ window.__ModuleLoader__.load({
       },
       hitTitle: { overflowWrap: 'anywhere' },
       hitScore: { color: COLORS.dim, flexShrink: 0, fontVariantNumeric: 'tabular-nums' },
+      weeklyList: { margin: '2px 0 6px', paddingLeft: 18, fontSize: 13, lineHeight: 1.6 },
+      weeklyItem: { overflowWrap: 'anywhere' },
     };
 
     function MemoryPanel(props) {
@@ -244,6 +252,7 @@ window.__ModuleLoader__.load({
       const [status, setStatus] = useState(null);
       const [items, setItems] = useState([]);
       const [proposalList, setProposalList] = useState([]);
+      const [weekly, setWeekly] = useState(null);
       const [busyId, setBusyId] = useState('');
       const [query, setQuery] = useState('');
       const [found, setFound] = useState(null);
@@ -252,14 +261,16 @@ window.__ModuleLoader__.load({
       const load = useCallback(async () => {
         setState((prev) => ({ ...prev, loading: true, error: null }));
         try {
-          const [nextStatus, inbox, listed] = await Promise.all([
+          const [nextStatus, inbox, listed, report] = await Promise.all([
             rpcCall('status', {}),
             rpcCall('inbox.list', {}),
             rpcCall('proposals.list', {}),
+            rpcCall('report', { days: 7, limit: 3 }),
           ]);
           setStatus(nextStatus);
           setItems(Array.isArray(inbox.items) ? inbox.items : []);
           setProposalList(Array.isArray(listed.items) ? listed.items : []);
+          setWeekly(report || null);
           setState((prev) => ({ ...prev, loading: false, error: null }));
         } catch (error) {
           setState((prev) => ({ ...prev, loading: false, error: error?.message ?? String(error) }));
@@ -422,6 +433,24 @@ window.__ModuleLoader__.load({
                 ? h('p', { style: styles.recallTitles }, t('lrTitles') + '：' + status.lastRecall.titles.join(' / '))
                 : null,
               h('p', { style: styles.sub }, t('judgeLabel') + '：' + judgeLabel(status.judge)),
+              weekly
+                ? h(
+                    'div',
+                    null,
+                    h('p', { style: styles.sub }, t('weeklyLabel') + '：' + (weekly.notes_added > 0
+                      ? String(weekly.notes_added) + ' 条新增' + (weekly.truncated > 0 ? '（' + t('weeklyMore').replace('{n}', String(weekly.truncated)) + '）' : '')
+                      : t('weeklyNone'))),
+                    Array.isArray(weekly.items) && weekly.items.length
+                      ? h(
+                          'ul',
+                          { style: styles.weeklyList },
+                          weekly.items.map((note) =>
+                            h('li', { key: note.id, style: styles.weeklyItem }, String(note.valid_from || '').slice(0, 10) + ' ' + String(note.title || '')),
+                          ),
+                        )
+                      : null,
+                  )
+                : null,
               Array.isArray(status.warnings) && status.warnings.length
                 ? h(
                     'div',

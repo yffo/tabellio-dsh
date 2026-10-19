@@ -179,3 +179,24 @@ test('proposals.review rejects malformed payloads', async (t) => {
   const badIds = await handler('proposals.review', { action: 'reject', ids: [] });
   assert.equal(badIds.ok, false);
 });
+
+test('report returns the recent window and clamps its inputs', async (t) => {
+  const { dir, store } = await tempStore(t);
+  remember(store, { content: '面板周报测试笔记：项目代号是青鸟计划。' }, { writtenBy: 'test' });
+  const handler = handlerFor(dir, store);
+
+  const wide = await handler('report', { days: 30, limit: 5 });
+  assert.equal(wide.ok, true);
+  assert.equal(wide.value.days, 30);
+  assert.equal(wide.value.notes_added, 1);
+  assert.equal(wide.value.items.length, 1);
+  assert.match(wide.value.items[0].title, /面板周报测试笔记/);
+
+  const defaults = await handler('report', {});
+  assert.equal(defaults.value.days, 7);
+  assert.equal(defaults.value.items.length, 1);
+
+  const clamped = await handler('report', { days: 9999, limit: 999 });
+  assert.equal(clamped.value.days, 90);
+  assert.ok(clamped.value.items.length <= 10);
+});

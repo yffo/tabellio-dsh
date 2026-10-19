@@ -3,10 +3,12 @@
 // tabellio API — the panel never writes memory directly, it only exercises the
 // same approval gate the `tabellio inbox` CLI uses.
 import { listCandidates, listProposals, reviewCandidates, reviewProposals, search, status } from 'tabellio';
+import { buildReport } from './report.js';
 
 export const RPC_CHANNEL = '/tabellio-dsh';
 export const MAX_REVIEW_IDS = 50;
 export const MAX_SEARCH_LIMIT = 20;
+export const MAX_REPORT_DAYS = 90;
 
 const fail = (code, message) => ({ ok: false, error: { code, message, details: {} } });
 const ok = (value) => ({ ok: true, value });
@@ -190,6 +192,27 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
               id: String(hit.id ?? ''),
               title: String(hit.title ?? ''),
               score: Number.isFinite(hit.score) ? Number(hit.score) : null,
+            })),
+          });
+        }
+        case 'report': {
+          const rawDays = Number(payload?.days);
+          const days = Number.isFinite(rawDays) ? Math.min(MAX_REPORT_DAYS, Math.max(1, Math.trunc(rawDays))) : 7;
+          const rawLimit = Number(payload?.limit);
+          const limit = Number.isFinite(rawLimit) ? Math.min(10, Math.max(1, Math.trunc(rawLimit))) : 3;
+          const report = buildReport(store, { days, limit });
+          return ok({
+            days: report.days,
+            since: report.since,
+            notes_total: report.notes_total,
+            notes_added: report.notes_added,
+            candidates: report.candidates,
+            proposals: report.proposals,
+            truncated: report.truncated,
+            items: report.added.map((note) => ({
+              id: String(note.id),
+              title: String(note.title),
+              valid_from: String(note.valid_from),
             })),
           });
         }
