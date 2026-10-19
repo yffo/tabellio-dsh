@@ -28,6 +28,9 @@
         # Off by default: one small host-model call per recall when enabled.
         judge: off
         recallIntentGate: true
+        # Background near-duplicate sweep: off | daily | weekly. It only writes
+        # merge proposals; approval still happens in the panel.
+        consolidate: off
         # Tuned for auto-injection into ordinary conversation (see src/config.js).
         recallMinRelevance: 0.12
         recallMinScore: 0.1

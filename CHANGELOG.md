@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1 (2026-10-19)
+
+- 新增后台巩固 `consolidate: off|daily|weekly`：到期后在空闲时扫近似重复笔记、写合并提案（最多 3 条/次），不自动合并；状态存 `runs/consolidate-state.json`，失败只 warn。
+- 80 个单元/集成测试 + 30 条验收；795 篇笔记实测扫描约 1.7s（0 提案，因无近似重复）。
+
 ## 0.4.0 (2026-10-19)
 
 - 新增跨宿主一致性检查 `npm run check:cross-host`：临时库里验证插件 API → CLI 检索 → CLI 批准候选 → MCP 服务器召回正文 → 三方笔记数一致，失败非零退出，可放进发布 CI。

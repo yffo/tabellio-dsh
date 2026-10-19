@@ -20,6 +20,7 @@ import { formatRecall } from './src/render.js';
 import { createRpcHandler } from './src/rpc.js';
 import { mountPanelRoute } from './src/web-rpc.js';
 import { registerTools } from './src/tools.js';
+import { startConsolidationTimer } from './src/consolidate.js';
 
 export const name = 'tabellio-dsh';
 
@@ -102,6 +103,14 @@ export function apply(ctx, config = {}) {
     }
   } catch (error) {
     ctx.logger?.warn?.('tabellio-dsh: panel channel unavailable: ' + (error?.message ?? error));
+  }
+
+  // Optional background consolidation: while the session is idle, look for
+  // near-duplicate notes and write merge proposals. Nothing is applied here —
+  // the panel's proposal review is still the only approval path.
+  if (settings.consolidate !== 'off') {
+    const stopTimer = startConsolidationTimer({ getStore: currentStore, settings, logger: ctx.logger });
+    if (typeof stopTimer === 'function') ctx.effect?.(() => stopTimer, 'tabellio-dsh: consolidation timer');
   }
 
   // Optional quiet delivery: instead of appending a visible user notice, the

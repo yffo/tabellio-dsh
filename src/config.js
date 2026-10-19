@@ -38,6 +38,10 @@ export const DEFAULTS = Object.freeze({
   judgeTimeoutMs: 4000,
   maxCandidatesPerTurn: 2,
   captureMaxSentenceChars: 240,
+  // Background consolidation: 'off' keeps everything manual; 'daily'/'weekly'
+  // run a near-duplicate sweep that writes merge proposals only. Approval stays
+  // in the panel, so this never rewrites memory by itself.
+  consolidate: 'off',
 });
 
 export function expandHome(value) {
@@ -75,6 +79,7 @@ export function normalizeConfig(config = {}) {
   const judge = raw.judge === 'llm' || raw.judge === true ? 'llm' : 'off';
   const judgeProvider = String(raw.judgeProvider ?? '').trim();
   const judgeModel = String(raw.judgeModel ?? '').trim();
+  const consolidate = raw.consolidate === 'daily' || raw.consolidate === 'weekly' ? raw.consolidate : 'off';
   const capture = captureRaw === true
     ? 'explicit'
     : captureRaw === false
@@ -108,5 +113,6 @@ export function normalizeConfig(config = {}) {
     judgeTimeoutMs: int(raw.judgeTimeoutMs, DEFAULTS.judgeTimeoutMs, 500, 15000),
     maxCandidatesPerTurn: int(raw.maxCandidatesPerTurn, DEFAULTS.maxCandidatesPerTurn, 1, 5),
     captureMaxSentenceChars: int(raw.captureMaxSentenceChars, DEFAULTS.captureMaxSentenceChars, 40, 1000),
+    consolidate,
   };
 }

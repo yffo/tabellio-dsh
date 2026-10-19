@@ -167,6 +167,7 @@ dsh plugin --profile desktop add tabellio-dsh
 | `queryChars` | `400` | 超长消息保留头尾 |
 | `refreshSeconds` | `30` | 重扫库间隔；0 表示每次事件重扫 |
 | `capture` | `explicit` | `explicit` / `implicit` / `assist` / `off` |
+| `consolidate` | `off` | 后台巩固：`daily`/`weekly` 时定时扫近似重复笔记并写合并提案（只产提案，批准仍在面板） |
 | `maxCandidatesPerTurn` | `2` | 每轮候选上限，1–5 |
 | `captureMaxSentenceChars` | `240` | 单句上限，40–1000 |
 | `judge` | `off` | `off` / `llm` |

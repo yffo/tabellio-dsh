@@ -159,6 +159,7 @@ The optional switches above show the defaults shipped by the plugin patch (`cord
 | `queryChars` | `400` | Long messages keep head and tail |
 | `refreshSeconds` | `30` | Store rescan interval; 0 rescans on every event |
 | `capture` | `explicit` | `explicit` / `implicit` / `assist` / `off` |
+| `consolidate` | `off` | Background sweep: `daily`/`weekly` writes merge proposals for near-duplicate notes (proposals only; approval stays in the panel) |
 | `maxCandidatesPerTurn` | `2` | Candidates per turn, 1–5 |
 | `captureMaxSentenceChars` | `240` | Per-sentence cap, 40–1000 |
 | `judge` | `off` | `off` / `llm` |
