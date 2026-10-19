@@ -1281,18 +1281,20 @@ window.__ModuleLoader__.load({
      */
     function openPanelSettings(sectionLabel) {
       try {
-        const trigger = Array.from(document.querySelectorAll('button[aria-haspopup="dialog"][aria-expanded]'))[0];
+        const isSettingsLabel = (label) => /^(设置|Settings|設定)$/.test(String(label || '').trim());
+        const trigger = Array.from(document.querySelectorAll('button[aria-haspopup="dialog"]'))
+          .find((button) => isSettingsLabel(button.getAttribute('aria-label')));
         if (!trigger) return false;
         if (trigger.getAttribute('aria-expanded') !== 'true') trigger.click();
         const visit = (attempts) => {
-          const dialog = document.querySelector('[role="dialog"]');
-          if (dialog) {
-            const row = Array.from(dialog.querySelectorAll('nav button')).find((button) => (button.textContent || '').includes(sectionLabel));
+          const panel = document.querySelector('[data-shortcut-modal="settings"]');
+          if (panel) {
+            const row = Array.from(panel.querySelectorAll('nav button')).find((button) => (button.textContent || '').includes(sectionLabel));
             if (row) { row.click(); return; }
           }
           if (attempts > 0) setTimeout(() => visit(attempts - 1), 120);
         };
-        setTimeout(() => visit(4), 60);
+        setTimeout(() => visit(5), 80);
         return true;
       } catch {
         return false;
