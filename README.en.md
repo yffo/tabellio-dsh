@@ -119,14 +119,12 @@ The optional switches above show the defaults shipped by the plugin patch (`cord
 
 ## Settings panel (Settings → Memory)
 
-The panel is organised around what you are doing, not around internal state:
+The panel has four tabs, so state is never dumped all at once:
 
-- **Waiting for you** — new candidates and merge proposals; nothing enters `notes/` until approved;
-- **Save a memory** — write from the panel, through the same write gate as the chat;
-- **Find a memory** — search (click a title for the full note), the last 7 days, and all notes with paging and kind/time filters;
-- **Recent activity** — what the last recall used, recall quality for 7 days (injected/gated/missed), judge kept/dropped counts, and the recall audit.
-
-Technical detail lives in a collapsed **Advanced status** block: capture mode, recall mode, semantic supplement, judge model and latency, consolidation cadence, store path and index warnings.
+- **Overview** — how many memories, what is pending, index health, the last recall, 7-day recall quality, and the newest notes;
+- **Waiting for you** — new candidates and merge proposals; approve or dismiss one or many, and nothing enters `notes/` until approved;
+- **Library** — write a memory, search and open a full note, page through all notes with kind/time filters;
+- **Settings** — semantic supplement, model judge, capture depth, how memory is delivered, notes per turn and consolidation, applied on save; the judge model and latency, semantic index size, store path and index warnings stay on the same page.
 
 Ordinary users never touch a config file: the panel edits the **semantic supplement** (on/off, endpoint, model, test connection), the **model judge** (on/off, judge model; empty means the current DSH default model) and **background consolidation** (off/daily/weekly). Changes apply immediately and are stored in `panel-settings.json` inside the memory folder, so they travel with the store and never touch host config. No local model? Keep it off; recall stays lexical and everything else works.
 

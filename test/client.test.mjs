@@ -114,6 +114,7 @@ test('panel renders the sectioned layout with a populated status', async () => {
 
   let hook = 0;
   const initial = [
+    'overview',
     { loading: false, error: null, notice: '' },
     {
       notes: 795, candidates: 1, proposals: 0, mode: 'inject', capture: 'assist',
@@ -158,9 +159,8 @@ test('panel renders the sectioned layout with a populated status', async () => {
   };
   walk(tree);
   const flat = texts.join('|');
-  for (const key of ['zh:purpose', 'zh:pendingTitle', 'zh:findTitle', 'zh:activityTitle', 'zh:settingsTitle', 'zh:advancedTitle', 'zh:semLabel']) {
+  for (const key of ['zh:tabOverview', 'zh:tabPending', 'zh:tabLibrary', 'zh:tabSettings', 'zh:lastRecallLabel', 'zh:notes', 'zh:index']) {
     assert.ok(flat.includes(key), 'missing ' + key);
   }
   assert.ok(flat.includes('795'), 'notes metric missing');
-  assert.ok(flat.includes('一条候选'), 'candidate title missing');
 });

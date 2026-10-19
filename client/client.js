@@ -184,6 +184,14 @@ window.__ModuleLoader__.load({
       memApprove: '批准',
       memIgnore: '忽略',
       footer: '候选只在候选区；批准后进入 notes/。自动捕获受 capture 配置约束，召回在 shadow 模式下只写回执。',
+      judgeQuality: 'judge：上次保留 {kept} · 丢弃 {dropped}',
+      pendingEmptyHint: '等对话里出现约定或纠错时，这里会有候选。',
+      tabOverview: '概览',
+      tabPending: '待批准',
+      tabLibrary: '记忆库',
+      tabSettings: '设置',
+      pendingNeedYou: '需要你决定',
+      pendingNone: '暂无',
     };
     const en = {
       section: 'Memory',
@@ -340,6 +348,14 @@ window.__ModuleLoader__.load({
       memApprove: 'Approve',
       memIgnore: 'Dismiss',
       footer: 'Candidates stay in the inbox until approved. Capture is bounded by config; shadow recall only writes receipts.',
+      judgeQuality: 'judge: last kept {kept} · dropped {dropped}',
+      pendingEmptyHint: 'Candidates appear here when a conversation contains a promise or a correction.',
+      tabOverview: 'Overview',
+      tabPending: 'Review',
+      tabLibrary: 'Library',
+      tabSettings: 'Settings',
+      pendingNeedYou: 'needs your call',
+      pendingNone: 'none',
     };
 
     const COLORS = {
@@ -463,8 +479,272 @@ window.__ModuleLoader__.load({
       },
     };
 
+    // ---- Panel design system -------------------------------------------------
+    // One warm accent, a restrained neutral scale, and a little motion. The panel
+    // is a working surface inside the app, not a marketing page: borders carry the
+    // structure, color is reserved for state and the single primary action.
+    const TONES = {
+      neutral: 'var(--dsh-text-secondary, #78716c)',
+      good: '#15803D',
+      warn: '#B45309',
+      bad: '#B91C1C',
+      info: '#1D4ED8',
+      accent: '#C2410C',
+    };
+
+    const ICON_PATHS = {
+      refresh: ['M21 12a9 9 0 1 1-3-6.7', 'M21 3v6h-6'],
+      plus: ['M12 5v14', 'M5 12h14'],
+      search: ['M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14z', 'M16.5 16.5 21 21'],
+      check: ['M20 6 9 17l-5-5'],
+      close: ['M18 6 6 18', 'M6 6l12 12'],
+      inbox: ['M4 13l2.5-7h11L20 13', 'M4 13h4l1 2h6l1-2h4v6H4z'],
+      gear: ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M19.4 15a1.7 1.7 0 0 0 .3 1.9 2 2 0 1 1-2.8 2.8 1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5 2 2 0 1 1-4 0 1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3 2 2 0 1 1-2.8-2.8 1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1 2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9 2 2 0 1 1 2.8-2.8 1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5 2 2 0 1 1 4 0 1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3 2 2 0 1 1 2.8 2.8 1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1 2 2 0 1 1 0 4 1.7 1.7 0 0 0-1.5 1z'],
+      clock: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M12 7v5l3 2'],
+      book: ['M4 19.5A2.5 2.5 0 0 1 6.5 17H20', 'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'],
+      spark: ['M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z'],
+      eye: ['M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'],
+      arrow: ['M5 12h14', 'M13 6l6 6-6 6'],
+    };
+
+    function icon(name, size = 16) {
+      const paths = ICON_PATHS[name] || ICON_PATHS.spark;
+      return h('svg', {
+        width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
+        stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round',
+        strokeLinejoin: 'round', 'aria-hidden': 'true', style: { flex: 'none' },
+      }, paths.map((d, index) => h('path', { key: index, d })));
+    }
+
+    let panelCssInjected = false;
+    function ensurePanelCss() {
+      if (panelCssInjected || typeof document === 'undefined' || !document.head) return;
+      panelCssInjected = true;
+      const style = document.createElement('style');
+      style.setAttribute('data-tabellio-dsh', 'styles');
+      style.textContent = [
+        '@keyframes tbFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }',
+        '[data-tabellio-panel] ::selection { background: rgba(194, 65, 12, 0.18); }',
+        '[data-tabellio-panel] button { transition: background .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease, transform .06s ease; }',
+        '[data-tabellio-panel] button:active:not(:disabled) { transform: translateY(1px); }',
+        '[data-tabellio-panel] button:disabled { opacity: .55; cursor: default; }',
+        '[data-tabellio-panel] :focus-visible { outline: 2px solid rgba(194, 65, 12, .45); outline-offset: 2px; border-radius: 6px; }',
+        '[data-tabellio-panel] ::-webkit-scrollbar { width: 10px; height: 10px; }',
+        '[data-tabellio-panel] ::-webkit-scrollbar-thumb { background: rgba(120, 113, 108, .28); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }',
+        '[data-tabellio-panel] ::-webkit-scrollbar-thumb:hover { background: rgba(120, 113, 108, .45); background-clip: padding-box; }',
+      ].join('\n');
+      document.head.appendChild(style);
+    }
+
+    const ui = {
+      root: {
+        padding: '18px 20px 6px', color: COLORS.text, fontSize: 13.5, lineHeight: 1.6,
+        display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 880,
+      },
+      header: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+      headerText: { minWidth: 0 },
+      title: { margin: 0, fontSize: 19, fontWeight: 650, letterSpacing: '-0.015em' },
+      titleChip: {
+        display: 'inline-block', marginLeft: 8, padding: '1px 7px', borderRadius: 999,
+        border: '1px solid ' + COLORS.border, color: COLORS.dim, fontSize: 11, fontWeight: 500,
+        verticalAlign: '2px',
+      },
+      subtitle: { margin: '4px 0 0', color: COLORS.dim, fontSize: 12.5 },
+      headerActions: { display: 'flex', gap: 6, flexShrink: 0 },
+      iconButton: {
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30,
+        borderRadius: 9, border: '1px solid ' + COLORS.border, background: 'transparent',
+        color: COLORS.dim, cursor: 'pointer',
+      },
+      tabs: { display: 'flex', gap: 2, borderBottom: '1px solid ' + COLORS.border },
+      tab: {
+        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 10px', marginBottom: -1,
+        border: 'none', borderBottom: '2px solid transparent', background: 'transparent',
+        color: COLORS.dim, fontSize: 13, cursor: 'pointer', borderRadius: '8px 8px 0 0',
+      },
+      tabActive: {
+        color: TONES.accent, borderBottomColor: TONES.accent,
+        background: 'rgba(194, 65, 12, 0.06)', fontWeight: 600,
+      },
+      tabBadge: {
+        minWidth: 16, height: 16, padding: '0 5px', borderRadius: 999, background: TONES.accent,
+        color: '#fff', fontSize: 10.5, lineHeight: '16px', textAlign: 'center', fontWeight: 600,
+      },
+      tabBody: { display: 'flex', flexDirection: 'column', gap: 14, animation: 'tbFade .18s ease-out' },
+      stats: {
+        display: 'flex', border: '1px solid ' + COLORS.border, borderRadius: 12, overflow: 'hidden',
+        background: 'transparent',
+      },
+      stat: { flex: 1, padding: '10px 14px', minWidth: 0, borderRight: '1px solid ' + COLORS.border },
+      statValue: { fontSize: 19, fontWeight: 650, letterSpacing: '-0.015em', fontVariantNumeric: 'tabular-nums' },
+      statLabel: { fontSize: 12, color: COLORS.dim },
+      statHint: { fontSize: 11, color: COLORS.dim, opacity: 0.8, marginTop: 1 },
+      chips: { display: 'flex', flexWrap: 'wrap', gap: 8 },
+      chip: {
+        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px',
+        border: '1px solid ' + COLORS.border, borderRadius: 999, fontSize: 12,
+      },
+      dot: { width: 6, height: 6, borderRadius: 999, flexShrink: 0 },
+      chipLabel: { color: COLORS.dim },
+      chipValue: { fontWeight: 550 },
+      card: { border: '1px solid ' + COLORS.border, borderRadius: 14, overflow: 'hidden', background: 'transparent' },
+      cardHead: {
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+        padding: '12px 16px', borderBottom: '1px solid ' + COLORS.border,
+      },
+      cardTitle: { margin: 0, fontSize: 14, fontWeight: 620 },
+      cardBody: { padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 },
+      empty: { display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '26px 18px', gap: 6 },
+      emptyIcon: {
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44,
+        borderRadius: 999, border: '1px dashed ' + COLORS.border, color: COLORS.dim, marginBottom: 2,
+      },
+      emptyTitle: { fontSize: 14, fontWeight: 600 },
+      emptyText: { margin: 0, color: COLORS.dim, fontSize: 12.5, maxWidth: 420 },
+      noteRow: {
+        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12,
+        width: '100%', padding: '9px 2px', border: 'none', borderBottom: '1px dashed ' + COLORS.border,
+        background: 'transparent', color: COLORS.text, fontSize: 13, cursor: 'pointer', textAlign: 'left',
+      },
+      noteTitle: { minWidth: 0, overflowWrap: 'anywhere' },
+      noteMeta: { display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0, color: COLORS.dim, fontSize: 11.5 },
+      noteDate: { fontVariantNumeric: 'tabular-nums' },
+      kindBadge: {
+        padding: '0 6px', borderRadius: 6, border: '1px solid ' + COLORS.border,
+        fontSize: 10.5, color: COLORS.dim, lineHeight: '16px',
+      },
+      notesHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' },
+      list: { display: 'flex', flexDirection: 'column' },
+      filters: { display: 'flex', gap: 8, flexWrap: 'wrap' },
+      select: {
+        fontSize: 12, padding: '4px 8px', borderRadius: 8, color: COLORS.text,
+        border: '1px solid ' + COLORS.border, background: 'transparent',
+      },
+      searchRow: { display: 'flex', gap: 8 },
+      searchIcon: {
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34,
+        border: '1px solid ' + COLORS.border, borderRadius: 9, color: COLORS.dim, flexShrink: 0,
+      },
+      input: {
+        flex: 1, minWidth: 0, padding: '8px 11px', fontSize: 13, color: COLORS.text,
+        background: 'transparent', border: '1px solid ' + COLORS.border, borderRadius: 9,
+      },
+      inputSmall: { width: 76, padding: '6px 9px', fontSize: 13, color: COLORS.text, background: 'transparent', border: '1px solid ' + COLORS.border, borderRadius: 9 },
+      textarea: {
+        width: '100%', boxSizing: 'border-box', resize: 'vertical', minHeight: 72,
+        fontSize: 13, lineHeight: 1.65, padding: '10px 12px', borderRadius: 10,
+        border: '1px solid ' + COLORS.border, background: 'transparent', color: COLORS.text, fontFamily: 'inherit',
+      },
+      composer: { display: 'flex', flexDirection: 'column', gap: 8 },
+      composerFoot: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' },
+      button: {
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        border: '1px solid ' + COLORS.border, background: 'transparent', color: COLORS.text,
+        borderRadius: 9, padding: '6px 12px', fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap',
+      },
+      buttonPrimary: {
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        border: '1px solid transparent', background: TONES.accent, color: '#fff',
+        borderRadius: 9, padding: '6px 12px', fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap',
+      },
+      buttonGhost: {
+        display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid transparent',
+        background: 'transparent', color: COLORS.dim, borderRadius: 8, padding: '5px 8px',
+        fontSize: 12.5, cursor: 'pointer',
+      },
+      saveRow: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+      group: { display: 'flex', flexDirection: 'column', gap: 10, padding: '12px 14px', border: '1px solid ' + COLORS.border, borderRadius: 12 },
+      groupHead: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 },
+      groupLabel: { fontSize: 12.5, fontWeight: 600 },
+      groupActions: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+      reviewCard: {
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14,
+        border: '1px solid ' + COLORS.border, borderRadius: 12, padding: '12px 14px',
+      },
+      reviewMain: { minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 },
+      reviewTitle: { fontSize: 13.5, fontWeight: 560, overflowWrap: 'anywhere' },
+      reviewMeta: { color: COLORS.dim, fontSize: 11.5, display: 'flex', gap: 8, flexWrap: 'wrap' },
+      reviewActions: { display: 'flex', gap: 6, flexShrink: 0 },
+      badge: {
+        display: 'inline-block', padding: '1px 7px', borderRadius: 999, fontSize: 11,
+        border: '1px solid ' + COLORS.border, color: COLORS.dim,
+      },
+      recallLine: { display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' },
+      recallQuery: { fontSize: 13.5, fontWeight: 550, overflowWrap: 'anywhere' },
+      recallMeta: { color: COLORS.dim, fontSize: 12, display: 'flex', gap: 10, flexWrap: 'wrap' },
+      recallTitles: { margin: '2px 0 0', paddingLeft: 18, color: COLORS.dim, fontSize: 12.5 },
+      metricRow: { display: 'flex', gap: 20, flexWrap: 'wrap' },
+      metric: { minWidth: 92 },
+      metricValue: { fontSize: 20, fontWeight: 650, letterSpacing: '-0.015em', fontVariantNumeric: 'tabular-nums' },
+      metricLabel: { fontSize: 12, color: COLORS.dim },
+      missList: { display: 'flex', flexDirection: 'column', gap: 4, margin: 0, padding: 0, listStyle: 'none' },
+      missRow: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, fontSize: 12.5 },
+      missText: { minWidth: 0, overflowWrap: 'anywhere', color: COLORS.text },
+      missTag: { color: COLORS.dim, fontSize: 11.5, flexShrink: 0 },
+      hitRow: {
+        display: 'flex', justifyContent: 'space-between', gap: 10, width: '100%', padding: '8px 2px',
+        border: 'none', borderBottom: '1px dashed ' + COLORS.border, background: 'transparent',
+        color: COLORS.text, fontSize: 13, cursor: 'pointer', textAlign: 'left',
+      },
+      hitTitle: { minWidth: 0, overflowWrap: 'anywhere' },
+      score: { color: COLORS.dim, flexShrink: 0, fontVariantNumeric: 'tabular-nums', fontSize: 12 },
+      muted: { color: COLORS.dim, fontSize: 12.5, margin: 0 },
+      firstRun: {
+        display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px',
+        border: '1px dashed ' + COLORS.border, borderRadius: 12, color: COLORS.dim, fontSize: 12.5,
+      },
+      firstRunDot: {
+        width: 8, height: 8, borderRadius: 999, background: TONES.accent, marginTop: 6, flexShrink: 0,
+      },
+      storeLine: { color: COLORS.dim, fontSize: 11.5, overflowWrap: 'anywhere' },
+      okLine: { display: 'flex', alignItems: 'center', gap: 6, color: TONES.good, fontSize: 12.5 },
+      warnBox: {
+        display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 12px',
+        border: '1px solid rgba(180, 83, 9, .35)', borderRadius: 10,
+        background: 'rgba(180, 83, 9, .06)', color: TONES.warn, fontSize: 12,
+      },
+      errorBanner: {
+        padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(185, 28, 28, .35)',
+        background: 'rgba(185, 28, 28, .06)', color: TONES.bad, fontSize: 12.5, overflowWrap: 'anywhere',
+      },
+      testRow: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+      controlRow: { display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: 10 },
+      controlLabel: { color: COLORS.dim, fontSize: 12.5 },
+      toast: {
+        position: 'sticky', top: 0, zIndex: 30, alignSelf: 'center', padding: '6px 14px',
+        borderRadius: 999, background: 'rgba(28, 25, 23, .92)', color: '#fff', fontSize: 12,
+        boxShadow: '0 6px 18px rgba(0,0,0,.18)',
+      },
+      skeleton: { display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' },
+      skeletonRow: {
+        height: 14, borderRadius: 6, background: 'rgba(120,113,108,.16)',
+        animation: 'tbFade .9s ease-in-out infinite alternate',
+      },
+      overlay: { position: 'fixed', inset: 0, zIndex: 1000 },
+      overlayMask: {
+        position: 'fixed', inset: 0, background: 'rgba(20, 18, 16, .38)', zIndex: 1000,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+      },
+      overlayPanel: {
+        width: '100%', maxWidth: 720, maxHeight: '82vh', borderRadius: 16, overflow: 'hidden',
+        display: 'flex', flexDirection: 'column', background: 'var(--dsh-surface, #fff)',
+        border: '1px solid ' + COLORS.border, boxShadow: '0 24px 60px rgba(0,0,0,.22)',
+      },
+      overlayHead: {
+        flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        padding: '14px 18px', borderBottom: '1px solid ' + COLORS.border,
+      },
+      overlayTitle: { margin: 0, fontSize: 14.5, fontWeight: 620, overflowWrap: 'anywhere' },
+      overlayMeta: { color: COLORS.dim, fontSize: 11.5, marginTop: 2 },
+      overlayBody: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 18px 20px' },
+      noteBody: { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 13, lineHeight: 1.75, margin: 0 },
+      code: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11.5 },
+      footer: { color: COLORS.dim, fontSize: 11.5, padding: '2px 0 10px', borderTop: '1px solid ' + COLORS.border, marginTop: 2, paddingTop: 8 },
+    };
+
     function MemoryPanel(props) {
       const { rpcCall, t } = props;
+      const [tab, setTab] = useState('overview');
       const [state, setState] = useState({ loading: true, error: null, notice: '' });
       const [status, setStatus] = useState(null);
       const [items, setItems] = useState([]);
@@ -764,13 +1044,7 @@ window.__ModuleLoader__.load({
           : t('indexMissing')
         : '';
 
-      const metric = (label, value) =>
-        h(
-          'div',
-          { style: styles.metric },
-          h('div', { style: styles.metricLabel }, label),
-          h('div', { style: styles.metricValue }, value),
-        );
+      ensurePanelCss();
 
       const sem = status ? status.semantic : null;
       const semState = !sem || sem.mode !== 'local'
@@ -779,138 +1053,179 @@ window.__ModuleLoader__.load({
           ? t('semReady').replace('{n}', String(sem.size))
           : sem.error ? t('semError') : t('semBuilding');
       const pendingTotal = status ? Number(status.candidates || 0) + Number(status.proposals || 0) : 0;
+      const hasPendingLabel = (count) => (count > 0 ? t('pendingNeedYou') : t('pendingNone'));
+      const canReview = busyId === '';
 
-      const section = (title, children, key) =>
-        h(
-          'div',
-          { key: key || title, style: styles.section },
-          h('div', { style: styles.sectionTitle }, title),
-          children,
-        );
-      const hint = (text) => h('p', { style: styles.hint }, text);
+      const chip = (label, value, tone) => h('div', { style: ui.chip, key: label + value },
+        h('span', { style: Object.assign({}, ui.dot, { background: tone || TONES.neutral }) }),
+        h('span', { style: ui.chipLabel }, label),
+        h('span', { style: ui.chipValue }, value),
+      );
 
-      const pendingSection = !status
-        ? null
-        : section(
-            t('pendingTitle'),
-            pendingTotal === 0
-              ? hint(t('pendingEmpty'))
-              : h(
-                  React.Fragment,
-                  null,
-                  proposalList.length === 0
-                    ? null
-                    : h(
-                        React.Fragment,
-                        null,
-                        h('div', { style: styles.subTitle }, t('proposalsTitle')),
-                        proposalList.map((proposal) =>
-                          h(
-                            'div',
-                            { key: 'prop-' + proposal.id, style: styles.card },
-                            h('div', { style: styles.cardTitle }, (proposal.sourceTitles || []).join(' + ') || proposal.id),
-                            h(
-                              'div',
-                              { style: styles.cardMeta },
-                              t('propSources').replace('{n}', String(proposal.sourceCount))
-                                + (typeof proposal.similarity === 'number' ? ' · ' + t('propSimilarity').replace('{n}', String(Math.round(proposal.similarity * 100))) : '')
-                                + (proposal.created ? ' · ' + proposal.created : ''),
-                            ),
-                            h(
-                              'div',
-                              { style: styles.actions },
-                              h(
-                                'button',
-                                { type: 'button', style: styles.primary, disabled: busyId !== '', onClick: () => reviewProposal('accept', [proposal.id]) },
-                                t('propApprove'),
-                              ),
-                              h(
-                                'button',
-                                { type: 'button', style: styles.button, disabled: busyId !== '', onClick: () => reviewProposal('reject', [proposal.id]) },
-                                t('propReject'),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  items.length === 0
-                    ? null
-                    : h(
-                        React.Fragment,
-                        null,
-                        h('div', { style: styles.subTitle }, t('candidatesTitle')),
-                        h(
-                          'div',
-                          { style: styles.actions },
-                          h('button', { type: 'button', style: styles.primary, disabled: busyId !== '', onClick: () => review('accept', items.map((item) => item.id)) }, t('approveAll')),
-                          h('button', { type: 'button', style: styles.button, disabled: busyId !== '', onClick: () => review('reject', items.map((item) => item.id)) }, t('rejectAll')),
-                        ),
-                        items.map((item) =>
-                          h(
-                            'div',
-                            { key: item.id, style: styles.card },
-                            h('div', { style: styles.cardTitle }, item.title),
-                            h(
-                              'div',
-                              { style: styles.cardMeta },
-                              (item.kind || 'semantic') + ' · ' + t('chars').replace('{n}', String(item.chars)) + (item.created ? ' · ' + item.created : '') + ' · ' + sourceLabel(item.source),
-                            ),
-                            h(
-                              'div',
-                              { style: styles.actions },
-                              h(
-                                'button',
-                                { type: 'button', style: styles.primary, disabled: busyId !== '', onClick: () => review('accept', [item.id]) },
-                                t('approve'),
-                              ),
-                              h(
-                                'button',
-                                { type: 'button', style: styles.button, disabled: busyId !== '', onClick: () => review('reject', [item.id]) },
-                                t('reject'),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                ),
-          );
+      const stat = (label, value, hintText) => h('div', { style: ui.stat },
+        h('div', { style: ui.statValue }, value),
+        h('div', { style: ui.statLabel }, label),
+        hintText ? h('div', { style: ui.statHint }, hintText) : null,
+      );
 
-      const writeSection = section(
-        t('addLabel'),
-        h(
-          'div',
-          { style: styles.writeBox },
+      const card = (title, children, extra) => h('section', { style: ui.card },
+        h('div', { style: ui.cardHead },
+          h('h3', { style: ui.cardTitle }, title),
+          extra || null,
+        ),
+        h('div', { style: ui.cardBody }, children),
+      );
+
+      const emptyState = (iconName, title, text, action) => h('div', { style: ui.empty },
+        h('div', { style: ui.emptyIcon }, icon(iconName, 22)),
+        h('div', { style: ui.emptyTitle }, title),
+        text ? h('p', { style: ui.emptyText }, text) : null,
+        action || null,
+      );
+
+      const noteRow = (note, key) => h('button', {
+        key,
+        type: 'button',
+        style: ui.noteRow,
+        onClick: () => openNote(note.id),
+      },
+        h('span', { style: ui.noteTitle }, String(note.title || note.id || '')),
+        h('span', { style: ui.noteMeta }, h('span', { style: ui.noteDate }, String(note.valid_from || note.validFrom || '').slice(0, 10))),
+      );
+
+      const overview = status ? [
+        h('div', { style: ui.stats, key: 'stats' },
+          stat(t('notes'), String(status.notes)),
+          stat(t('pending'), String(pendingTotal), hasPendingLabel(pendingTotal)),
+          stat(t('index'), indexLabel),
+        ),
+        h('div', { style: ui.chips, key: 'chips' },
+          chip(t('mode'), modeLabel, status.mode === 'inject' ? TONES.good : status.mode === 'shadow' ? TONES.info : TONES.neutral),
+          chip(t('capture'), captureLabel, status.capture === 'off' ? TONES.neutral : TONES.accent),
+          chip(t('semLabel'), semState, sem && sem.mode === 'local' ? TONES.info : TONES.neutral),
+          chip(t('consolidateLabel'), status.consolidate && status.consolidate.mode !== 'off' ? consolidateLabel(status.consolidate) : t('consOff'), status.consolidate && status.consolidate.mode !== 'off' ? TONES.good : TONES.neutral),
+        ),
+        status.notes === 0
+          ? h('div', { key: 'firstrun', style: ui.firstRun }, h('div', { style: ui.firstRunDot }), t('firstRun'))
+          : null,
+        card(t('lastRecallLabel'), status.lastRecall
+          ? h(React.Fragment, null,
+              h('div', { style: ui.recallLine },
+                h('span', { style: ui.badge }, auditModeLabel(status.lastRecall.mode)),
+                h('span', { style: ui.recallQuery }, '「' + String(status.lastRecall.query || '').slice(0, 60) + '」'),
+                h('span', { style: ui.recallMeta }, t('lrHits').replace('{n}', String(status.lastRecall.count ?? 0)) + (status.lastRecall.elapsedMs ? ' · ' + status.lastRecall.elapsedMs + 'ms' : '')),
+              ),
+              new Date(status.lastRecall.at).toLocaleString(),
+              Array.isArray(status.lastRecall.titles) && status.lastRecall.titles.length
+                ? h('div', { style: ui.recallTitles }, status.lastRecall.titles.map((title, index) => h('span', { key: index, style: ui.titleChip }, title)))
+                : null,
+            )
+          : h('p', { style: ui.muted }, t('lastRecallNone'))),
+        quality && quality.total > 0
+          ? card(t('qualityLabel'), h(React.Fragment, null,
+              h('div', { style: ui.metricRow },
+                h('div', { style: ui.metric },
+                  h('div', { style: ui.metricValue }, String(quality.total)),
+                  h('div', { style: ui.metricLabel }, t('qualityTotal').replace('{n}', '').trim())),
+                h('div', { style: ui.metric },
+                  h('div', { style: ui.metricValue }, String((quality.byMode?.context || 0) + (quality.byMode?.notice || 0))),
+                  h('div', { style: ui.metricLabel }, t('qualityInjected'))),
+                h('div', { style: ui.metric },
+                  h('div', { style: ui.metricValue }, String((quality.byMode?.suppressed || 0) + (quality.byMode?.judged_out || 0))),
+                  h('div', { style: ui.metricLabel }, t('qualityBlocked'))),
+                h('div', { style: ui.metric },
+                  h('div', { style: ui.metricValue }, String((quality.byMode?.refused || 0) + (quality.byMode?.error || 0))),
+                  h('div', { style: ui.metricLabel }, t('qualityMissed'))),
+              ),
+              quality.judge && (quality.judge.kept || quality.judge.dropped)
+                ? h('p', { style: ui.muted }, t('judgeQuality') + '：' + t('judgeKept') + ' ' + String(quality.judge.kept) + ' · ' + t('judgeDropped') + ' ' + String(quality.judge.dropped))
+                : null,
+              Array.isArray(quality.topMisses) && quality.topMisses.length
+                ? h('div', { style: ui.missList }, quality.topMisses.slice(0, 3).map((row, index) =>
+                    h('div', { key: 'miss-' + index, style: ui.missRow },
+                      h('span', { style: ui.missTag }, '×' + String(row.count)),
+                      h('span', { style: ui.missText }, String(row.query)))))
+                : null,
+            ))
+          : null,
+        weekly
+          ? card(t('weeklyLabel'), h(React.Fragment, null,
+              h('p', { style: ui.muted }, weekly.notes_added > 0
+                ? String(weekly.notes_added) + ' ' + t('notes') + (weekly.truncated > 0 ? '（' + t('weeklyMore').replace('{n}', String(weekly.truncated)) + '）' : '')
+                : t('weeklyNone')),
+              Array.isArray(weekly.items) && weekly.items.length
+                ? h('div', { style: ui.list }, weekly.items.map((note) => noteRow(note, 'week-' + note.id)))
+                : null,
+            ))
+          : null,
+      ] : [];
+
+      const pendingEmpty = emptyState('inbox', t('pendingEmpty'), t('pendingEmptyHint'),
+        h('button', { type: 'button', style: Object.assign({}, ui.buttonPrimary, { marginTop: 12 }), onClick: () => setTab('library') }, t('addButton')));
+
+      const pending = status ? [
+        proposalList.length === 0 ? null : h('div', { key: 'props' },
+          h('div', { style: ui.groupLabel }, t('proposalsTitle')),
+          proposalList.map((proposal) => h('article', { key: 'prop-' + proposal.id, style: ui.reviewCard },
+            h('div', { style: ui.reviewMain },
+              h('div', { style: ui.reviewTitle }, (proposal.sourceTitles || []).join(' + ') || proposal.id),
+              h('div', { style: ui.reviewMeta },
+                t('propSources').replace('{n}', String(proposal.sourceCount))
+                + (typeof proposal.similarity === 'number' ? ' · ' + Math.round(proposal.similarity * 100) + '%' : '')
+                + (proposal.created ? ' · ' + proposal.created : '')),
+            ),
+            h('div', { style: ui.reviewActions },
+              h('button', { type: 'button', style: ui.buttonPrimary, disabled: !canReview, onClick: () => reviewProposal('accept', [proposal.id]) }, icon('check', 13), t('propApprove')),
+              h('button', { type: 'button', style: ui.buttonGhost, disabled: !canReview, onClick: () => reviewProposal('reject', [proposal.id]) }, t('propReject')),
+            ),
+          ))),
+        items.length === 0 ? null : h('div', { key: 'cands' },
+          h('div', { style: ui.groupHead },
+            h('div', { style: ui.groupLabel }, t('candidatesTitle')),
+            h('div', { style: ui.groupActions },
+              h('button', { type: 'button', style: ui.buttonGhost, disabled: !canReview, onClick: () => review('accept', items.map((item) => item.id)) }, t('approveAll')),
+              h('button', { type: 'button', style: ui.buttonGhost, disabled: !canReview, onClick: () => review('reject', items.map((item) => item.id)) }, t('rejectAll')),
+            ),
+          ),
+          items.map((item) => h('article', { key: item.id, style: ui.reviewCard },
+            h('div', { style: ui.reviewMain },
+              h('div', { style: ui.reviewTitle }, item.title),
+              h('div', { style: ui.reviewMeta },
+                h('span', { style: ui.kindBadge }, item.kind || 'semantic'),
+                h('span', null, t('chars').replace('{n}', String(item.chars))),
+                item.created ? h('span', null, item.created) : null,
+                h('span', null, sourceLabel(item.source)),
+              ),
+            ),
+            h('div', { style: ui.reviewActions },
+              h('button', { type: 'button', style: ui.buttonPrimary, disabled: !canReview, onClick: () => review('accept', [item.id]) }, icon('check', 13), t('approve')),
+              h('button', { type: 'button', style: ui.buttonGhost, disabled: !canReview, onClick: () => review('reject', [item.id]) }, t('reject')),
+            ),
+          ))),
+        pendingTotal === 0 ? pendingEmpty : null,
+      ] : [];
+
+      const library = status ? [
+        card(t('addLabel'), h('div', { style: ui.composer },
           h('textarea', {
-            style: styles.textarea,
+            style: ui.textarea,
             rows: 3,
             value: draft,
             placeholder: t('addPlaceholder'),
             'aria-label': t('addLabel'),
             onChange: (event) => setDraft(event.target.value),
           }),
-          h(
-            'div',
-            { style: styles.actions },
-            h(
-              'button',
-              { type: 'button', style: styles.primary, disabled: saving || draft.trim() === '', onClick: saveMemory },
-              saving ? t('addSaving') : t('addButton'),
-            ),
+          h('div', { style: ui.composerFoot },
+            h('span', { style: ui.muted }, draft.trim() ? String(draft.trim().length) + ' ' + t('chars').replace('{n}', '').trim() : ''),
+            h('button', { type: 'button', style: ui.buttonPrimary, disabled: saving || draft.trim() === '', onClick: saveMemory }, icon('plus', 13), saving ? t('addSaving') : t('addButton')),
           ),
-        ),
-      );
-
-      const findSection = section(
-        t('findTitle'),
-        h(
-          React.Fragment,
-          null,
-          h(
-            'div',
-            { style: styles.searchRow },
+        )),
+        card(t('findTitle'), h('div', null,
+          h('div', { style: ui.searchRow },
+            h('span', { style: ui.searchIcon }, icon('search', 15)),
             h('input', {
               type: 'search',
-              style: styles.input,
+              style: ui.input,
               value: query,
               placeholder: t('searchPlaceholder'),
               'aria-label': t('searchTitle'),
@@ -919,333 +1234,163 @@ window.__ModuleLoader__.load({
                 if (event.key === 'Enter') find();
               },
             }),
-            h(
-              'button',
-              { type: 'button', style: styles.button, disabled: searching || query.trim() === '', onClick: find },
-              searching ? t('loading') : t('searchButton'),
-            ),
+            h('button', { type: 'button', style: ui.buttonPrimary, disabled: searching || query.trim() === '', onClick: find }, searching ? t('loading') : t('searchButton')),
           ),
           found
             ? found.error
-              ? h('div', { style: styles.error }, t('searchError').replace('{err}', String(found.error)))
+              ? h('div', { style: ui.errorLine }, t('searchError').replace('{err}', String(found.error)))
               : found.refused
-                ? h('div', { style: styles.notice }, t('searchRefused'))
+                ? h('div', { style: ui.muted }, t('searchRefused'))
                 : !Array.isArray(found.hits) || found.hits.length === 0
-                  ? h('div', { style: styles.notice }, t('searchEmpty'))
-                  : found.hits.map((hit) =>
-                      h(
-                        'div',
-                        { key: 'hit-' + hit.id, style: styles.hitRow, onClick: () => openNote(hit.id) },
-                        h('span', { style: styles.hitTitle }, hit.title || hit.id),
-                        h(
-                          'span',
-                          { style: styles.hitScore },
-                          typeof hit.score === 'number' ? Math.round(hit.score * 100) + '%' : '',
-                        ),
-                      ),
-                    )
+                  ? h('div', { style: ui.muted }, t('searchEmpty'))
+                  : h('div', { style: ui.list }, found.hits.map((hit) =>
+                      h('button', { key: 'hit-' + hit.id, type: 'button', style: ui.hitRow, onClick: () => openNote(hit.id) },
+                        h('span', { style: ui.hitTitle }, hit.title || hit.id),
+                        h('span', { style: ui.score }, typeof hit.score === 'number' ? Math.round(hit.score * 100) + '%' : ''))))
             : null,
-          note
-            ? h(
-                'div',
-                { style: styles.card },
-                h(
-                  'div',
-                  { style: styles.cardTitle },
-                  String(note.title || note.id || ''),
-                  h(
-                    'button',
-                    { type: 'button', style: Object.assign({}, styles.button, { marginLeft: 8 }), onClick: () => setNote(null) },
-                    t('closeNote'),
-                  ),
-                ),
-                note.loading
-                  ? h('div', { style: styles.notice }, t('loading'))
-                  : note.error
-                    ? h('div', { style: styles.error }, String(note.error))
-                    : h(
-                        React.Fragment,
-                        null,
-                        h('div', { style: styles.cardMeta }, (note.kind || 'semantic') + (note.scope ? ' · ' + note.scope : '') + (note.validFrom ? ' · ' + String(note.validFrom).slice(0, 10) : '')),
-                        h('pre', { style: styles.noteBody }, String(note.body || '')),
-                      ),
-              )
+        )),
+        card(t('notesAll'), h('div', null,
+          h('div', { style: ui.notesHead },
+            h('span', { style: ui.muted }, t('notesCount').replace('{n}', String(older.total))),
+            h('div', { style: ui.filters },
+              h('select', { style: ui.select, value: filters.kind, onChange: (event) => applyFilters({ kind: event.target.value }) },
+                h('option', { value: '' }, t('filterAllKinds')),
+                h('option', { value: 'semantic' }, t('filterSemantic')),
+                h('option', { value: 'procedural' }, t('filterProcedural')),
+              ),
+              h('select', { style: ui.select, value: String(filters.days), onChange: (event) => applyFilters({ days: Number(event.target.value) }) },
+                h('option', { value: '0' }, t('filterAllTime')),
+                h('option', { value: '7' }, t('filter7')),
+                h('option', { value: '30' }, t('filter30')),
+                h('option', { value: '90' }, t('filter90')),
+              ),
+            ),
+          ),
+          older.items.length
+            ? h('div', { style: ui.list }, older.items.map((note) => noteRow(note, 'note-' + note.id)))
+            : h('p', { style: ui.muted }, older.loading ? t('notesLoading') : t('searchEmpty')),
+          older.items.length < older.total
+            ? h('button', { type: 'button', style: ui.buttonGhost, onClick: loadOlder, disabled: older.loading }, older.loading ? t('notesLoading') : t('notesMore'))
             : null,
-        ),
-      );
+        )),
+      ] : [];
 
       const setField = (key) => (event) => setSettingsDraft((prev) => ({ ...prev, [key]: event.target.value }));
-      const settingsSection = settingsDraft
-        ? section(
-            t('settingsTitle'),
-            h(
-              React.Fragment,
-              null,
-              h('p', { style: styles.hint }, t('settingsHint')),
-              h('div', { style: styles.formRow },
-                h('label', { style: styles.formLabel }, t('semLabel')),
-                h('select', { style: styles.select, value: settingsDraft.semantic, onChange: setField('semantic') },
-                  h('option', { value: 'off' }, t('semOff')),
-                  h('option', { value: 'local' }, t('settingsSemanticLocal')),
-                ),
-              ),
+      const control = (label, node) => h('label', { style: ui.controlRow }, h('span', { style: ui.controlLabel }, label), node);
+      const settingsPane = settingsDraft
+        ? h(React.Fragment, null,
+            card(t('settingsTitle'), h('div', null,
+              h('p', { style: ui.muted }, t('settingsHint')),
+              control(t('semLabel'), h('select', { style: ui.select, value: settingsDraft.semantic, onChange: setField('semantic') },
+                h('option', { value: 'off' }, t('semOff')),
+                h('option', { value: 'local' }, t('settingsSemanticLocal')))),
               settingsDraft.semantic === 'local'
                 ? h(React.Fragment, null,
-                    h('div', { style: styles.formRow },
-                      h('label', { style: styles.formLabel }, t('settingsEndpoint')),
-                      h('input', { style: styles.input, value: settingsDraft.semanticEndpoint, onChange: setField('semanticEndpoint'), placeholder: 'http://127.0.0.1:8080/v1/embeddings' }),
-                    ),
-                    h('div', { style: styles.formRow },
-                      h('label', { style: styles.formLabel }, t('settingsModel')),
-                      h('input', { style: styles.input, value: settingsDraft.semanticModel, onChange: setField('semanticModel'), placeholder: 'qwen3-embedding-0.6b' }),
-                    ),
-                    h('div', { style: styles.actions },
-                      h('button', { type: 'button', style: styles.button, disabled: semanticTest?.loading === true, onClick: runSemanticTest },
-                        semanticTest?.loading ? t('loading') : t('settingsTest')),
+                    control(t('settingsEndpoint'), h('input', { style: ui.input, value: settingsDraft.semanticEndpoint, onChange: setField('semanticEndpoint'), placeholder: 'http://127.0.0.1:8080/v1/embeddings' })),
+                    control(t('settingsModel'), h('input', { style: ui.input, value: settingsDraft.semanticModel, onChange: setField('semanticModel'), placeholder: 'qwen3-embedding-0.6b' })),
+                    h('div', { style: ui.testRow },
+                      h('button', { type: 'button', style: ui.buttonGhost, disabled: semanticTest?.loading === true, onClick: runSemanticTest }, semanticTest?.loading ? t('loading') : t('settingsTest')),
                       semanticTest && !semanticTest.loading
-                        ? h('span', { style: styles.hint }, semanticTest.ok
+                        ? h('span', { style: semanticTest.ok ? ui.okLine : ui.errorLine }, semanticTest.ok
                           ? t('settingsTestOk').replace('{dims}', String(semanticTest.dims)).replace('{ms}', String(semanticTest.ms))
                           : t('settingsTestFail').replace('{err}', String(semanticTest.error || '')))
-                        : null,
-                    ),
+                        : null),
                   )
                 : null,
-              h('div', { style: styles.formRow },
-                h('label', { style: styles.formLabel }, t('judgeLabel')),
-                h('select', { style: styles.select, value: settingsDraft.judge, onChange: setField('judge') },
-                  h('option', { value: 'off' }, t('judgeOff')),
-                  h('option', { value: 'llm' }, t('settingsJudgeLlm')),
-                ),
-              ),
+              control(t('judgeLabel'), h('select', { style: ui.select, value: settingsDraft.judge, onChange: setField('judge') },
+                h('option', { value: 'off' }, t('judgeOff')),
+                h('option', { value: 'llm' }, t('settingsJudgeLlm')))),
               settingsDraft.judge === 'llm'
-                ? h('div', { style: styles.formRow },
-                    h('label', { style: styles.formLabel }, t('settingsJudgeModel')),
-                    h('input', { style: styles.input, value: settingsDraft.judgeModel, onChange: setField('judgeModel'), placeholder: t('settingsJudgeDefault') }),
-                  )
+                ? control(t('settingsJudgeModel'), h('input', { style: ui.input, value: settingsDraft.judgeModel, onChange: setField('judgeModel'), placeholder: t('settingsJudgeDefault') }))
                 : null,
-              h('div', { style: styles.formRow },
-                h('label', { style: styles.formLabel }, t('settingsCapture')),
-                h('select', { style: styles.select, value: settingsDraft.capture, onChange: setField('capture') },
-                  h('option', { value: 'off' }, t('capOff')),
-                  h('option', { value: 'explicit' }, t('capExplicit')),
-                  h('option', { value: 'implicit' }, t('capImplicit')),
-                  h('option', { value: 'assist' }, t('capAssist')),
-                ),
-              ),
-              h('div', { style: styles.formRow },
-                h('label', { style: styles.formLabel }, t('settingsDelivery')),
-                h('select', { style: styles.select, value: settingsDraft.delivery, onChange: setField('delivery') },
-                  h('option', { value: 'context' }, t('settingsDeliveryContext')),
-                  h('option', { value: 'notice' }, t('settingsDeliveryNotice')),
-                ),
-              ),
-              h('div', { style: styles.formRow },
-                h('label', { style: styles.formLabel }, t('settingsMaxNotes')),
-                h('input', { style: styles.input, type: 'number', min: 1, max: 20, value: settingsDraft.recallMaxNotes, onChange: setField('recallMaxNotes') }),
-              ),
-              h('div', { style: styles.formRow },
-                h('label', { style: styles.formLabel }, t('consolidateLabel')),
-                h('select', { style: styles.select, value: settingsDraft.consolidate, onChange: setField('consolidate') },
-                  h('option', { value: 'off' }, t('consOff')),
-                  h('option', { value: 'daily' }, t('consDaily')),
-                  h('option', { value: 'weekly' }, t('consWeekly')),
-                ),
-              ),
-              h('div', { style: styles.actions },
-                h('button', { type: 'button', style: styles.primary, disabled: settingsSaving, onClick: savePanelSettings },
-                  settingsSaving ? t('addSaving') : t('settingsSave')),
-              ),
-              h('p', { style: styles.hint }, t('settingsSourceHint')),
-            ),
+              control(t('settingsCapture'), h('select', { style: ui.select, value: settingsDraft.capture, onChange: setField('capture') },
+                h('option', { value: 'off' }, t('capOff')),
+                h('option', { value: 'explicit' }, t('capExplicit')),
+                h('option', { value: 'implicit' }, t('capImplicit')),
+                h('option', { value: 'assist' }, t('capAssist')))),
+              control(t('settingsDelivery'), h('select', { style: ui.select, value: settingsDraft.delivery, onChange: setField('delivery') },
+                h('option', { value: 'context' }, t('settingsDeliveryContext')),
+                h('option', { value: 'notice' }, t('settingsDeliveryNotice')))),
+              control(t('settingsMaxNotes'), h('input', { style: ui.inputSmall, type: 'number', min: 1, max: 20, value: settingsDraft.recallMaxNotes, onChange: setField('recallMaxNotes') })),
+              control(t('consolidateLabel'), h('select', { style: ui.select, value: settingsDraft.consolidate, onChange: setField('consolidate') },
+                h('option', { value: 'off' }, t('consOff')),
+                h('option', { value: 'daily' }, t('consDaily')),
+                h('option', { value: 'weekly' }, t('consWeekly')))),
+              h('div', { style: ui.saveRow },
+                h('button', { type: 'button', style: ui.buttonPrimary, disabled: settingsSaving, onClick: savePanelSettings }, settingsSaving ? t('addSaving') : t('settingsSave')),
+                h('span', { style: ui.muted }, t('settingsSourceHint'))),
+            )),
+            card(t('advancedTitle'), h('div', null,
+              h('p', { style: ui.muted }, t('judgeLabel') + '：' + judgeLabel(status && status.judge)),
+              h('p', { style: ui.muted }, t('consolidateLabel') + '：' + consolidateLabel(status && status.consolidate)),
+              h('p', { style: ui.muted }, t('semLabel') + '：' + semState + (sem && sem.model ? ' · ' + String(sem.model) : '')),
+              h('p', { style: ui.muted }, t('capture') + '：' + captureLabel + ' · ' + t('index') + '：' + indexLabel),
+              h('p', { style: ui.storeLine }, t('store') + '：', h('code', { style: ui.code }, status ? status.store : '')),
+              Array.isArray(status && status.warnings) && status.warnings.length
+                ? h('div', { style: ui.warnBox }, status.warnings.slice(0, 3).join('；'))
+                : null,
+            )),
           )
+        : emptyState('gear', t('settingsTitle'), t('loading'));
+
+      const tabState = tab;
+      const tabs = [
+        { id: 'overview', label: t('tabOverview'), icon: 'spark' },
+        { id: 'pending', label: t('tabPending'), icon: 'inbox', count: pendingTotal },
+        { id: 'library', label: t('tabLibrary'), icon: 'book' },
+        { id: 'settings', label: t('tabSettings'), icon: 'gear' },
+      ];
+      const body = tab === 'overview' ? overview : tab === 'pending' ? pending : tab === 'library' ? library : [settingsPane];
+
+      const noteOverlay = note
+        ? h('div', { style: ui.overlay },
+            h('div', { style: ui.overlayMask, onClick: () => setNote(null) }),
+            h('div', { style: ui.overlayPanel, role: 'dialog', 'aria-modal': 'true', 'aria-label': String(note.title || note.id || '') },
+              h('div', { style: ui.overlayHead },
+                h('div', null,
+                  h('div', { style: ui.overlayTitle }, String(note.title || note.id || '')),
+                  h('div', { style: ui.overlayMeta }, (note.kind || 'semantic') + (note.scope ? ' · ' + note.scope : '') + (note.validFrom ? ' · ' + String(note.validFrom).slice(0, 10) : ''))),
+                h('button', { type: 'button', style: ui.iconButton, onClick: () => setNote(null), 'aria-label': t('closeNote') }, icon('x', 16)),
+              ),
+              h('div', { style: ui.overlayBody },
+                note.loading ? h('p', { style: ui.muted }, t('loading')) : note.error ? h('p', { style: ui.errorLine }, String(note.error)) : h('pre', { style: ui.noteBody }, String(note.body || ''))),
+            ))
         : null;
 
-      const activitySection = !status
-        ? null
-        : section(
-            t('activityTitle'),
-            h(
-              React.Fragment,
-              null,
-              h('p', { style: styles.sub }, t('lastRecallLabel') + '：' + lastRecallLabel(status.lastRecall)),
-              Array.isArray(status.lastRecall && status.lastRecall.titles) && status.lastRecall.titles.length
-                ? h('p', { style: styles.recallTitles }, t('lrTitles') + '：' + status.lastRecall.titles.join(' / '))
-                : null,
-              quality && quality.total > 0
-                ? h('div', null,
-                  h('p', { style: styles.sub }, t('qualityLabel') + '：' + t('qualityTotal').replace('{n}', String(quality.total))
-                    + ' · ' + t('qualityInjected') + ' ' + String((quality.byMode?.context || 0) + (quality.byMode?.notice || 0))
-                    + ' · ' + t('qualityBlocked') + ' ' + String((quality.byMode?.suppressed || 0) + (quality.byMode?.judged_out || 0))
-                    + ' · ' + t('qualityMissed') + ' ' + String((quality.byMode?.refused || 0) + (quality.byMode?.error || 0))),
-                  quality.judge && (quality.judge.kept || quality.judge.dropped)
-                    ? h('p', { style: styles.sub }, t('judgeQuality') + '：' + t('judgeKept') + ' ' + String(quality.judge.kept) + ' · ' + t('judgeDropped') + ' ' + String(quality.judge.dropped))
-                    : null,
-                  Array.isArray(quality.topMisses) && quality.topMisses.length
-                    ? h('ul', { style: styles.weeklyList }, quality.topMisses.slice(0, 3).map((row, index) => h('li', { key: String(index), style: styles.weeklyItem },
-                      t('qualityTopMiss') + '：', String(row.query), ' ×' + String(row.count))))
-                    : null)
-                : null,
-              weekly
-                ? h(
-                    'div',
-                    null,
-                    h('p', { style: styles.sub }, t('weeklyLabel') + '：' + (weekly.notes_added > 0
-                      ? String(weekly.notes_added) + ' 条新增' + (weekly.truncated > 0 ? '（' + t('weeklyMore').replace('{n}', String(weekly.truncated)) + '）' : '')
-                      : t('weeklyNone'))),
-                    Array.isArray(weekly.items) && weekly.items.length
-                      ? h(
-                          'ul',
-                          { style: styles.weeklyList },
-                          weekly.items.map((note) =>
-                            h('li', { key: note.id, style: styles.weeklyItem }, String(note.valid_from || '').slice(0, 10) + ' ' + String(note.title || '')),
-                          ),
-                        )
-                      : null,
-                  )
-                : null,
-              older.items.length || older.total
-                ? h(
-                    'div',
-                    null,
-                    h('p', { style: styles.sub }, t('notesAll') + '：' + t('notesCount').replace('{n}', String(older.total))),
-                    h(
-                      'div',
-                      { style: styles.filters },
-                      h(
-                        'select',
-                        {
-                          style: styles.select,
-                          value: filters.kind,
-                          onChange: (event) => applyFilters({ kind: event.target.value }),
-                        },
-                        h('option', { value: '' }, t('filterAllKinds')),
-                        h('option', { value: 'semantic' }, t('filterSemantic')),
-                        h('option', { value: 'procedural' }, t('filterProcedural')),
-                      ),
-                      h(
-                        'select',
-                        {
-                          style: styles.select,
-                          value: String(filters.days),
-                          onChange: (event) => applyFilters({ days: Number(event.target.value) }),
-                        },
-                        h('option', { value: '0' }, t('filterAllTime')),
-                        h('option', { value: '7' }, t('filter7')),
-                        h('option', { value: '30' }, t('filter30')),
-                        h('option', { value: '90' }, t('filter90')),
-                      ),
-                    ),
-                    h(
-                      'ul',
-                      { style: styles.weeklyList },
-                      older.items.map((note) =>
-                        h(
-                          'li',
-                          {
-                            key: note.id,
-                            style: { ...styles.weeklyItem, cursor: 'pointer' },
-                            onClick: () => openNote(note.id),
-                          },
-                          String(note.valid_from || '').slice(0, 10) + ' ' + String(note.title || ''),
-                        ),
-                      ),
-                    ),
-                    older.items.length < older.total
-                      ? h(
-                          'button',
-                          { type: 'button', style: styles.button, onClick: loadOlder, disabled: older.loading },
-                          older.loading ? t('notesLoading') : t('notesMore'),
-                        )
-                      : null,
-                  )
-                : null,
-              audited && Array.isArray(audited.items) && audited.items.length
-                ? h('div', null,
-                  h('p', { style: styles.sub }, t('auditTitle')),
-                  h('ul', { style: styles.weeklyList },
-                    audited.items.slice(0, 8).map((entry, index) => h('li', { key: String(index), style: styles.weeklyItem },
-                      h('span', { style: styles.auditMode }, auditModeLabel(entry.mode)),
-                      ' · ',
-                      String(entry.query || '—'),
-                      entry.reason ? ' · ' + String(entry.reason) : '',
-                    ))))
-                : null,
-            ),
-          );
-
-      const advancedSection = !status
-        ? null
-        : h(
-            'details',
-            { style: styles.details },
-            h('summary', { style: styles.summary }, t('advancedTitle')),
-            h('p', { style: styles.sub }, t('judgeLabel') + '：' + judgeLabel(status.judge)),
-            hint(t('judgeHint')),
-            h('p', { style: styles.sub }, t('consolidateLabel') + '：' + consolidateLabel(status.consolidate)),
-            h('p', { style: styles.sub }, t('semLabel') + '：' + semState + (sem && sem.model ? ' · ' + String(sem.model) : '') + (sem && sem.endpoint ? ' · ' + String(sem.endpoint) : '')),
-            hint(t('semHint')),
-            hint(t('semSwitch')),
-            h('p', { style: styles.sub }, t('store') + '：', h('span', { style: styles.code }, status.store)),
-            h('p', { style: styles.sub }, t('capture') + '：' + captureLabel + ' · ' + t('index') + '：' + indexLabel),
-            Array.isArray(status.warnings) && status.warnings.length
-              ? h('div', { style: styles.notice }, t('warnings') + '：' + status.warnings.slice(0, 3).join('；'))
-              : null,
-          );
-
-      return h(
-        'div',
-        { style: styles.root, 'data-tabellio-panel': '1' },
-        h(
-          'div',
-          { style: styles.head },
-          h('h2', { style: styles.title }, t('title')),
-          h('button', { type: 'button', style: styles.button, onClick: load, disabled: state.loading }, t('refresh')),
+      return h('div', { style: ui.root, 'data-tabellio-panel': '1' },
+        h('header', { style: ui.header },
+          h('div', { style: ui.headerText },
+            h('h2', { style: ui.title }, t('title')),
+            h('p', { style: ui.subtitle }, t('subtitle')),
+          ),
+          h('div', { style: ui.headerActions },
+            h('button', { type: 'button', style: ui.iconButton, onClick: load, disabled: state.loading, 'aria-label': t('refresh') }, icon('refresh', 16)),
+          ),
         ),
-        h('p', { style: styles.sub }, t('subtitle')),
-        h('p', { style: styles.hint }, t('purpose')),
-
-        state.error
-          ? h('div', { style: styles.error }, String(state.error))
-          : null,
-        state.notice ? h('div', { style: styles.notice }, state.notice) : null,
-
-        status
-          ? h(
-              React.Fragment,
-              null,
-              h(
-                'div',
-                { style: styles.metrics },
-                metric(t('notes'), status.notes),
-                metric(t('pending'), pendingTotal),
-                metric(t('index'), indexLabel),
-              ),
-              h(
-                'p',
-                { style: styles.sub },
-                t('capture') + '：' + captureLabel + ' · ' + t('mode') + '：' + modeLabel + ' · ' + t('semLabel') + '：' + semState,
-              ),
-              status.notes === 0
-                ? h('div', { style: styles.firstRun }, t('firstRun'))
-                : null,
-              pendingSection,
-              writeSection,
-              findSection,
-              activitySection,
-              settingsSection,
-              advancedSection,
-            )
-          : null,
-
-        state.loading && !status
-          ? h('div', { style: styles.notice }, t('loading'))
-          : null,
-
-        h(
-          'div',
-          { style: styles.footer },
-          t('footer'),
+        state.error ? h('div', { style: ui.errorBanner }, state.error) : null,
+        state.notice ? h('div', { style: ui.toast }, state.notice) : null,
+        h('nav', { style: ui.tabs, role: 'tablist' }, tabs.map((item) =>
+          h('button', {
+            key: item.id,
+            type: 'button',
+            role: 'tab',
+            'aria-selected': tabState === item.id,
+            style: tabState === item.id ? Object.assign({}, ui.tab, ui.tabActive) : ui.tab,
+            onClick: () => setTab(item.id),
+          },
+            icon(item.icon, 15),
+            h('span', null, item.label),
+            item.count > 0 ? h('span', { style: ui.tabBadge }, String(item.count)) : null,
+          ))),
+        h('div', { key: tabState, style: ui.tabBody, className: 'tb-tabbody' },
+          status || tab === 'settings' ? body : h('div', { style: ui.skeleton },
+            h('div', { style: ui.skeletonRow }),
+            h('div', { style: ui.skeletonRow }),
+            h('div', { style: ui.skeletonRow }),
+          ),
         ),
+        h('footer', { style: ui.footer }, t('footer')),
+        noteOverlay,
       );
     }
 

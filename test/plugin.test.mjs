@@ -856,6 +856,28 @@ test('panel status reports the judge mode from config', async (t) => {
   assert.equal(parsed.type, 'server-response');
   assert.equal(parsed.rpcId, 'r-1');
   assert.equal(parsed.result.value.judge.mode, 'llm');
+
+  const call = async (endpoint, payload) => {
+    const request = Readable.from([Buffer.from(JSON.stringify({ type: 'client-request', rpcId: 'r-' + endpoint, method: endpoint, payload }))]);
+    request.method = 'POST';
+    request.url = '/tabellio-dsh/' + endpoint;
+    request.headers = { 'content-type': 'application/json' };
+    request.socket = { remoteAddress: '127.0.0.1' };
+    let out = '';
+    const response = { writeHead() {}, end(chunk) { out = chunk; } };
+    await route.handler(request, response);
+    return JSON.parse(out).result;
+  };
+
+  const view = await call('settings.get', {});
+  assert.equal(view.value.capture.mode, 'off');
+  assert.equal(view.value.judge.mode, 'llm');
+
+  const saved = await call('settings.set', { capture: 'assist' });
+  assert.equal(saved.ok, true);
+  assert.equal(saved.value.capture.mode, 'assist');
+  const stored = JSON.parse(fs.readFileSync(path.join(dir, 'panel-settings.json'), 'utf8'));
+  assert.equal(stored.capture, 'assist');
 });
 
 test('search honors its limit through maxNotes', async (t) => {

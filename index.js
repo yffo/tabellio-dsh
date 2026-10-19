@@ -98,7 +98,20 @@ export function apply(ctx, config = {}) {
   // stays inactive. Declaring the dependency (instead of a bare ctx.get probe)
   // is what lets Cordis hand over the carrier even when it activates late.
   try {
-    const rpcHandler = createRpcHandler({ settings, getStore: currentStore, getLastRecall: () => lastRecall, getJudgeState: () => judgeState });
+    const rpcHandler = createRpcHandler({
+      settings,
+      getStore: currentStore,
+      getLastRecall: () => lastRecall,
+      getJudgeState: () => judgeState,
+      getSemanticState: () => semanticIndexer?.state ?? null,
+      getSettingsView: () => panelSettingsView(settings),
+      updateSettings: (patch) => applyRuntimeSettings(patch),
+      testSemantic: () => probeEmbedding({
+        endpoint: settings.semanticEndpoint,
+        model: settings.semanticModel,
+        timeoutMs: settings.semanticTimeoutMs,
+      }),
+    });
     const mountRoute = (hostCtx) => {
       try {
         const dispose = mountPanelRoute(hostCtx, rpcHandler);
