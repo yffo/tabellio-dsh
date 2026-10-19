@@ -26,6 +26,10 @@ export const DEFAULTS = Object.freeze({
   // put ordinary work questions at relevance 0.93-0.98 while every off-topic
   // question in the same set stayed at or below 0.911.
   recallConfidentRelevance: 0.9,
+  // Imported reference documents carry trust 'external'. They stay searchable
+  // from the panel and the tools, but auto-recall only injects what the user
+  // stated or the system derived — otherwise 600+ docs drown ordinary chat.
+  recallTrusts: ['user_stated', 'system_derived'],
   capture: 'explicit',
   // How a recall reaches the model: 'notice' appends one visible user notice;
   // 'context' registers it as quiet runtime context in the system prompt.
@@ -77,6 +81,15 @@ const ratio = (value, fallback) => {
   return Math.min(Math.max(n, 0), 1);
 };
 
+// Only these three trust levels exist in tabellio. An unknown/empty list falls
+// back to the safe default instead of silently disabling the filter.
+const TRUST_LEVELS = new Set(['user_stated', 'system_derived', 'external']);
+const trusts = (value) => {
+  if (!Array.isArray(value)) return [...DEFAULTS.recallTrusts];
+  const kept = [...new Set(value.filter((item) => TRUST_LEVELS.has(item)))];
+  return kept.length ? kept : [...DEFAULTS.recallTrusts];
+};
+
 /**
  * Normalize host config once, at the plugin boundary. A typo in `capture`
  * fails safe (off), not into "capture everything"; numeric bounds are clamped
@@ -115,6 +128,7 @@ export function normalizeConfig(config = {}) {
     refreshSeconds: int(raw.refreshSeconds, DEFAULTS.refreshSeconds, 0, 3600),
     recallIntentGate: raw.recallIntentGate === undefined ? DEFAULTS.recallIntentGate : raw.recallIntentGate === true,
     recallConfidentRelevance: ratio(raw.recallConfidentRelevance, DEFAULTS.recallConfidentRelevance),
+    recallTrusts: trusts(raw.recallTrusts),
     capture,
     delivery: raw.delivery === 'context' ? 'context' : 'notice',
     judge,

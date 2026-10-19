@@ -309,6 +309,31 @@ test('memory-intent gate suppresses lexically-matched but off-topic recall', asy
   assert.equal(intended.messages.length, 2);
 });
 
+test('imported external notes are excluded from auto recall unless asked', async (t) => {
+  const dir = temp(t);
+  const store = openStore(dir);
+  remember(store, { text: '# 项目代号\n\n项目代号是青鸟。' });
+  remember(store, { text: '# 项目代号资料\n\n外部资料：美国节点 1080 端口。' }, { trust: 'external' });
+
+  const quiet = fakeHost();
+  apply(quiet.ctx, { storePath: dir, autoRecall: true, capture: 'off', refreshSeconds: 0 });
+  const skipped = await runPre(quiet.handlers, agent(), [human('m1', '项目代号是什么？')]);
+  assert.equal(skipped.messages.length, 2);
+  assert.doesNotMatch(skipped.messages[1].content[0].text, /外部资料/);
+
+  const asked = fakeHost();
+  apply(asked.ctx, {
+    storePath: dir,
+    autoRecall: true,
+    capture: 'off',
+    refreshSeconds: 0,
+    recallTrusts: ['user_stated', 'system_derived', 'external'],
+  });
+  const injected = await runPre(asked.handlers, agent(), [human('m2', '项目代号是什么？')]);
+  assert.equal(injected.messages.length, 2);
+  assert.match(injected.messages[1].content[0].text, /外部资料/);
+});
+
 test('delegated agents neither recall nor write recall receipts', async (t) => {
   const dir = temp(t);
   const store = openStore(dir);

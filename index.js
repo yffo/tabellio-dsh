@@ -538,6 +538,9 @@ export function apply(ctx, config = {}) {
         minRelevance: settings.recallMinRelevance,
         minScore: settings.recallMinScore,
         minCoverage: settings.recallMinCoverage,
+        // Reference documents are searchable on demand, not injected: an
+        // imported doc's trust is 'external' and the default list excludes it.
+        trusts: settings.recallTrusts,
         // Shadow mode records the same recall as a durable receipt in the
         // store (runs/rcp_*.json), so an A/B can be replayed with
         // `tabellio explain --receipt`, without touching the turn.

@@ -164,6 +164,7 @@ Ordinary users never touch a config file: the panel edits the **semantic supplem
 | `recallMaxNotes` | `6` | Maximum notes, 1–20 |
 | `recallIntentGate` | `true` | Do not inject when the question has no memory intent |
 | `recallConfidentRelevance` | `0.9` | Bypass the intent gate when the top hit is at least this relevant |
+| `recallTrusts` | `user_stated`, `system_derived` | Which sources auto-recall trusts; imported docs (`external`) stay searchable but are never injected by default |
 | `recallMinCoverage` | `0.33` | Coverage gate; long questions dilute it, tuned for chat |
 | `recallMinScore` | `0.1` | Minimum score |
 | `recallMinRelevance` | `0.12` | Minimum relevance |
