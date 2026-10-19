@@ -41,6 +41,7 @@ window.__ModuleLoader__.load({
       capAssist: '辅助（含陈述）',
       capOff: '关闭',
       empty: '没有待审候选。对话里出现显式约定时，会自动落到候选区等你批准。',
+      firstRun: '第一次用：在对话里说「记住：…」，或把一份 Markdown 笔记交给 tabellio；之后的候选会出现在这里等你批准。',
       approve: '批准入库',
       reject: '忽略',
       approved: '已批准 {n} 条。',
@@ -110,6 +111,7 @@ window.__ModuleLoader__.load({
       capAssist: 'Assist (statements)',
       capOff: 'Off',
       empty: 'No pending candidates. Explicit agreements from a conversation land here for approval.',
+      firstRun: 'First run: say "remember: …" in a conversation, or hand a Markdown note to tabellio; candidates will wait for approval here.',
       approve: 'Approve',
       reject: 'Dismiss',
       approved: 'Approved {n}.',
@@ -208,7 +210,8 @@ window.__ModuleLoader__.load({
       cardTitle: { fontSize: 13, fontWeight: 600, margin: '0 0 3px', overflowWrap: 'anywhere' },
       cardMeta: { color: COLORS.dim, fontSize: 11, marginBottom: 7, overflowWrap: 'anywhere' },
       actions: { display: 'flex', gap: 8 },
-      notice: { fontSize: 12, color: COLORS.dim, margin: '8px 0' },
+      firstRun: { border: '1px solid var(--dsh-border, #d9d9d9)', borderRadius: 8, padding: '10px 12px', background: 'var(--dsh-surface-2, rgba(127,127,127,0.06))', fontSize: 13, lineHeight: 1.6 },
+    notice: { fontSize: 12, color: COLORS.dim, margin: '8px 0' },
       error: { fontSize: 12, color: '#d1242f', margin: '8px 0', overflowWrap: 'anywhere' },
       footer: { color: COLORS.dim, fontSize: 11, marginTop: 10, borderTop: '1px solid ' + COLORS.border, paddingTop: 8 },
       code: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11 },
@@ -411,6 +414,9 @@ window.__ModuleLoader__.load({
                 h('span', { style: styles.code }, status.store),
                 ' · ' + t('capture') + '：' + captureLabel,
               ),
+              status.notes === 0
+                ? h('div', { style: styles.firstRun }, t('firstRun'))
+                : null,
               h('p', { style: styles.sub }, t('lastRecallLabel') + '：' + lastRecallLabel(status.lastRecall)),
               Array.isArray(status.lastRecall && status.lastRecall.titles) && status.lastRecall.titles.length
                 ? h('p', { style: styles.recallTitles }, t('lrTitles') + '：' + status.lastRecall.titles.join(' / '))

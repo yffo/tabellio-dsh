@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.8 (2026-10-19)
+
+- 首次使用引导：面板在库为空时直接告诉用户下一步做什么（在对话里说「记住：…」，或交一份 Markdown 笔记），而不是只显示 0。
+- npm 关键词补齐（`agent-memory` / `ai-memory` / `local-first` / `memory-plugin`），方便在插件市场被搜到。
+- 62 个单元/集成测试 + 30 条验收。
+
 ## 0.1.7 (2026-10-19)
 
 - 出厂召回阈值改为「对话场景」调过的值：`recallMinRelevance 0.12` / `recallMinScore 0.1` / `recallMinCoverage 0.33` / `recallConfidentRelevance 0.9`。此前出厂值沿用 tabellio 的短查询口径（0.15/0.18/0.6），新用户装上后长问句几乎召回不到东西（796 篇语料实测 1/12），现在是 6/12，再由意图闸与可选 judge 兜底。
