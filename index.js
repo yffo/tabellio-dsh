@@ -53,7 +53,12 @@ export function apply(ctx, config = {}) {
     return store;
   };
 
-  registerTools(ctx, { settings, getStore: currentStore });
+  // The panel's "last recall" line: why a turn did or did not get memory.
+  // Process-local on purpose — it describes this session's latest decision, not
+  // the store's durable history (receipts in runs/ cover that).
+  let lastRecall = null;
+
+  registerTools(ctx, { settings, getStore: currentStore, getLastRecall: () => lastRecall });
 
   // Diagnostics for the panel: why the judge did or did not run. Declared
   // before the panel channel so the RPC handler always reads the live object;
@@ -69,10 +74,6 @@ export function apply(ctx, config = {}) {
   // browser carrier keeps tools and lifecycle, and the inject callback simply
   // stays inactive. Declaring the dependency (instead of a bare ctx.get probe)
   // is what lets Cordis hand over the carrier even when it activates late.
-  // The panel's "last recall" line: why a turn did or did not get memory.
-  // Process-local on purpose — it describes this session's latest decision, not
-  // the store's durable history (receipts in runs/ cover that).
-  let lastRecall = null;
   try {
     const rpcHandler = createRpcHandler({ settings, getStore: currentStore, getLastRecall: () => lastRecall, getJudgeState: () => judgeState });
     const mountRoute = (hostCtx) => {

@@ -592,6 +592,7 @@ testCase('tools-02-roundtrip', 'capture -> list -> recall refusal -> approve -> 
   assert.equal(initial.notes, 0);
   assert.equal(initial.candidates, 0);
   assert.equal(initial.recall_mode, 'off');
+  assert.equal(initial.last_recall.mode, 'none');
 
   const captured = await callTool(host, 'tabellio_capture', { content: '记住：发布用 pnpm。' });
   assert.equal(captured.ok, true);

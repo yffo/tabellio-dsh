@@ -167,7 +167,7 @@ The optional switches above show the defaults shipped by the plugin patch (`cord
 ### Tests and evaluation
 
 ```bash
-npm test                      # 61 unit/integration cases
+npm test                      # 62 unit/integration cases
 node tests/acceptance.mjs     # 30 functional acceptance checks
 python3 tools/blind-eval.py   # blind recall evaluation over 40 frozen queries
 ```

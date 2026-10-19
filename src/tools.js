@@ -43,7 +43,19 @@ const normalizeCandidateText = (content) => {
  * Build the native tool definitions. They are thin projections over the same
  * tabellio API the CLI/MCP use, so budgets, refusal and gates cannot drift.
  */
-export function createToolDefinitions({ settings, getStore }) {
+export function createToolDefinitions({ settings, getStore, getLastRecall = () => null }) {
+  const lastRecallView = () => {
+    const last = getLastRecall?.();
+    if (!last || typeof last !== 'object') return { mode: 'none', at: 0, query: '', count: 0, reason: '' };
+    return {
+      mode: String(last.mode ?? 'none'),
+      at: Number(last.at) || 0,
+      query: String(last.query ?? '').slice(0, 60),
+      count: Number(last.count) || 0,
+      reason: String(last.reason ?? ''),
+    };
+  };
+
   const recallMode = () => (!settings.autoRecall ? 'off' : settings.shadow ? 'shadow' : 'inject');
   return [
     {
@@ -264,9 +276,21 @@ export function createToolDefinitions({ settings, getStore }) {
             parse_failures: { type: 'integer' },
             warnings: { type: 'array', items: { type: 'string' } },
             recall_mode: { type: 'string', enum: ['inject', 'shadow', 'off'] },
+            last_recall: {
+              type: 'object',
+              properties: {
+                mode: { type: 'string' },
+                at: { type: 'integer' },
+                query: { type: 'string' },
+                count: { type: 'integer' },
+                reason: { type: 'string' },
+              },
+              required: ['mode', 'at', 'query', 'count', 'reason'],
+              additionalProperties: false,
+            },
             message: { type: 'string' },
           },
-          required: ['store', 'exists', 'notes', 'candidates', 'proposals', 'index_exists', 'index_stale', 'parse_failures', 'warnings', 'recall_mode', 'message'],
+          required: ['store', 'exists', 'notes', 'candidates', 'proposals', 'index_exists', 'index_stale', 'parse_failures', 'warnings', 'recall_mode', 'last_recall', 'message'],
           additionalProperties: false,
         },
         render: (_args, value) => plainText(
@@ -275,6 +299,9 @@ export function createToolDefinitions({ settings, getStore }) {
             (value.exists ? '库存在' : '尚未创建') + '；笔记 ' + value.notes + ' 条；候选 ' + value.candidates + ' 条；提案 ' + value.proposals + ' 条。',
             '索引：' + (value.index_exists ? (value.index_stale ? '旧了' : '正常') : '未生成') + '；解析失败 ' + value.parse_failures + ' 个。',
             '召回模式：' + ({ inject: '注入', shadow: '影子（只记回执不注入）', off: '关闭' }[value.recall_mode] ?? value.recall_mode) + '。',
+            value.last_recall.mode === 'none'
+              ? '上次召回：本进程还没有执行过召回。'
+              : '上次召回：' + value.last_recall.mode + (value.last_recall.reason ? '（' + value.last_recall.reason + '）' : '') + '，命中 ' + value.last_recall.count + ' 条。',
             ...(value.warnings.length ? ['警告：', ...value.warnings.map((warning) => '- ' + warning)] : []),
           ].join('\n'),
         ),
@@ -294,6 +321,7 @@ export function createToolDefinitions({ settings, getStore }) {
             parse_failures: Number(result.parseFailures) || 0,
             warnings: Array.isArray(result.warnings) ? result.warnings.map(String) : [],
             recall_mode: recallMode(),
+            last_recall: lastRecallView(),
             message: result.notes === 0 ? '库是空的；还没有正式记忆。' : '只读体检完成。',
           };
         } catch (error) {
@@ -308,6 +336,7 @@ export function createToolDefinitions({ settings, getStore }) {
             parse_failures: 0,
             warnings: [String(error?.message ?? error)],
             recall_mode: recallMode(),
+            last_recall: lastRecallView(),
             message: 'status 失败',
           };
         }

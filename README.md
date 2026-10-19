@@ -167,7 +167,7 @@ dsh plugin --profile desktop add tabellio-dsh
 ### 测试与评测
 
 ```bash
-npm test                      # 61 个单元/集成用例
+npm test                      # 62 个单元/集成用例
 node tests/acceptance.mjs     # 30 条功能验收
 python3 tools/blind-eval.py   # 40 条冻结查询的召回盲测
 ```

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4 (2026-10-19)
+
+- `tabellio_status` 新增 `last_recall`（`mode` / `at` / `query` / `count` / `reason`）：Agent 自己也能看到「上一轮为什么没召回 / 召回了几条」，排查不用再开面板。
+- 62 个单元/集成测试。
+
 ## 0.1.3 (2026-10-19)
 
 - 开源仓库上线：https://github.com/yffo/tabellio-dsh（`repository` / `homepage` / `bugs` 元数据）；CI 在 push / PR 上跑 `npm test` 与功能验收。

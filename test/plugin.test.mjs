@@ -239,7 +239,25 @@ test('tool capture writes a candidate, not a note; approval makes it recallable'
   const inspected = await byName('tabellio_status').execute({});
   assert.equal(inspected.notes, 1);
   assert.equal(inspected.candidates, 0);
+  assert.equal(inspected.last_recall.mode, 'none');
   assert.equal(typeof inspected.message, 'string');
+});
+
+test('status reports the last recall decision when the host provides it', async () => {
+  const dir = temp({ after() {} });
+  const store = openStore(dir);
+  const host = fakeHost();
+  registerTools(host.ctx, {
+    settings: normalizeConfig({ storePath: dir }),
+    getStore: () => store,
+    getLastRecall: () => ({ mode: 'shadow', at: 123, query: '项目代号是什么？', count: 2, reason: 'same_notes_as_last_time' }),
+  });
+  const inspected = await host.tools.find((tool) => tool.name === 'tabellio_status').execute({});
+  assert.equal(inspected.last_recall.mode, 'shadow');
+  assert.equal(inspected.last_recall.at, 123);
+  assert.equal(inspected.last_recall.count, 2);
+  assert.equal(inspected.last_recall.reason, 'same_notes_as_last_time');
+  assert.ok(inspected.last_recall.query.length <= 60);
 });
 
 test('auto recall injects one budgeted notice per user message and dedupes', async (t) => {
