@@ -175,7 +175,8 @@ window.__ModuleLoader__.load({
       memChipEmpty: '没有待批准的候选。',
       memChipMore: '还有 {n} 条待批准…',
       memChipSettings: '完整面板在「设置 → 记忆」',
-      memChipOpenPanel: '打开完整面板',
+      memChipOpenPanel: '打开记忆面板',
+      memClose: '关闭',
       memChipPending: '{n} 待批准',
       reviewFailTooLong: '候选超过单条 400 字上限，不能直接入库；请拆成两条事实分别记。',
       reviewFailNotFound: '候选已不存在（可能刚被处理过）。',
@@ -330,7 +331,8 @@ window.__ModuleLoader__.load({
       memChipEmpty: 'Nothing waiting for approval.',
       memChipMore: '{n} more waiting...',
       memChipSettings: 'Full panel lives in Settings → Memory',
-      memChipOpenPanel: 'Open full panel',
+      memChipOpenPanel: 'Open memory panel',
+      memClose: 'Close',
       memChipPending: '{n} pending',
       reviewFailTooLong: 'The candidate is over the 400-char per-note cap, so it cannot be approved as one note; split it into two facts.',
       reviewFailNotFound: 'The candidate no longer exists (it may have just been handled).',
@@ -1271,35 +1273,26 @@ window.__ModuleLoader__.load({
         color: 'var(--dsh-accent, #2563eb)', fontSize: '12px', cursor: 'pointer',
         textDecoration: 'underline', textUnderlineOffset: '2px',
       },
+      overlay: { position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+      overlayMask: { position: 'absolute', inset: 0, background: 'rgba(20, 18, 14, 0.32)' },
+      overlayPanel: {
+        position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column',
+        width: 'min(880px, calc(100vw - 48px))', height: 'min(720px, calc(100vh - 64px))',
+        border: '1px solid var(--dsh-border, #e5e1d8)', borderRadius: '12px',
+        background: 'var(--dsh-surface, #fff)', boxShadow: '0 16px 48px rgba(0,0,0,.18)',
+        overflow: 'hidden',
+      },
+      overlayHeader: {
+        flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 16px', borderBottom: '1px solid var(--dsh-border-soft, #f0ece2)',
+        fontSize: '14px', fontWeight: 600,
+      },
+      overlayClose: {
+        border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px',
+        lineHeight: 1, color: 'var(--dsh-muted, #8a8478)', padding: '4px 6px',
+      },
+      overlayBody: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 20px 20px' },
     };
-
-    /**
-     * Jump to this plugin's section inside the harness Settings dialog.
-     * The dialog owns its open state privately, so the only route from a
-     * plugin half is the shell's own trigger: click it, then the section nav
-     * row that carries our label. Returns false when the shell is not there.
-     */
-    function openPanelSettings(sectionLabel) {
-      try {
-        const isSettingsLabel = (label) => /^(设置|Settings|設定)$/.test(String(label || '').trim());
-        const trigger = Array.from(document.querySelectorAll('button[aria-haspopup="dialog"]'))
-          .find((button) => isSettingsLabel(button.getAttribute('aria-label')));
-        if (!trigger) return false;
-        if (trigger.getAttribute('aria-expanded') !== 'true') trigger.click();
-        const visit = (attempts) => {
-          const panel = document.querySelector('[data-shortcut-modal="settings"]');
-          if (panel) {
-            const row = Array.from(panel.querySelectorAll('nav button')).find((button) => (button.textContent || '').includes(sectionLabel));
-            if (row) { row.click(); return; }
-          }
-          if (attempts > 0) setTimeout(() => visit(attempts - 1), 120);
-        };
-        setTimeout(() => visit(5), 80);
-        return true;
-      } catch {
-        return false;
-      }
-    }
 
     /** Header chip: pending memories are visible at the top of the session. */
     function MemoryIndicator({ rpcCall, t }) {
@@ -1308,7 +1301,7 @@ window.__ModuleLoader__.load({
       const [items, setItems] = React.useState([]);
       const [busyId, setBusyId] = React.useState('');
       const [error, setError] = React.useState('');
-      const [jumpMissed, setJumpMissed] = React.useState(false);
+      const [panelOpen, setPanelOpen] = React.useState(false);
 
       const refresh = React.useCallback(async () => {
         try {
@@ -1324,6 +1317,13 @@ window.__ModuleLoader__.load({
         const timer = setInterval(refresh, 30000);
         return () => clearInterval(timer);
       }, [refresh]);
+
+      React.useEffect(() => {
+        if (!panelOpen) return undefined;
+        const onKey = (event) => { if (event.key === 'Escape') setPanelOpen(false); };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+      }, [panelOpen]);
 
       const loadPending = React.useCallback(async () => {
         setError('');
@@ -1381,9 +1381,19 @@ window.__ModuleLoader__.load({
           h('button', {
             type: 'button',
             style: indicatorStyles.jump,
-            onClick: () => { if (!openPanelSettings(t('section'))) setJumpMissed(true); },
+            onClick: () => { setOpen(false); setPanelOpen(true); },
           }, t('memChipOpenPanel')),
-          jumpMissed ? h('div', { style: indicatorStyles.small }, t('memChipSettings')) : null,
+          h('div', { style: indicatorStyles.small }, t('memChipSettings')),
+        ) : null,
+        panelOpen ? h('div', { style: indicatorStyles.overlay },
+          h('div', { style: indicatorStyles.overlayMask, onClick: () => setPanelOpen(false) }),
+          h('div', { style: indicatorStyles.overlayPanel, role: 'dialog', 'aria-modal': 'true', 'aria-label': t('memChipTitle') },
+            h('div', { style: indicatorStyles.overlayHeader },
+              h('span', null, t('memChipTitle')),
+              h('button', { type: 'button', style: indicatorStyles.overlayClose, onClick: () => setPanelOpen(false), 'aria-label': t('memClose') }, '×'),
+            ),
+            h('div', { style: indicatorStyles.overlayBody }, h(MemoryPanel, { rpcCall, t })),
+          ),
         ) : null,
       );
     }
