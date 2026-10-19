@@ -167,6 +167,9 @@ dsh plugin --profile desktop add tabellio-dsh
 | `queryChars` | `400` | 超长消息保留头尾 |
 | `refreshSeconds` | `30` | 重扫库间隔；0 表示每次事件重扫 |
 | `capture` | `explicit` | `explicit` / `implicit` / `assist` / `off` |
+| `semantic` | `off` | `off` / `local`：本地嵌入补充召回（需 OpenAI 风格 `/v1/embeddings`，默认 `qwen3-embedding-0.6b`） |
+| `semanticEndpoint` / `semanticModel` | `http://127.0.0.1:8080/v1/embeddings` / `qwen3-embedding-0.6b` | 本地嵌入服务地址与模型 |
+| `semanticMinSimilarity` | `0.55` | 低于这个余弦相似度的语义命中不加进召回 |
 | `consolidate` | `off` | 后台巩固：`daily`/`weekly` 时定时扫近似重复笔记并写合并提案（只产提案，批准仍在面板） |
 | `maxCandidatesPerTurn` | `2` | 每轮候选上限，1–5 |
 | `captureMaxSentenceChars` | `240` | 单句上限，40–1000 |

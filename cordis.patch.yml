@@ -31,6 +31,15 @@
         # Background near-duplicate sweep: off | daily | weekly. It only writes
         # merge proposals; approval still happens in the panel.
         consolidate: off
+        # Optional local embedding supplement. 'local' needs an OpenAI-style
+        # /v1/embeddings endpoint (e.g. llama-swap + qwen3-embedding-0.6b);
+        # anything unreachable falls back to lexical recall silently.
+        semantic: off
+        semanticEndpoint: http://127.0.0.1:8080/v1/embeddings
+        semanticModel: qwen3-embedding-0.6b
+        semanticMinSimilarity: 0.55
+        semanticTop: 8
+        semanticTimeoutMs: 2500
         # Tuned for auto-injection into ordinary conversation (see src/config.js).
         recallMinRelevance: 0.12
         recallMinScore: 0.1

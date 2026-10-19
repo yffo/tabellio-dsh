@@ -11,7 +11,7 @@
  * human approves it with `tabellio inbox`.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import { addCandidate, listCandidates, openStore, recallQuery } from 'tabellio';
+import { addCandidate, listCandidates, openStore, read as readNote, recallQuery } from 'tabellio';
 import { normalizeConfig } from './src/config.js';
 import { delegationDepth, isHumanMessage, isChitchat, latestHuman, textOf, trimQuery, intentGateAllows } from './src/messages.js';
 import { extractCandidates, hasSecretHint, looksLikeCredentialLeak } from './src/capture.js';
@@ -22,6 +22,7 @@ import { mountPanelRoute } from './src/web-rpc.js';
 import { registerTools } from './src/tools.js';
 import { startConsolidationTimer } from './src/consolidate.js';
 import { appendAudit } from './src/audit.js';
+import { mergeSemanticResult, semanticTop, startIndexer } from './src/semantic.js';
 
 export const name = 'tabellio-dsh';
 
@@ -392,6 +393,45 @@ export function apply(ctx, config = {}) {
     return written;
   };
 
+  // Optional local embedding supplement. It runs after the shadow branch so a
+  // shadow A/B keeps measuring BM25 alone, and it only ever appends hits that
+  // BM25 missed; a failure leaves the lexical result untouched.
+  const augmentWithSemantic = async (result, query) => {
+    if (settings.semantic !== 'local' || !semanticIndexer?.state?.ready) return result;
+    try {
+      const hits = await semanticTop({
+        index: semanticIndexer.state.index,
+        query,
+        endpoint: settings.semanticEndpoint,
+        model: settings.semanticModel,
+        top: settings.semanticTop,
+        minSimilarity: settings.semanticMinSimilarity,
+        timeoutMs: settings.semanticTimeoutMs,
+      });
+      return mergeSemanticResult(result, {
+        hits,
+        maxNotes: settings.recallMaxNotes,
+        readNote: (id) => readNote(currentStore(), id),
+      });
+    } catch (error) {
+      ctx.logger?.debug?.('tabellio-dsh: semantic supplement skipped: ' + (error?.message ?? error));
+      return result;
+    }
+  };
+
+  // Build the embedding index in the background; until it is ready every turn
+  // behaves exactly like the lexical version.
+  let semanticIndexer = null;
+  if (settings.semantic === 'local') {
+    semanticIndexer = startIndexer({
+      store: currentStore(),
+      endpoint: settings.semanticEndpoint,
+      model: settings.semanticModel,
+      logger: ctx.logger,
+    });
+    ctx.effect?.(() => () => semanticIndexer?.dispose?.(), 'tabellio-dsh: semantic indexer');
+  }
+
   ctx.on('agent/pre-step', async (payload, next) => {
     const decision = await next();
     if (decision?.kind !== 'enter' || !Array.isArray(decision.messages)) return decision;
@@ -426,7 +466,7 @@ export function apply(ctx, config = {}) {
 
     try {
       const recallStartedAt = Date.now();
-      const result = recallQuery(currentStore(), query, {
+      let result = recallQuery(currentStore(), query, {
         // Leave a little room for the wrapper and titles.
         budgetTokens: Math.max(100, settings.recallBudgetTokens - 64),
         maxNotes: settings.recallMaxNotes,
@@ -462,6 +502,8 @@ export function apply(ctx, config = {}) {
         ctx.logger?.info?.('tabellio-dsh: shadow recall recorded (' + (result?.refused ? 'refused' : (result?.items?.length ?? 0) + ' hit(s)') + ')');
         return decision;
       }
+
+      result = await augmentWithSemantic(result, query);
 
       if (result?.refused || !Array.isArray(result?.items) || result.items.length === 0) {
         lastRecall = recordRecall({

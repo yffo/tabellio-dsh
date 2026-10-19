@@ -42,6 +42,15 @@ export const DEFAULTS = Object.freeze({
   // run a near-duplicate sweep that writes merge proposals only. Approval stays
   // in the panel, so this never rewrites memory by itself.
   consolidate: 'off',
+  // Optional local semantic layer: 'off' is pure BM25; 'local' builds a
+  // background embedding index and adds the semantic hits BM25 missed. It
+  // defaults off because it needs a local embedding endpoint.
+  semantic: 'off',
+  semanticEndpoint: 'http://127.0.0.1:8080/v1/embeddings',
+  semanticModel: 'qwen3-embedding-0.6b',
+  semanticMinSimilarity: 0.55,
+  semanticTop: 8,
+  semanticTimeoutMs: 2500,
 });
 
 export function expandHome(value) {
@@ -80,6 +89,7 @@ export function normalizeConfig(config = {}) {
   const judgeProvider = String(raw.judgeProvider ?? '').trim();
   const judgeModel = String(raw.judgeModel ?? '').trim();
   const consolidate = raw.consolidate === 'daily' || raw.consolidate === 'weekly' ? raw.consolidate : 'off';
+  const semantic = raw.semantic === 'local' || raw.semantic === true ? 'local' : 'off';
   const capture = captureRaw === true
     ? 'explicit'
     : captureRaw === false
@@ -114,5 +124,11 @@ export function normalizeConfig(config = {}) {
     maxCandidatesPerTurn: int(raw.maxCandidatesPerTurn, DEFAULTS.maxCandidatesPerTurn, 1, 5),
     captureMaxSentenceChars: int(raw.captureMaxSentenceChars, DEFAULTS.captureMaxSentenceChars, 40, 1000),
     consolidate,
+    semantic,
+    semanticEndpoint: String(raw.semanticEndpoint ?? '').trim() || DEFAULTS.semanticEndpoint,
+    semanticModel: String(raw.semanticModel ?? '').trim() || DEFAULTS.semanticModel,
+    semanticMinSimilarity: ratio(raw.semanticMinSimilarity, DEFAULTS.semanticMinSimilarity),
+    semanticTop: int(raw.semanticTop, DEFAULTS.semanticTop, 1, 20),
+    semanticTimeoutMs: int(raw.semanticTimeoutMs, DEFAULTS.semanticTimeoutMs, 300, 15000),
   };
 }

@@ -159,6 +159,9 @@ The optional switches above show the defaults shipped by the plugin patch (`cord
 | `queryChars` | `400` | Long messages keep head and tail |
 | `refreshSeconds` | `30` | Store rescan interval; 0 rescans on every event |
 | `capture` | `explicit` | `explicit` / `implicit` / `assist` / `off` |
+| `semantic` | `off` | `off` / `local`: local embedding supplement (OpenAI-style `/v1/embeddings`, default `qwen3-embedding-0.6b`) |
+| `semanticEndpoint` / `semanticModel` | `http://127.0.0.1:8080/v1/embeddings` / `qwen3-embedding-0.6b` | Embedding endpoint and model |
+| `semanticMinSimilarity` | `0.55` | Semantic hits below this cosine similarity are not added |
 | `consolidate` | `off` | Background sweep: `daily`/`weekly` writes merge proposals for near-duplicate notes (proposals only; approval stays in the panel) |
 | `maxCandidatesPerTurn` | `2` | Candidates per turn, 1–5 |
 | `captureMaxSentenceChars` | `240` | Per-sentence cap, 40–1000 |
