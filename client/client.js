@@ -170,6 +170,14 @@ window.__ModuleLoader__.load({
       propReject: '拒绝',
       propApproved: '已批准 {n} 条提案。',
       propRejected: '已拒绝 {n} 条提案。',
+      memChipLabel: '🧠 记忆',
+      memChipTitle: '记忆 · tabellio',
+      memChipEmpty: '没有待批准的候选。',
+      memChipMore: '还有 {n} 条待批准…',
+      memChipSettings: '完整面板在「设置 → 记忆」',
+      memChipPending: '{n} 待批准',
+      memApprove: '批准',
+      memIgnore: '忽略',
       footer: '候选只在候选区；批准后进入 notes/。自动捕获受 capture 配置约束，召回在 shadow 模式下只写回执。',
     };
     const en = {
@@ -313,6 +321,14 @@ window.__ModuleLoader__.load({
       propReject: 'Reject',
       propApproved: 'Approved {n} proposals.',
       propRejected: 'Rejected {n} proposals.',
+      memChipLabel: '🧠 Memory',
+      memChipTitle: 'Memory · tabellio',
+      memChipEmpty: 'Nothing waiting for approval.',
+      memChipMore: '{n} more waiting...',
+      memChipSettings: 'Full panel lives in Settings → Memory',
+      memChipPending: '{n} pending',
+      memApprove: 'Approve',
+      memIgnore: 'Dismiss',
       footer: 'Candidates stay in the inbox until approved. Capture is bounded by config; shadow recall only writes receipts.',
     };
 
@@ -1239,7 +1255,7 @@ window.__ModuleLoader__.load({
     /** Header chip: pending memories are visible at the top of the session. */
     function MemoryIndicator({ rpcCall, t }) {
       const [open, setOpen] = React.useState(false);
-      const [counts, setCounts] = React.useState({ candidates: 0, proposals: 0 });
+      const [counts, setCounts] = React.useState({ candidates: 0, proposals: 0, notes: 0 });
       const [items, setItems] = React.useState([]);
       const [busyId, setBusyId] = React.useState('');
       const [error, setError] = React.useState('');
@@ -1247,7 +1263,7 @@ window.__ModuleLoader__.load({
       const refresh = React.useCallback(async () => {
         try {
           const status = await rpcCall('status', {});
-          setCounts({ candidates: Number(status.candidates) || 0, proposals: Number(status.proposals) || 0 });
+          setCounts({ candidates: Number(status.candidates) || 0, proposals: Number(status.proposals) || 0, notes: Number(status.notes) || 0 });
         } catch {
           // The chip is decoration: a failed poll never surfaces an error.
         }
@@ -1292,7 +1308,8 @@ window.__ModuleLoader__.load({
         h('button', { type: 'button', style: indicatorStyles.chip, onClick: toggle, title: t('memChipTitle') },
           total > 0 ? h('span', { style: indicatorStyles.dot }) : null,
           t('memChipLabel'),
-          total > 0 ? ' ' + total : '',
+          counts.notes > 0 ? ' ' + counts.notes : '',
+          total > 0 ? ' · ' + t('memChipPending').replace('{n}', String(total)) : '',
         ),
         open ? h('div', { style: indicatorStyles.backdrop, onClick: () => setOpen(false) }) : null,
         open ? h('div', { style: indicatorStyles.pop },
