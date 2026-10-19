@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1640" height="820" viewBox="0 0 1640 820" role="img" aria-label="A conversation becomes a draft card; after approval it becomes long-term memory.">
+  <rect width="1640" height="820" fill="#FAFAF9"/>
+  <g fill="none" stroke="#1E3A5F" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <!-- chat bubble -->
+    <path d="M150 300h380a28 28 0 0 1 28 28v150a28 28 0 0 1-28 28H300l-72 62v-62h-78a28 28 0 0 1-28-28V328a28 28 0 0 1 28-28z" fill="#FFFFFF"/>
+    <path d="M205 365h250M205 415h190M205 465h140" stroke-width="10" stroke="#C9D3DF"/>
+    <!-- cursor in bubble -->
+    <path d="M470 445l16 40 12-16 20-4z" fill="#1E3A5F" stroke="none"/>
+    <!-- branch: draft -->
+    <path d="M560 420C660 420 680 300 760 300"/>
+    <path d="M742 288l22 12-22 12" />
+    <!-- draft card -->
+    <rect x="790" y="230" width="250" height="140" rx="16" fill="#FFFFFF" stroke-dasharray="10 9"/>
+    <path d="M830 285h150M830 325h110" stroke-width="9" stroke="#C9D3DF"/>
+    <!-- check badge -->
+    <circle cx="1010" cy="330" r="34" fill="#3BB59B" stroke="none"/>
+    <path d="M994 330l12 13 21-24" stroke="#FFFFFF" stroke-width="7"/>
+    <!-- branch: notebook -->
+    <path d="M560 430C700 520 760 560 860 560"/>
+    <path d="M843 549l20 12-23 9" />
+    <g>
+      <rect x="900" y="470" width="330" height="230" rx="18" fill="#FFFFFF"/>
+      <path d="M930 512h270M930 556h270M930 600h210M930 644h240" stroke-width="9" stroke="#C9D3DF"/>
+      <path d="M900 534h0M900 578h0M900 622h0M900 666h0" stroke="none"/>
+      <path d="M978 470v230" stroke-width="4" stroke="#E3E8EE"/>
+    </g>
+    <!-- magnifier on notebook -->
+    <circle cx="1208" cy="652" r="30" fill="#FFFFFF" stroke="#1E3A5F" stroke-width="6"/>
+    <path d="M1230 674l34 34" stroke-width="9"/>
+    <!-- small mint accent dots -->
+    <circle cx="1100" cy="300" r="8" fill="#3BB59B" stroke="none"/>
+    <circle cx="700" cy="500" r="8" fill="#3BB59B" stroke="none"/>
+  </g>
+</svg>

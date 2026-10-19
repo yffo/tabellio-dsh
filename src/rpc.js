@@ -1,0 +1,201 @@
+// Host side of the panel channel: read status, list candidates, approve or
+// reject, and search the store. Every endpoint is a thin projection of the
+// tabellio API — the panel never writes memory directly, it only exercises the
+// same approval gate the `tabellio inbox` CLI uses.
+import { listCandidates, listProposals, reviewCandidates, reviewProposals, search, status } from 'tabellio';
+
+export const RPC_CHANNEL = '/tabellio-dsh';
+export const MAX_REVIEW_IDS = 50;
+export const MAX_SEARCH_LIMIT = 20;
+
+const fail = (code, message) => ({ ok: false, error: { code, message, details: {} } });
+const ok = (value) => ({ ok: true, value });
+
+function modeOf(settings) {
+  if (!settings.autoRecall) return 'off';
+  return settings.shadow ? 'shadow' : 'inject';
+}
+
+function lastRecallView(last) {
+  if (!last || typeof last !== 'object') return null;
+  return {
+    at: Number(last.at) || 0,
+    query: String(last.query ?? ''),
+    mode: String(last.mode ?? ''),
+    refused: Boolean(last.refused),
+    count: Number(last.count) || 0,
+    judged: Boolean(last.judged),
+    reason: last.reason === null || last.reason === undefined ? null : String(last.reason),
+    receiptPath: last.receiptPath === null || last.receiptPath === undefined ? null : String(last.receiptPath),
+  };
+}
+
+function judgeView(state) {
+  if (!state || state.mode !== 'llm') return { mode: state?.mode ?? 'off', last: null };
+  return {
+    mode: 'llm',
+    host: String(state.host ?? 'none'),
+    selection: state.selection ? { provider: String(state.selection.provider ?? ''), model: String(state.selection.model ?? '') } : null,
+    last: state.last
+      ? {
+        at: Number(state.last.at) || 0,
+        stage: String(state.last.stage ?? ''),
+        kept: state.last.kept === undefined ? null : Number(state.last.kept),
+        notes: state.last.notes === undefined ? null : Number(state.last.notes),
+        elapsedMs: state.last.elapsedMs === undefined ? null : Number(state.last.elapsedMs),
+        chars: state.last.chars === undefined ? null : Number(state.last.chars),
+        preview: String(state.last.preview ?? ''),
+      }
+      : null,
+  };
+}
+
+function statusView(settings, store, lastRecall, judgeState) {
+  const result = status(store);
+  return {
+    store: store.store,
+    exists: Boolean(store.exists()),
+    notes: Number(result.notes) || 0,
+    candidates: Number(result.candidates) || 0,
+    proposals: Number(result.proposals) || 0,
+    indexExists: Boolean(result.indexExists),
+    indexStale: Boolean(result.indexStale),
+    warnings: Array.isArray(result.warnings) ? result.warnings.map(String) : [],
+    mode: modeOf(settings),
+    capture: settings.capture,
+    delivery: settings.shadow ? 'shadow' : settings.delivery,
+    lastRecall: lastRecallView(lastRecall),
+    judge: judgeView(judgeState),
+  };
+}
+
+function candidateView(candidate) {
+  return {
+    id: String(candidate.id),
+    title: String(candidate.title ?? ''),
+    chars: Number(candidate.chars) || 0,
+    created: String(candidate.created ?? ''),
+    kind: String(candidate.kind ?? 'semantic'),
+    trust: String(candidate.trust ?? ''),
+    source: String(candidate.source ?? ''),
+  };
+}
+
+function proposalView(proposal) {
+  const similarity = Number(proposal?.similarity);
+  return {
+    id: String(proposal?.id ?? ''),
+    mode: String(proposal?.mode ?? 'merge'),
+    created: String(proposal?.created ?? ''),
+    sourceCount: Number(proposal?.source_count) || 0,
+    sourceTitles: Array.isArray(proposal?.source_titles) ? proposal.source_titles.map(String) : [],
+    similarity: Number.isFinite(similarity) ? similarity : null,
+    targetId: proposal?.target_id === null || proposal?.target_id === undefined ? null : String(proposal.target_id),
+    warnings: Array.isArray(proposal?.warnings) ? proposal.warnings.map(String) : [],
+  };
+}
+
+function reviewPayload(payload) {
+  const action = payload?.action;
+  const ids = payload?.ids;
+  if (action !== 'accept' && action !== 'reject') return { error: 'action must be "accept" or "reject"' };
+  if (!Array.isArray(ids) || ids.length === 0) return { error: 'ids must be a non-empty array' };
+  if (ids.length > MAX_REVIEW_IDS) return { error: `ids must contain at most ${MAX_REVIEW_IDS} entries` };
+  if (!ids.every((id) => typeof id === 'string' && id.length > 0)) return { error: 'ids must be non-empty strings' };
+  if (ids.some((id) => id.includes(','))) return { error: 'ids must not contain commas; pass an array' };
+  return { action, ids };
+}
+
+/**
+ * Build the channel handler. One store instance is shared with the tools and
+ * auto recall, so a hot store invalidate is reflected everywhere.
+ */
+export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeState }) {
+  return async function handler(endpoint, payload) {
+    try {
+      const store = getStore();
+      switch (endpoint) {
+        case 'status':
+          return ok(statusView(
+            settings,
+            store,
+            typeof getLastRecall === 'function' ? getLastRecall() : null,
+            typeof getJudgeState === 'function' ? getJudgeState() : null,
+          ));
+        case 'inbox.list': {
+          const listed = listCandidates(store);
+          if (listed?.ok === false) return fail('internal', String(listed.reason ?? 'list failed'));
+          const items = Array.isArray(listed?.candidates) ? listed.candidates : [];
+          return ok({ items: items.map(candidateView) });
+        }
+        case 'inbox.review': {
+          const parsed = reviewPayload(payload);
+          if (parsed.error) return fail('bad-request', parsed.error);
+          const result = reviewCandidates(store, {
+            [parsed.action === 'accept' ? 'accept' : 'reject']: parsed.ids,
+          });
+          if (result?.ok === false && !Array.isArray(result.failed)) {
+            return fail('bad-request', String(result.reason ?? 'review failed'));
+          }
+          const counts = status(store);
+          return ok({
+            accepted: (result.accepted ?? []).map((item) => String(item.id ?? item)),
+            rejected: (result.rejected ?? []).map((item) => String(item.id ?? item)),
+            failed: (result.failed ?? []).map((item) => ({
+              id: String(item.id ?? ''),
+              reason: String(item.reason ?? item.status ?? 'unknown'),
+            })),
+            notes: Number(counts.notes) || 0,
+            candidates: Number(counts.candidates) || 0,
+          });
+        }
+        case 'proposals.list': {
+          const listed = listProposals(store);
+          if (listed?.ok === false) return fail('internal', String(listed.reason ?? 'list failed'));
+          return ok({ items: (listed.proposals ?? []).map(proposalView) });
+        }
+        case 'proposals.review': {
+          const parsed = reviewPayload(payload);
+          if (parsed.error) return fail('bad-request', parsed.error);
+          const result = reviewProposals(store, {
+            [parsed.action === 'accept' ? 'accept' : 'reject']: parsed.ids,
+          });
+          if (result?.ok === false && !Array.isArray(result.failed)) {
+            return fail('bad-request', String(result.reason ?? 'review failed'));
+          }
+          return ok({
+            accepted: (result.accepted ?? []).map((item) => String(item.id ?? item)),
+            rejected: (result.rejected ?? []).map((item) => String(item.id ?? item)),
+            failed: (result.failed ?? []).map((item) => ({
+              id: String(item.id ?? ''),
+              reason: String(item.reason ?? item.status ?? 'unknown'),
+            })),
+          });
+        }
+        case 'search': {
+          const query = typeof payload?.query === 'string' ? payload.query.trim() : '';
+          if (!query) return fail('bad-request', 'query must be a non-empty string');
+          if (query.length > 200) return fail('bad-request', 'query is too long');
+          const rawLimit = Number(payload?.limit);
+          const limit = Number.isFinite(rawLimit)
+            ? Math.min(MAX_SEARCH_LIMIT, Math.max(1, Math.trunc(rawLimit)))
+            : 8;
+          const result = search(store, query, { maxNotes: limit, includeCore: false });
+          return ok({
+            refused: result.refused === true,
+            reason: result.reason ?? null,
+            hits: (result.hits ?? []).map((hit) => ({
+              id: String(hit.id ?? ''),
+              title: String(hit.title ?? ''),
+              score: Number.isFinite(hit.score) ? Number(hit.score) : null,
+            })),
+          });
+        }
+        default:
+          return fail('bad-request', 'unknown endpoint: ' + String(endpoint));
+      }
+    } catch (error) {
+      return fail('internal', error?.message ?? String(error));
+    }
+  };
+}

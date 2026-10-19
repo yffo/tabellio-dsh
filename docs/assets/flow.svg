@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1640" height="820" viewBox="0 0 1640 820" role="img" aria-label="Four steps: conversation, draft candidate, approval, memory recall.">
+  <rect width="1640" height="820" fill="#FAFAF9"/>
+  <g stroke="#1E3A5F" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- step 1: chat bubble -->
+    <path d="M90 330h250a20 20 0 0 1 20 20v120a20 20 0 0 1-20 20H190l-52 44v-44H90a20 20 0 0 1-20-20V350a20 20 0 0 1 20-20z" fill="#FFFFFF"/>
+    <path d="M135 385h170M135 425h120" stroke-width="8" stroke="#C9D3DF"/>
+    <circle cx="90" cy="330" r="26" fill="#FFFFFF"/>
+    <text x="90" y="339" text-anchor="middle" font-family="ui-sans-serif, -apple-system, Segoe UI, sans-serif" font-size="26" font-weight="600" fill="#1E3A5F" stroke="none">1</text>
+
+    <!-- arrow -->
+    <path d="M390 420h110"/><path d="M478 408l22 12-22 12"/>
+
+    <!-- step 2: draft card -->
+    <rect x="530" y="320" width="250" height="200" rx="16" fill="#FFFFFF" stroke-dasharray="10 9"/>
+    <path d="M570 378h170M570 422h120M570 466h90" stroke-width="8" stroke="#C9D3DF"/>
+    <circle cx="530" cy="320" r="26" fill="#FFFFFF"/>
+    <text x="530" y="329" text-anchor="middle" font-family="ui-sans-serif, -apple-system, Segoe UI, sans-serif" font-size="26" font-weight="600" fill="#1E3A5F" stroke="none">2</text>
+
+    <!-- arrow -->
+    <path d="M820 420h110"/><path d="M908 408l22 12-22 12"/>
+
+    <!-- step 3: approve pill -->
+    <rect x="960" y="360" width="260" height="120" rx="60" fill="#3BB59B" stroke="none"/>
+    <path d="M1010 420l22 22 38-44" stroke="#FFFFFF" stroke-width="9"/>
+    <path d="M1100 420h80" stroke="#FFFFFF" stroke-width="9"/>
+    <path d="M1155 500l30 30 24-20" stroke="#1E3A5F" stroke-width="6"/>
+    <circle cx="960" cy="360" r="26" fill="#FFFFFF"/>
+    <text x="960" y="369" text-anchor="middle" font-family="ui-sans-serif, -apple-system, Segoe UI, sans-serif" font-size="26" font-weight="600" fill="#1E3A5F" stroke="none">3</text>
+
+    <!-- arrow -->
+    <path d="M1260 420h90"/><path d="M1328 408l22 12-22 12"/>
+
+    <!-- step 4: notebook + magnifier -->
+    <rect x="1370" y="300" width="190" height="240" rx="16" fill="#FFFFFF"/>
+    <path d="M1400 350h130M1400 396h130M1400 442h90M1400 488h110" stroke-width="8" stroke="#C9D3DF"/>
+    <path d="M1452 300v240" stroke-width="3" stroke="#E3E8EE"/>
+    <circle cx="1512" cy="520" r="26" fill="#FFFFFF" stroke-width="6"/>
+    <path d="M1532 540l24 24" stroke-width="8"/>
+    <circle cx="1370" cy="300" r="26" fill="#FFFFFF"/>
+    <text x="1370" y="309" text-anchor="middle" font-family="ui-sans-serif, -apple-system, Segoe UI, sans-serif" font-size="26" font-weight="600" fill="#1E3A5F" stroke="none">4</text>
+  </g>
+</svg>

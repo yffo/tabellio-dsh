@@ -1,0 +1,30 @@
+# tabellio for DeepSeek Harness.
+#
+# The plugin is a host adapter, not a second memory system: notes, index,
+# gates, receipts and consolidation all stay in the tabellio package. This
+# layer only adds DSH-native tools, budgeted auto-recall at the start of a
+# user turn, and candidate capture at turn/session end.
+#
+# Everything is local: no network, no daemon. Judge calls are opt-in (`judge: llm`).
+- insert:
+    - id: tabellio
+      name: tabellio-dsh
+      config:
+        enabled: true
+        storePath: ~/memory/tabellio
+        # Append one budgeted recall block to the first step of each user turn.
+        autoRecall: true
+        recallBudgetTokens: 500
+        recallMaxNotes: 6
+        # Explicit clues + corrections + stated conventions ("from now on...",
+        # "我一般...", "记住..."). Captured text goes to notes/candidates/ and
+        # needs `tabellio inbox` (or the settings panel) to become memory.
+        capture: assist
+        maxCandidatesPerTurn: 2
+        # Silent delivery: recalled notes ride in the runtime context
+        # (`<tabellio-memory>`) instead of a visible chat message.
+        delivery: context
+        shadow: false
+        # Off by default: one small host-model call per recall when enabled.
+        judge: off
+        recallIntentGate: true
