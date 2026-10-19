@@ -216,3 +216,19 @@ test('read returns note content for the panel viewer and rejects bad ids', async
   assert.equal((await handler('read', { id: 'x'.repeat(80) })).ok, false);
   assert.equal((await handler('read', { id: 'DOES-NOT-EXIST' })).ok, false);
 });
+
+test('remember writes from the panel and rejects empty, short or oversized content', async (t) => {
+  const { dir, store } = await tempStore(t);
+  const handler = handlerFor(dir, store);
+
+  const saved = await handler('remember', { content: '面板直接写入测试：以后发版都用 tag 加 CI。' });
+  assert.equal(saved.ok, true);
+  assert.equal(saved.value.notes, 1);
+  assert.match(saved.value.title, /面板直接写入测试|tag/);
+
+  assert.equal((await handler('remember', {})).ok, false);
+  assert.equal((await handler('remember', { content: '   ' })).ok, false);
+  assert.equal((await handler('remember', { content: '短' })).ok, false);
+  assert.equal((await handler('remember', { content: 'x'.repeat(4001) })).ok, false);
+  assert.equal(store.scan().notes.length, 1);
+});

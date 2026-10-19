@@ -2,7 +2,7 @@
 // reject, and search the store. Every endpoint is a thin projection of the
 // tabellio API — the panel never writes memory directly, it only exercises the
 // same approval gate the `tabellio inbox` CLI uses.
-import { listCandidates, listProposals, read, reviewCandidates, reviewProposals, search, status } from 'tabellio';
+import { listCandidates, listProposals, read, remember, reviewCandidates, reviewProposals, search, status } from 'tabellio';
 import { buildReport } from './report.js';
 
 export const RPC_CHANNEL = '/tabellio-dsh';
@@ -10,6 +10,7 @@ export const MAX_REVIEW_IDS = 50;
 export const MAX_SEARCH_LIMIT = 20;
 export const MAX_REPORT_DAYS = 90;
 export const MAX_NOTE_CHARS = 4000;
+export const MAX_WRITE_CHARS = 4000;
 
 const fail = (code, message) => ({ ok: false, error: { code, message, details: {} } });
 const ok = (value) => ({ ok: true, value });
@@ -194,6 +195,28 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
               title: String(hit.title ?? ''),
               score: Number.isFinite(hit.score) ? Number(hit.score) : null,
             })),
+          });
+        }
+        case 'remember': {
+          const content = typeof payload?.content === 'string' ? payload.content.trim() : '';
+          if (!content) return fail('bad-request', 'content must be a non-empty string');
+          if (content.length > MAX_WRITE_CHARS) return fail('bad-request', `content is longer than ${MAX_WRITE_CHARS} characters`);
+          const result = remember(store, { content }, { writtenBy: 'panel:tabellio-dsh' });
+          if (!result || result.ok === false) {
+            return fail('rejected', String(result?.reason ?? 'write rejected'));
+          }
+          let title = String(result.title ?? '');
+          if (!title) {
+            try {
+              title = String(read(store, result.id)?.title ?? '');
+            } catch {
+              title = '';
+            }
+          }
+          return ok({
+            id: String(result.id ?? ''),
+            title,
+            notes: Number(status(store).notes) || 0,
           });
         }
         case 'read': {

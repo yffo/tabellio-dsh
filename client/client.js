@@ -63,6 +63,11 @@ window.__ModuleLoader__.load({
       weeklyNone: '最近 7 天没有新记忆',
       weeklyMore: '另有 {n} 条',
       closeNote: '收起',
+      addLabel: '直接存一条记忆',
+      addPlaceholder: '比如：以后发版都用 tag 加 CI，不走手动上传。',
+      addButton: '存为记忆',
+      addSaving: '保存中…',
+      addSaved: '已存入：{title}',
       lrTitles: '用到的记忆',
       judgedTag: '已裁决',
       judgeLabel: '模型裁决',
@@ -137,6 +142,11 @@ window.__ModuleLoader__.load({
       weeklyNone: 'No new memories in the last 7 days',
       weeklyMore: '+{n} more',
       closeNote: 'Close',
+      addLabel: 'Save a memory',
+      addPlaceholder: 'e.g. Releases always go through tags and CI, never manual uploads.',
+      addButton: 'Save',
+      addSaving: 'Saving…',
+      addSaved: 'Saved: {title}',
       lrTitles: 'Memories used',
       judgedTag: 'judged',
       judgeLabel: 'LLM judge',
@@ -246,6 +256,21 @@ window.__ModuleLoader__.load({
       hitScore: { color: COLORS.dim, flexShrink: 0, fontVariantNumeric: 'tabular-nums' },
       weeklyList: { margin: '2px 0 6px', paddingLeft: 18, fontSize: 13, lineHeight: 1.6 },
       weeklyItem: { overflowWrap: 'anywhere' },
+      writeBox: { margin: '10px 0 4px' },
+      textarea: {
+        width: '100%',
+        boxSizing: 'border-box',
+        resize: 'vertical',
+        minHeight: 64,
+        fontSize: 13,
+        lineHeight: 1.6,
+        padding: '8px 10px',
+        borderRadius: 8,
+        border: '1px solid ' + COLORS.border,
+        background: COLORS.input || COLORS.card,
+        color: COLORS.text,
+        fontFamily: 'inherit',
+      },
       noteBody: {
         whiteSpace: 'pre-wrap',
         overflowWrap: 'anywhere',
@@ -269,6 +294,8 @@ window.__ModuleLoader__.load({
       const [proposalList, setProposalList] = useState([]);
       const [weekly, setWeekly] = useState(null);
       const [note, setNote] = useState(null);
+      const [draft, setDraft] = useState('');
+      const [saving, setSaving] = useState(false);
       const [busyId, setBusyId] = useState('');
       const [query, setQuery] = useState('');
       const [found, setFound] = useState(null);
@@ -313,6 +340,23 @@ window.__ModuleLoader__.load({
           setSearching(false);
         }
       }, [query, rpcCall, searching]);
+
+      const saveMemory = useCallback(async () => {
+        const content = draft.trim();
+        if (!content || saving) return;
+        setSaving(true);
+        setState((prev) => ({ ...prev, notice: '', error: null }));
+        try {
+          const result = await rpcCall('remember', { content });
+          setState((prev) => ({ ...prev, notice: t('addSaved').replace('{title}', String(result.title || result.id || '')) }));
+          setDraft('');
+          await load();
+        } catch (error) {
+          setState((prev) => ({ ...prev, error: error?.message ?? String(error) }));
+        } finally {
+          setSaving(false);
+        }
+      }, [draft, saving, rpcCall, load, t]);
 
       const openNote = useCallback(
         async (id) => {
@@ -497,6 +541,29 @@ window.__ModuleLoader__.load({
         state.loading && !status
           ? h('div', { style: styles.notice }, t('loading'))
           : null,
+
+        h(
+          'div',
+          { style: styles.writeBox },
+          h('div', { style: styles.cardTitle }, t('addLabel')),
+          h('textarea', {
+            style: styles.textarea,
+            rows: 3,
+            value: draft,
+            placeholder: t('addPlaceholder'),
+            'aria-label': t('addLabel'),
+            onChange: (event) => setDraft(event.target.value),
+          }),
+          h(
+            'div',
+            { style: styles.actions },
+            h(
+              'button',
+              { type: 'button', style: styles.primary, disabled: saving || draft.trim() === '', onClick: saveMemory },
+              saving ? t('addSaving') : t('addButton'),
+            ),
+          ),
+        ),
 
         h(
           'div',
