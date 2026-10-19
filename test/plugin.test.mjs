@@ -613,6 +613,19 @@ test('the capture tool blocks credential values and accepts credential policy', 
   assert.equal(manyTags.reason, 'invalid_tags');
 });
 
+test('the capture tool refuses text over the 400-char note cap', async (t) => {
+  const dir = temp(t);
+  const store = openStore(dir);
+  const defs = createToolDefinitions({ settings: normalizeConfig({ storePath: dir }), getStore: () => store });
+  const capture = defs.find((tool) => tool.name === 'tabellio_capture');
+
+  const tooLong = await capture.execute({ content: '记住：' + '发布流程细节。'.repeat(70) });
+  assert.equal(tooLong.ok, false);
+  assert.equal(tooLong.reason, 'too_long');
+  assert.match(tooLong.message, /400/);
+  assert.equal(status(openStore(dir)).candidates, 0);
+});
+
 test('bare credential values are blocked in both capture modes', () => {
   // Value after the hint without 是/为/:= (security round, 02-07/02-08).
   assert.equal(looksLikeCredentialLeak('密码统一放 1Password，但测试库密码 Hunter2'), true);

@@ -39,6 +39,10 @@ const normalizeCandidateText = (content) => {
   const title = chars.slice(0, 28).join('') + (chars.length > 28 ? '…' : '');
   return '# 会话记忆：' + (title || '片段') + '\n\n' + text;
 };
+// tabellio's write gate caps one note at 400 chars; a longer candidate can
+// never be approved (the gate answers too_long), so refuse it at capture time.
+const MAX_CANDIDATE_CHARS = 400;
+
 
 /**
  * Build the native tool definitions. They are thin projections over the same
@@ -401,6 +405,10 @@ export function createToolDefinitions({ settings, getStore, getLastRecall = () =
         if (source.length > 160) return invalid('invalid_source', 'source 过长（上限 160 字），未收为候选。');
         if (tags.length > 8 || tags.some((tag) => tag.length > 40) || tags.join(',').length > 300) {
           return invalid('invalid_tags', 'tags 超出上限（最多 8 个、每个 40 字、合计 300 字），未收为候选。');
+        }
+        const tooLong = [...content].length > MAX_CANDIDATE_CHARS;
+        if (tooLong) {
+          return invalid('too_long', '内容 ' + [...content].length + ' 字，超过单条笔记上限 400 字；请拆成多条分别记住（一条事实一个文件）。');
         }
         try {
           const result = addCandidate(

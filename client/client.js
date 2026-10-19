@@ -176,6 +176,9 @@ window.__ModuleLoader__.load({
       memChipMore: '还有 {n} 条待批准…',
       memChipSettings: '完整面板在「设置 → 记忆」',
       memChipPending: '{n} 待批准',
+      reviewFailTooLong: '候选超过单条 400 字上限，不能直接入库；请拆成两条事实分别记。',
+      reviewFailNotFound: '候选已不存在（可能刚被处理过）。',
+      reviewFailGeneric: '操作未生效：{reason}',
       memApprove: '批准',
       memIgnore: '忽略',
       footer: '候选只在候选区；批准后进入 notes/。自动捕获受 capture 配置约束，召回在 shadow 模式下只写回执。',
@@ -327,6 +330,9 @@ window.__ModuleLoader__.load({
       memChipMore: '{n} more waiting...',
       memChipSettings: 'Full panel lives in Settings → Memory',
       memChipPending: '{n} pending',
+      reviewFailTooLong: 'The candidate is over the 400-char per-note cap, so it cannot be approved as one note; split it into two facts.',
+      reviewFailNotFound: 'The candidate no longer exists (it may have just been handled).',
+      reviewFailGeneric: 'The action did not apply: {reason}',
       memApprove: 'Approve',
       memIgnore: 'Dismiss',
       footer: 'Candidates stay in the inbox until approved. Capture is bounded by config; shadow recall only writes receipts.',
@@ -621,7 +627,7 @@ window.__ModuleLoader__.load({
             const failed = result.failed || [];
             const key = action === 'accept' ? 'approved' : 'rejected';
             let notice = t(key).replace('{n}', String(done.length));
-            if (failed.length) notice += ' ' + t('failedOne').replace('{n}', String(failed.length));
+            if (failed.length) notice += ' ' + t('failedOne').replace('{n}', String(failed.length)) + ' ' + failureText(failed[0]?.reason);
             setState((prev) => ({ ...prev, notice }));
             await load();
           } catch (error) {
@@ -681,6 +687,14 @@ window.__ModuleLoader__.load({
         }
       }, [rpcCall]);
 
+      // Review failures used to be silent: a >400-char candidate can never be
+      // approved (the write gate answers too_long), so say it instead of
+      // leaving the button looking dead.
+      const failureText = (reason) => {
+        if (reason === 'too_long') return t('reviewFailTooLong');
+        if (reason === 'candidate_not_found') return t('reviewFailNotFound');
+        return t('reviewFailGeneric').replace('{reason}', String(reason || 'unknown'));
+      };
       const modeLabel = status
         ? { inject: t('modeInject'), shadow: t('modeShadow'), off: t('modeOff') }[status.mode] || status.mode
         : '';
@@ -1294,7 +1308,9 @@ window.__ModuleLoader__.load({
       const review = async (id, action) => {
         setBusyId(id);
         try {
-          await rpcCall('inbox.review', { action, ids: [id] });
+          const result = await rpcCall('inbox.review', { action, ids: [id] });
+          const failed = Array.isArray(result?.failed) ? result.failed : [];
+          setError(failed.length ? failureText(failed[0]?.reason) : '');
           await Promise.all([loadPending(), refresh()]);
         } catch (cause) {
           setError(String(cause?.message ?? cause));

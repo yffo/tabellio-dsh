@@ -321,6 +321,12 @@ export function apply(ctx, config = {}) {
     let written = 0;
     const failedItems = [];
     for (const candidate of candidates) {
+      // A candidate longer than tabellio's per-note cap (400 chars) could never
+      // be approved later, so do not write it in the first place.
+      if ([...String(candidate.body ?? candidate.sentence ?? '')].length > 400) {
+        ctx.logger?.info?.('tabellio-dsh: capture skipped a candidate longer than the 400-char note cap');
+        continue;
+      }
       // Second gate, right before persistence: extractCandidates already drops
       // credential-bearing messages, but the tool path and future callers share
       // this writer, so never let a secret reach notes/candidates/.
