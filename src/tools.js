@@ -1,5 +1,6 @@
 import { addCandidate, listCandidates, read, recallQuery, reviewCandidates, search, status } from 'tabellio';
 import { formatRecallTool } from './render.js';
+import { buildReport, renderReport } from './report.js';
 import { looksLikeCredentialLeak } from './capture.js';
 
 const jsonText = (_args, value) => [{ type: 'text', text: JSON.stringify(value) }];
@@ -522,6 +523,65 @@ export function createToolDefinitions({ settings, getStore, getLastRecall = () =
           return { ok: Boolean(result.ok), action, count: accepted.length + rejected.length + failed.length, candidates: [], accepted, rejected, failed, message: parts.join('；') || '没有变化。' };
         } catch (error) {
           return { ok: false, action, count: 0, candidates: [], accepted: [], rejected: [], failed: [], message: 'inbox 失败：' + (error?.message ?? error) };
+        }
+      },
+    },
+    {
+      name: 'tabellio_report',
+      description:
+        '生成最近 N 天的记忆周报：新增了哪些笔记、有多少候选/提案待批。只读，不调模型，不联网。用户问「这周记了什么/最近有什么新记忆」时用。',
+      parameters: {
+        type: 'object',
+        properties: {
+          days: { type: 'integer', minimum: 1, maximum: 90, description: '窗口天数，默认 7。' },
+          limit: { type: 'integer', minimum: 1, maximum: 50, description: '最多列出几条新增，默认 10。' },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            ok: { type: 'boolean' },
+            days: { type: 'integer' },
+            since: { type: 'string' },
+            notes_total: { type: 'integer' },
+            notes_added: { type: 'integer' },
+            candidates: { type: 'integer' },
+            proposals: { type: 'integer' },
+            truncated: { type: 'integer' },
+            added: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  title: { type: 'string' },
+                  valid_from: { type: 'string' },
+                  kind: { type: 'string' },
+                  scope: { type: 'string' },
+                },
+                required: ['id', 'title', 'valid_from', 'kind', 'scope'],
+                additionalProperties: false,
+              },
+            },
+            plain: { type: 'string' },
+          },
+          required: ['ok', 'days', 'since', 'notes_total', 'notes_added', 'candidates', 'proposals', 'truncated', 'added', 'plain'],
+          additionalProperties: false,
+        },
+        render: (_args, value) => plainText(value.plain),
+      },
+      async execute(args) {
+        const days = Math.min(90, Math.max(1, Math.trunc(Number(args?.days) || 7)));
+        const limit = Math.min(50, Math.max(1, Math.trunc(Number(args?.limit) || 10)));
+        try {
+          const report = buildReport(getStore(), { days, limit });
+          return { ok: true, ...report, plain: renderReport(report) };
+        } catch (error) {
+          const report = { days, since: '', notes_total: 0, notes_added: 0, candidates: 0, proposals: 0, added: [], truncated: 0 };
+          return { ok: false, ...report, plain: '周报读取失败：' + (error?.message ?? error) };
         }
       },
     },

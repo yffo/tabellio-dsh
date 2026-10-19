@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0 (2026-10-19)
+
+- 新增第七个工具 `tabellio_report`：按最近 N 天（默认 7）列出新增记忆、候选/提案待批数量，只读、不调模型。用户问「这周记了什么」时可直接用。
+- 66 个单元/集成测试 + 30 条验收。
+
 ## 0.1.9 (2026-10-19)
 
 - 个人评测语料（`tools/blind-queries.json`、`tools/recall-eval.py`）移出仓库，只在本地 `archive/` 保留；README 的评测命令改成接收外部数据集路径。发布包附带 `tools/cross-host-demo.mjs` 与 `tools/judge-eval.mjs`（通用脚本，不含个人数据），README 里的走查命令装完即可运行。

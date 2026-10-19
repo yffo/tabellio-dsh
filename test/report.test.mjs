@@ -1,0 +1,84 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { openStore, remember } from 'tabellio';
+import { buildReport, renderReport } from '../src/report.js';
+import { createToolDefinitions } from '../src/tools.js';
+import { normalizeConfig } from '../src/config.js';
+
+function temp(t) {
+  const dir = mkdtempSync(join(tmpdir(), 'tabellio-report-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  return dir;
+}
+
+test('report on an empty store is all zeros and says so', (t) => {
+  const dir = temp(t);
+  const report = buildReport(openStore(dir), { days: 7, limit: 10 });
+  assert.equal(report.notes_total, 0);
+  assert.equal(report.notes_added, 0);
+  assert.deepEqual(report.added, []);
+  assert.match(renderReport(report), /这周没有新记忆/);
+});
+
+test('report counts notes written today and lists their titles', (t) => {
+  const dir = temp(t);
+  const store = openStore(dir);
+  remember(store, { content: '记忆周报测试笔记一号：项目代号是青鸟计划。' }, { writtenBy: 'test' });
+  remember(store, { content: '记忆周报测试笔记二号：发布流程走 tag 加 CI。' }, { writtenBy: 'test' });
+
+  const report = buildReport(store, { days: 7, limit: 10 });
+  assert.equal(report.notes_total, 2);
+  assert.equal(report.notes_added, 2);
+  assert.equal(report.truncated, 0);
+  assert.ok(report.added.every((note) => note.id.length > 0 && note.title.length > 0 && Number.isFinite(Date.parse(note.valid_from))));
+  const text = renderReport(report);
+  assert.match(text, /新增 2 条/);
+  assert.match(text, /青鸟计划|发布流程/);
+});
+
+test('report ignores notes older than the window', (t) => {
+  const dir = temp(t);
+  const store = openStore(dir);
+  remember(store, { content: '记忆周报测试笔记三号：今天刚写的约定。' }, { writtenBy: 'test' });
+  mkdirSync(join(dir, 'notes'), { recursive: true });
+  writeFileSync(join(dir, 'notes', 'OLD-NOTE.md'), [
+    '---',
+    'schema: memory.note/1',
+    'id: OLD-NOTE',
+    'kind: semantic',
+    'valid_from: "2020-01-01T00:00:00+08:00"',
+    '---',
+    '',
+    '# 很旧的笔记',
+    '这条不在最近 7 天窗口内。',
+  ].join('\n'));
+
+  const report = buildReport(store, { days: 7, limit: 10 });
+  assert.equal(report.notes_total, 2);
+  assert.equal(report.notes_added, 1);
+  assert.match(report.added[0].title, /今天刚写/);
+  assert.doesNotMatch(renderReport(report), /很旧的笔记/);
+});
+
+test('tabellio_report tool returns the window and respects limit', async (t) => {
+  const dir = temp(t);
+  const store = openStore(dir);
+  remember(store, { content: '周报工具笔记甲：以后都用 pnpm。' }, { writtenBy: 'test' });
+  remember(store, { content: '周报工具笔记乙：脚本统一放 archive。' }, { writtenBy: 'test' });
+
+  const defs = createToolDefinitions({ settings: normalizeConfig({ storePath: dir }), getStore: () => store });
+  const tool = defs.find((item) => item.name === 'tabellio_report');
+  assert.ok(tool, 'tabellio_report should be registered');
+
+  const value = await tool.execute({ days: 30, limit: 1 });
+  assert.equal(value.ok, true);
+  assert.equal(value.days, 30);
+  assert.equal(value.notes_added, 2);
+  assert.equal(value.added.length, 1);
+  assert.equal(value.truncated, 1);
+  assert.equal(typeof value.plain, 'string');
+  assert.match(tool.output.render({}, value)[0].text, /记忆周报/);
+});

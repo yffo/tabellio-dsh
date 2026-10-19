@@ -518,7 +518,7 @@ for (const combo of MATRIX) {
 // ---------------------------------------------------------------------------
 // 1. Metadata / registration
 // ---------------------------------------------------------------------------
-testCase('meta-01', 'plugin metadata, six tools and lifecycle handlers registered', async () => {
+testCase('meta-01', 'plugin metadata, seven tools and lifecycle handlers registered', async () => {
   assert.equal(pluginName, 'tabellio-dsh');
   assert.deepEqual(inject, ['tools']);
   assert.equal(normalizeConfig({ capture: 'bogus' }).capture, 'off');
@@ -533,7 +533,7 @@ testCase('meta-01', 'plugin metadata, six tools and lifecycle handlers registere
 
   assert.deepEqual(
     host.tools.map((tool) => tool.name).sort(),
-    ['tabellio_capture', 'tabellio_inbox', 'tabellio_read', 'tabellio_recall', 'tabellio_search', 'tabellio_status'],
+    ['tabellio_capture', 'tabellio_inbox', 'tabellio_read', 'tabellio_recall', 'tabellio_report', 'tabellio_search', 'tabellio_status'],
   );
   for (const event of ['agent/pre-step', 'agent/turn-stopping', 'agent/disposed']) {
     assert.ok((host.handlers.get(event) ?? []).length >= 1, `missing handler for ${event}`);
@@ -552,13 +552,14 @@ const TOOL_CONTRACT = {
   tabellio_status: { params: [], required: null, optional: [] },
   tabellio_capture: { params: ['content'], required: ['content'], optional: ['source', 'tags'] },
   tabellio_inbox: { params: ['action', 'ids'], required: null, optional: [] },
+  tabellio_report: { params: ['days', 'limit'], required: null, optional: [] },
 };
 
-testCase('tools-01-schema', 'six tool schemas: required, additionalProperties:false, output schema and render', async () => {
+testCase('tools-01-schema', 'seven tool schemas: required, additionalProperties:false, output schema and render', async () => {
   const dir = tempStore('tools-schema');
   const host = createHost();
   apply(host.ctx, { storePath: dir, autoRecall: false, capture: 'off', refreshSeconds: 0 });
-  assert.equal(host.tools.length, 6);
+  assert.equal(host.tools.length, 7);
   const observations = [];
   for (const [name, expected] of Object.entries(TOOL_CONTRACT)) {
     const tool = findTool(host, name);

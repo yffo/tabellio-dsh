@@ -130,12 +130,12 @@ The optional switches above show the defaults shipped by the plugin patch (`cord
 ### Architecture
 
 - **Core `tabellio`**: storage, index, BM25 + co-occurrence scoring, write gate, receipts, consolidation. This plugin only adapts DSH; it does not duplicate core logic.
-- **Adapter `tabellio-dsh`**: `agent/pre-step` recall, `agent/turn-stopping` capture, 6 native tools, settings panel (HTTP RPC with loopback + Origin checks: status, candidate approval, proposal approval, search, last recall, LLM judge).
+- **Adapter `tabellio-dsh`**: `agent/pre-step` recall, `agent/turn-stopping` capture, 7 native tools, settings panel (HTTP RPC with loopback + Origin checks: status, candidate approval, proposal approval, search, last recall, LLM judge).
 - Switching hosts leaves the core untouched; only the adapter changes.
 
 ### Tools
 
-`tabellio_recall` / `tabellio_search` / `tabellio_read` / `tabellio_status` / `tabellio_capture` / `tabellio_inbox`. The tools share the same budget, refusal rules and write gate as the CLI and MCP server.
+`tabellio_recall` / `tabellio_search` / `tabellio_read` / `tabellio_status` / `tabellio_capture` / `tabellio_inbox` / `tabellio_report`. The tools share the same budget, refusal rules and write gate as the CLI and MCP server.
 
 ### Full configuration table
 
@@ -167,7 +167,7 @@ The optional switches above show the defaults shipped by the plugin patch (`cord
 ### Tests and evaluation
 
 ```bash
-npm test                      # 62 unit/integration cases
+npm test                      # 66 unit/integration cases
 node tests/acceptance.mjs     # 30 functional acceptance checks
 node tools/cross-host-demo.mjs  # cross-host API walkthrough (temp store)
 python3 tools/blind-eval.py <dataset.json>  # frozen-query blind test (personal data stays outside the repo)
