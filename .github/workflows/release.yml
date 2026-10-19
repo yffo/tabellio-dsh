@@ -22,6 +22,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: node tests/acceptance.mjs
+      - run: npm run check:cross-host
       - name: Check tag matches package version
         run: |
           TAG="${GITHUB_REF_NAME#v}"

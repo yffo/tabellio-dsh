@@ -52,6 +52,14 @@ node tools/cross-host-demo.mjs
 
 它走的是同一条 API：写正式笔记 → 写候选 → 批准候选 → 检索 → 体检。
 
+再加一条入口级的一致性检查（插件 API ↔ CLI ↔ MCP 服务器）：
+
+```bash
+npm run check:cross-host
+```
+
+它会在临时库里：插件 API 写一条 → CLI 检索到 → 插件写候选、CLI 批准 → MCP 服务器召回到正文 → CLI/API/插件三方的笔记数一致。任何一处不一致都会非零退出，适合放进发布前的 CI。
+
 ## 换宿主要做什么
 
 核心不动，只写一层薄适配器：挑两个时机——「一轮开始」（召回并注入）和「一轮结束」（捕获候选）——再把宿主的模型调用接到 `judge`。契约见 `memory-service/docs/03-hosts-and-interfaces.md` §7。

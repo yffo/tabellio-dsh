@@ -176,9 +176,10 @@ dsh plugin --profile desktop add tabellio-dsh
 ### 测试与评测
 
 ```bash
-npm test                      # 74 个单元/集成用例
+npm test                      # 74 个单元/集成用例 + npm run check:cross-host
 node tests/acceptance.mjs     # 30 条功能验收
 node tools/cross-host-demo.mjs  # 跨宿主 API 走查（临时库）
+npm run check:cross-host       # 插件 API / CLI / MCP 三方一致性（临时库，失败即非零退出）
 python3 tools/blind-eval.py <外部数据集.json>  # 冻结查询的召回盲测（数据集含个人记忆，不入库）
 node tools/judge-eval.mjs <带 gold 的查询集.json>  # 真实模型裁判抽样（本地/任意 OpenAI 兼容端点）
 ```
