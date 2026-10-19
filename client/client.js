@@ -175,6 +175,7 @@ window.__ModuleLoader__.load({
       memChipEmpty: '没有待批准的候选。',
       memChipMore: '还有 {n} 条待批准…',
       memChipSettings: '完整面板在「设置 → 记忆」',
+      memChipOpenPanel: '打开完整面板',
       memChipPending: '{n} 待批准',
       reviewFailTooLong: '候选超过单条 400 字上限，不能直接入库；请拆成两条事实分别记。',
       reviewFailNotFound: '候选已不存在（可能刚被处理过）。',
@@ -329,6 +330,7 @@ window.__ModuleLoader__.load({
       memChipEmpty: 'Nothing waiting for approval.',
       memChipMore: '{n} more waiting...',
       memChipSettings: 'Full panel lives in Settings → Memory',
+      memChipOpenPanel: 'Open full panel',
       memChipPending: '{n} pending',
       reviewFailTooLong: 'The candidate is over the 400-char per-note cap, so it cannot be approved as one note; split it into two facts.',
       reviewFailNotFound: 'The candidate no longer exists (it may have just been handled).',
@@ -1264,7 +1266,38 @@ window.__ModuleLoader__.load({
       rowTitle: { marginBottom: '4px', lineHeight: 1.4 },
       small: { fontSize: '12px', color: 'var(--dsh-muted, #8a8478)', padding: '4px 0' },
       rowActions: { display: 'flex', gap: '6px' },
+      jump: {
+        marginTop: '8px', padding: 0, border: 'none', background: 'transparent',
+        color: 'var(--dsh-accent, #2563eb)', fontSize: '12px', cursor: 'pointer',
+        textDecoration: 'underline', textUnderlineOffset: '2px',
+      },
     };
+
+    /**
+     * Jump to this plugin's section inside the harness Settings dialog.
+     * The dialog owns its open state privately, so the only route from a
+     * plugin half is the shell's own trigger: click it, then the section nav
+     * row that carries our label. Returns false when the shell is not there.
+     */
+    function openPanelSettings(sectionLabel) {
+      try {
+        const trigger = Array.from(document.querySelectorAll('button[aria-haspopup="dialog"][aria-expanded]'))[0];
+        if (!trigger) return false;
+        if (trigger.getAttribute('aria-expanded') !== 'true') trigger.click();
+        const visit = (attempts) => {
+          const dialog = document.querySelector('[role="dialog"]');
+          if (dialog) {
+            const row = Array.from(dialog.querySelectorAll('nav button')).find((button) => (button.textContent || '').includes(sectionLabel));
+            if (row) { row.click(); return; }
+          }
+          if (attempts > 0) setTimeout(() => visit(attempts - 1), 120);
+        };
+        setTimeout(() => visit(4), 60);
+        return true;
+      } catch {
+        return false;
+      }
+    }
 
     /** Header chip: pending memories are visible at the top of the session. */
     function MemoryIndicator({ rpcCall, t }) {
@@ -1273,6 +1306,7 @@ window.__ModuleLoader__.load({
       const [items, setItems] = React.useState([]);
       const [busyId, setBusyId] = React.useState('');
       const [error, setError] = React.useState('');
+      const [jumpMissed, setJumpMissed] = React.useState(false);
 
       const refresh = React.useCallback(async () => {
         try {
@@ -1342,7 +1376,12 @@ window.__ModuleLoader__.load({
                 ),
               )),
           items.length > 5 ? h('div', { style: indicatorStyles.small }, t('memChipMore').replace('{n}', String(items.length - 5))) : null,
-          h('div', { style: indicatorStyles.small }, t('memChipSettings')),
+          h('button', {
+            type: 'button',
+            style: indicatorStyles.jump,
+            onClick: () => { if (!openPanelSettings(t('section'))) setJumpMissed(true); },
+          }, t('memChipOpenPanel')),
+          jumpMissed ? h('div', { style: indicatorStyles.small }, t('memChipSettings')) : null,
         ) : null,
       );
     }
