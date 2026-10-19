@@ -85,3 +85,60 @@ export function auditCounts(entries) {
   for (const entry of entries) counts[entry.mode] = (counts[entry.mode] ?? 0) + 1;
   return counts;
 }
+
+// Audit entries from the current and previous month, newest first, filtered by
+// time. Two files is enough for any window the panel offers (max 31 days) and
+// avoids walking the whole store.
+export function readAuditSince(store, sinceMs, { max = 1000 } = {}) {
+  const cap = Math.max(1, Math.min(5000, Number(max) || 1000));
+  const now = Date.now();
+  const entries = [];
+  for (const at of [now, now - 1000 * 60 * 60 * 24 * 32]) {
+    try {
+      const file = auditPath(store, at);
+      if (!existsSync(file)) continue;
+      for (const line of readFileSync(file, 'utf8').split('\n')) {
+        if (!line) continue;
+        try {
+          const parsed = toAuditEntry(JSON.parse(line));
+          if (parsed.at >= sinceMs) entries.push(parsed);
+        } catch {
+          // skip torn line
+        }
+      }
+    } catch {
+      // unreadable month file: ignore
+    }
+  }
+  entries.sort((left, right) => right.at - left.at);
+  return entries.slice(0, cap);
+}
+
+function topCounts(values, max) {
+  const counts = new Map();
+  for (const value of values) {
+    if (!value) continue;
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, max)
+    .map(([value, count]) => ({ value, count }));
+}
+
+export function summarizeAudit(entries) {
+  const byMode = {};
+  const misses = [];
+  const titles = [];
+  for (const entry of entries) {
+    byMode[entry.mode] = (byMode[entry.mode] ?? 0) + 1;
+    if (['suppressed', 'refused', 'judged_out', 'error'].includes(entry.mode)) misses.push(entry.query);
+    for (const title of entry.titles ?? []) titles.push(title);
+  }
+  return {
+    total: entries.length,
+    byMode,
+    topMisses: topCounts(misses, 5).map((row) => ({ query: row.value, count: row.count })),
+    topTitles: topCounts(titles, 5).map((row) => ({ title: row.value, count: row.count })),
+  };
+}

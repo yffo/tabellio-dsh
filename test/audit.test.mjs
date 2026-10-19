@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { openStore } from 'tabellio';
-import { appendAudit, auditCounts, auditPath, readAudit, toAuditEntry } from '../src/audit.js';
+import { appendAudit, auditCounts, auditPath, readAudit, readAuditSince, summarizeAudit, toAuditEntry } from '../src/audit.js';
 
 const tempStore = (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tabellio-audit-test-'));
@@ -78,4 +78,26 @@ test('recall decisions append audit lines through the plugin pre-step', async (t
   assert.equal(rows.length, 1);
   assert.equal(rows[0].query, '今天天气怎么样？');
   assert.ok(['suppressed', 'refused'].includes(rows[0].mode));
+});
+
+test('summarizeAudit counts outcomes and ranks refused queries and titles', (t) => {
+  const store = tempStore(t);
+  const base = Date.now();
+  appendAudit(store, { at: base - 3000, query: '发布流程是什么？', mode: 'context', count: 2, titles: ['发布流程'] });
+  appendAudit(store, { at: base - 2000, query: '今天天气怎么样？', mode: 'suppressed', count: 1, reason: 'no_memory_intent' });
+  appendAudit(store, { at: base - 1000, query: '今天天气怎么样？', mode: 'refused', reason: 'below_min_coverage' });
+  const summary = summarizeAudit(readAuditSince(store, base - 10000));
+  assert.equal(summary.total, 3);
+  assert.deepEqual(summary.byMode, { context: 1, suppressed: 1, refused: 1 });
+  assert.deepEqual(summary.topMisses[0], { query: '今天天气怎么样？', count: 2 });
+  assert.deepEqual(summary.topTitles[0], { title: '发布流程', count: 1 });
+});
+
+test('readAuditSince drops entries older than the window', (t) => {
+  const store = tempStore(t);
+  const base = Date.now();
+  appendAudit(store, { at: base - 8 * 24 * 60 * 60 * 1000, query: 'old', mode: 'notice' });
+  appendAudit(store, { at: base - 1000, query: 'new', mode: 'notice' });
+  const rows = readAuditSince(store, base - 7 * 24 * 60 * 60 * 1000);
+  assert.deepEqual(rows.map((row) => row.query), ['new']);
 });

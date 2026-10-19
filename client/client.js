@@ -72,6 +72,13 @@ window.__ModuleLoader__.load({
       audDeduped: '与上次相同',
       audError: '出错',
       audUnknown: '其它',
+      qualityLabel: '召回质量（近 7 天）',
+      qualityTotal: '共 {n} 次',
+      qualityInjected: '注入',
+      qualityBlocked: '拦下',
+      qualityMissed: '没命中',
+      qualityTopMiss: '常被拒的问题',
+      qualityNone: '还没有记录',
       notesAll: '全部笔记',
       notesCount: '共 {n} 条，点标题可读全文',
       notesMore: '加载更早的笔记',
@@ -178,6 +185,13 @@ window.__ModuleLoader__.load({
       audDeduped: 'same as last',
       audError: 'error',
       audUnknown: 'other',
+      qualityLabel: 'Recall quality (7 days)',
+      qualityTotal: '{n} recalls',
+      qualityInjected: 'injected',
+      qualityBlocked: 'gated',
+      qualityMissed: 'missed',
+      qualityTopMiss: 'Often refused',
+      qualityNone: 'no data yet',
       notesAll: 'All notes',
       notesCount: '{n} notes - tap a title to read it',
       notesMore: 'Load older notes',
@@ -345,6 +359,7 @@ window.__ModuleLoader__.load({
       const [proposalList, setProposalList] = useState([]);
       const [weekly, setWeekly] = useState(null);
       const [audited, setAudited] = useState(null);
+      const [quality, setQuality] = useState(null);
       const [older, setOlder] = useState({ items: [], total: 0, loading: false });
       const [filters, setFilters] = useState({ kind: '', days: 0 });
       const [note, setNote] = useState(null);
@@ -370,6 +385,11 @@ window.__ModuleLoader__.load({
             setWeekly(await rpcCall('report', { days: 7, limit: 3 }) || null);
           } catch {
             setWeekly(null);
+          }
+          try {
+            setQuality(await rpcCall('audit.summary', { days: 7 }) || null);
+          } catch {
+            setQuality(null);
           }
           try {
             const rows = await rpcCall('audit', { limit: 20 });
@@ -617,6 +637,17 @@ window.__ModuleLoader__.load({
                 ? h('div', { style: styles.firstRun }, t('firstRun'))
                 : null,
               h('p', { style: styles.sub }, t('lastRecallLabel') + '：' + lastRecallLabel(status.lastRecall)),
+              quality && quality.total > 0
+                ? h('div', null,
+                  h('p', { style: styles.sub }, t('qualityLabel') + '：' + t('qualityTotal').replace('{n}', String(quality.total))
+                    + ' · ' + t('qualityInjected') + ' ' + String((quality.byMode?.context || 0) + (quality.byMode?.notice || 0))
+                    + ' · ' + t('qualityBlocked') + ' ' + String((quality.byMode?.suppressed || 0) + (quality.byMode?.judged_out || 0))
+                    + ' · ' + t('qualityMissed') + ' ' + String((quality.byMode?.refused || 0) + (quality.byMode?.error || 0))),
+                  Array.isArray(quality.topMisses) && quality.topMisses.length
+                    ? h('ul', { style: styles.weeklyList }, quality.topMisses.slice(0, 3).map((row, index) => h('li', { key: String(index), style: styles.weeklyItem },
+                      t('qualityTopMiss') + '：', String(row.query), ' ×' + String(row.count))))
+                    : null)
+                : null,
               audited && Array.isArray(audited.items) && audited.items.length
                 ? h('div', null,
                   h('p', { style: styles.sub }, t('auditTitle')),

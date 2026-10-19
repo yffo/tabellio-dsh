@@ -44,6 +44,19 @@ test('status reports counts and the current delivery mode', async (t) => {
   assert.equal(result.value.consolidate.lastRun, 0);
 });
 
+test('audit.summary aggregates the recent recall trail', async (t) => {
+  const { dir, store } = await tempStore(t);
+  const { appendAudit } = await import('../src/audit.js');
+  appendAudit(store, { query: '今天天气怎么样？', mode: 'suppressed', reason: 'no_memory_intent' });
+  appendAudit(store, { query: '发布流程是什么？', mode: 'context', count: 2, titles: ['发布流程'] });
+  const handler = handlerFor(dir, store);
+  const summary = await handler('audit.summary', { days: 7 });
+  assert.equal(summary.ok, true);
+  assert.equal(summary.value.total, 2);
+  assert.equal(summary.value.byMode.context, 1);
+  assert.equal(summary.value.topMisses[0].query, '今天天气怎么样？');
+});
+
 test('inbox.list returns candidate views and inbox.review approves them', async (t) => {
   const { dir, store } = await tempStore(t);
   addCandidate(store, { text: '以后脚本统一放 archive 目录', kind: 'semantic', tags: ['rpc-test'] }, { writtenBy: 'test' });
