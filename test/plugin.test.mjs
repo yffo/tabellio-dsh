@@ -443,6 +443,17 @@ test('a waiting candidate is mentioned once in quiet context, not every turn', a
   assert.equal(host.contexts[0].text(), '');
 });
 
+test('an unreadable store is reported instead of looking like an empty memory', async (t) => {
+  const dir = temp(t);
+  openStore(dir);
+  fs.mkdirSync(path.join(dir, 'notes'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'notes', 'broken.md'), 'no frontmatter at all\n', 'utf8');
+  const host = fakeHost();
+  apply(host.ctx, { storePath: dir, autoRecall: true, capture: 'off', refreshSeconds: 0 });
+  await runPre(host.handlers, agent(), [human('m1', '项目代号是什么？')]);
+  assert.ok(host.warns.some((line) => /store issues/.test(String(line))), 'expected a store health warning, got: ' + JSON.stringify(host.warns));
+});
+
 test('auto recall stays silent in an empty store and when disabled', async (t) => {
   const dir = temp(t);
   const host = fakeHost();

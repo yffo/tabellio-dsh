@@ -11,7 +11,7 @@
  * human approves it with `tabellio inbox`.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import { addCandidate, listCandidates, openStore, read as readNote, recallQuery } from 'tabellio';
+import { addCandidate, listCandidates, openStore, read as readNote, recallQuery, status as storeStatus } from 'tabellio';
 import { normalizeConfig } from './src/config.js';
 import { delegationDepth, isHumanMessage, isChitchat, latestHuman, textOf, trimQuery, intentGateAllows } from './src/messages.js';
 import { extractCandidates, hasSecretHint, looksLikeCredentialLeak } from './src/capture.js';
@@ -341,6 +341,28 @@ export function apply(ctx, config = {}) {
   // back to per-turn notices (which stay inside the session that produced
   // them). Sessions are marked when their pre-step runs and released at the
   // turn boundary; the TTL covers hosts that skip the boundary event.
+
+  // Cheap, rate-limited health probe used only when recall comes back empty: a
+  // damaged notes/ directory must not look like "no memory matched" forever.
+  let lastStoreHealthAt = 0;
+  const warnStoreHealthOnce = (context) => {
+    const now = Date.now();
+    if (now - lastStoreHealthAt < 60_000) return;
+    lastStoreHealthAt = now;
+    try {
+      const health = storeStatus(currentStore());
+      const problems = [];
+      if (health?.parse_failures > 0) problems.push(health.parse_failures + ' unreadable note file(s)');
+      const warnings = Array.isArray(health?.warnings) ? health.warnings : [];
+      if (warnings.length > 0) problems.push(warnings.length + ' store warning(s)');
+      if (problems.length > 0) {
+        ctx.logger?.warn?.('tabellio-dsh: ' + context + '; store issues: ' + problems.join(', '));
+      }
+    } catch (error) {
+      ctx.logger?.warn?.('tabellio-dsh: store health check failed: ' + (error?.message ?? error));
+    }
+  };
+
   const SESSION_ACTIVE_TTL_MS = 30 * 60 * 1000;
   const activeSessions = new Map();
   const sessionKeyOf = (agent) => {
@@ -776,6 +798,7 @@ export function apply(ctx, config = {}) {
       result = await augmentWithSemantic(result, query);
 
       if (result?.refused || !Array.isArray(result?.items) || result.items.length === 0) {
+        warnStoreHealthOnce('recall returned no items');
         lastRecall = recordRecall({
           at: Date.now(),
           query,
