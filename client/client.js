@@ -60,6 +60,31 @@ window.__ModuleLoader__.load({
       settingsSourceHint: '还有召回阈值、预算等进阶项：需要时改配置的 recallMin*/recallBudgetTokens。',
       settingsSave: '保存设置',
       settingsSaved: '设置已保存并生效。',
+      wizardRerun: '重新运行引导',
+      wizardTitle: '首次设置',
+      wizardStep1Title: '先决定它有多主动',
+      wizardStep1Text: '智能记忆 = 语义召回 + 模型裁决。关掉只做本地词面匹配，更省资源但更容易漏。',
+      wizardOnTitle: '开启智能记忆（推荐）',
+      wizardOnText: '自动发现本机向量服务；每轮命中时用当前对话模型判断相关性。',
+      wizardOffTitle: '先用基础模式',
+      wizardOffText: '不调用模型、不需要向量服务；只靠关键词匹配。',
+      wizardStep2Title: '记忆从哪儿检索',
+      wizardStep2Text: '本机有向量服务就自动发现；也可以直接填远程的 OpenAI 兼容地址。',
+      wizardLocalTitle: '本机自动发现',
+      wizardLocalText: '扫描常见端口；发现失败就退回词面匹配。',
+      wizardRemoteTitle: '远程向量服务',
+      wizardRemoteText: '填 /v1/embeddings 地址、Key 和模型名。',
+      wizardEndpointPlaceholder: 'https://api.example.com/v1/embeddings',
+      wizardKeyPlaceholder: 'API Key（本地服务可留空）',
+      wizardModelPlaceholder: '模型名，例如 text-embedding-3-small',
+      wizardStep3Title: '存一条试试',
+      wizardStep3Text: '写一条你希望它长期记住的事；也可以留空，之后在对话里说「记住：…」。',
+      wizardNotePlaceholder: '比如：以后发版都走 tag + CI，不手动上传。',
+      wizardLater: '稍后再说',
+      wizardBack: '上一步',
+      wizardNext: '下一步',
+      wizardFinish: '完成',
+      wizardDoneNotice: '设置完成，记忆已就绪。',
       approveAll: '全部批准',
       sourceConversation: '来自对话',
       sourceTool: '来自工具调用',
@@ -247,6 +272,31 @@ window.__ModuleLoader__.load({
       settingsJudgeDefault: 'Empty = use the current DSH default model',
       settingsSave: 'Save settings',
       settingsSaved: 'Settings saved and applied.',
+      wizardRerun: 'Run setup again',
+      wizardTitle: 'First-run setup',
+      wizardStep1Title: 'How active should memory be?',
+      wizardStep1Text: 'Smart memory = semantic recall + model judging. Turn it off for lexical-only matching: lighter, but easier to miss things.',
+      wizardOnTitle: 'Enable smart memory (recommended)',
+      wizardOnText: 'Automatically finds a local embedding service and asks the current chat model to keep only relevant notes.',
+      wizardOffTitle: 'Start basic',
+      wizardOffText: 'No model calls and no embedding server; keyword matching only.',
+      wizardStep2Title: 'Where should recall look?',
+      wizardStep2Text: 'A local embedding service is detected automatically, or point at any OpenAI-compatible remote endpoint.',
+      wizardLocalTitle: 'Auto-detect locally',
+      wizardLocalText: 'Scans common ports, falls back to lexical matching if none is found.',
+      wizardRemoteTitle: 'Remote embedding service',
+      wizardRemoteText: 'Enter the /v1/embeddings endpoint, key, and model name.',
+      wizardEndpointPlaceholder: 'https://api.example.com/v1/embeddings',
+      wizardKeyPlaceholder: 'API key (leave empty for local services)',
+      wizardModelPlaceholder: 'Model name, e.g. text-embedding-3-small',
+      wizardStep3Title: 'Save your first memory',
+      wizardStep3Text: 'Write one thing you want remembered; or leave it empty and say "remember: ..." in chat later.',
+      wizardNotePlaceholder: 'For example: releases always go through tag + CI, never manual uploads.',
+      wizardLater: 'Later',
+      wizardBack: 'Back',
+      wizardNext: 'Next',
+      wizardFinish: 'Finish',
+      wizardDoneNotice: 'Setup complete. Memory is ready.',
       approveAll: 'Approve all',
       sourceConversation: 'from conversation',
       sourceTool: 'from a tool call',
@@ -390,6 +440,22 @@ window.__ModuleLoader__.load({
       settingsModelAuto: 'blank = auto-detect',
       pendingNeedYou: 'needs your call',
       pendingNone: 'none',
+    };
+
+    const WIZARD_KEY = 'tabellio-dsh:wizard-done';
+    const wizardDone = () => {
+      try {
+        return typeof window === 'undefined' || window.localStorage.getItem(WIZARD_KEY) === '1';
+      } catch {
+        return true;
+      }
+    };
+    const markWizardDone = () => {
+      try {
+        window.localStorage.setItem(WIZARD_KEY, '1');
+      } catch {
+        // private mode or storage disabled: the wizard simply shows again next time
+      }
     };
 
     const COLORS = {
@@ -760,6 +826,28 @@ window.__ModuleLoader__.load({
       stack: { display: 'flex', flexDirection: 'column', gap: 4 },
       controlRow: { display: 'grid', gridTemplateColumns: '112px minmax(0, 1fr)', alignItems: 'start', gap: 12, minHeight: 34 },
       controlLabel: { color: COLORS.dim, fontSize: 12.5, paddingTop: 9, lineHeight: 1.35 },
+      wizardPanel: {
+        position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 16,
+        width: 'min(560px, calc(100vw - 40px))', padding: '20px 22px 18px',
+        border: '1px solid ' + COLORS.border, borderRadius: 16, background: COLORS.card,
+        boxShadow: '0 18px 50px rgba(28, 25, 23, .22)',
+      },
+      wizardHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+      wizardDots: { display: 'flex', gap: 6 },
+      wizardDot: { width: 6, height: 6, borderRadius: 999, background: 'rgba(120, 113, 108, .28)' },
+      wizardDotActive: { width: 18, height: 6, borderRadius: 999, background: TONES.accent, transition: 'width .18s ease' },
+      wizardTitle: { margin: 0, fontSize: 17, fontWeight: 650, letterSpacing: '-0.01em' },
+      wizardText: { margin: 0, color: COLORS.dim, fontSize: 13, lineHeight: 1.65 },
+      choiceRow: { display: 'flex', gap: 10, flexWrap: 'wrap' },
+      choice: {
+        flex: '1 1 200px', textAlign: 'left', padding: '12px 14px', borderRadius: 12,
+        border: '1px solid ' + COLORS.border, background: 'transparent', color: COLORS.text,
+        cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 6,
+      },
+      choiceActive: { borderColor: 'rgba(194, 65, 12, .5)', background: 'rgba(194, 65, 12, .06)' },
+      choiceTitle: { fontSize: 13.5, fontWeight: 600 },
+      choiceText: { fontSize: 12, color: COLORS.dim, lineHeight: 1.55 },
+      wizardFoot: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingTop: 6 },
       smartRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '2px 0 2px' },
       smartText: { display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 },
       smartTitle: { fontSize: 13.5, fontWeight: 620 },
@@ -813,6 +901,50 @@ window.__ModuleLoader__.load({
       const [older, setOlder] = useState({ items: [], total: 0, loading: false });
       const [filters, setFilters] = useState({ kind: '', days: 0 });
       const [note, setNote] = useState(null);
+      const [wizard, setWizard] = useState(() => ({
+        open: !wizardDone(),
+        step: 0,
+        smart: true,
+        mode: 'local',
+        endpoint: '',
+        model: '',
+        apiKey: '',
+        note: '',
+        error: '',
+        busy: false,
+      }));
+      const openWizard = () => setWizard({
+        open: true, step: 0, smart: true, mode: 'local',
+        endpoint: '', model: '', apiKey: '', note: '', error: '', busy: false,
+      });
+      const closeWizard = () => {
+        markWizardDone();
+        setWizard((prev) => ({ ...prev, open: false, error: '' }));
+      };
+      const finishWizard = async () => {
+        setWizard((prev) => ({ ...prev, busy: true, error: '' }));
+        try {
+          const patch = {
+            semantic: wizard.smart ? (wizard.mode === 'off' ? 'auto' : 'auto') : 'off',
+            judge: wizard.smart ? 'llm' : 'off',
+          };
+          if (wizard.smart && wizard.mode === 'remote') {
+            patch.semanticEndpoint = wizard.endpoint.trim();
+            patch.semanticModel = wizard.model.trim();
+            if (wizard.apiKey.trim()) patch.semanticApiKey = wizard.apiKey.trim();
+          }
+          await rpcCall('settings.set', patch);
+          if (wizard.note.trim()) {
+            await rpcCall('remember', { content: wizard.note.trim() });
+          }
+          markWizardDone();
+          setWizard((prev) => ({ ...prev, open: false, busy: false }));
+          await load();
+          setState((prev) => ({ ...prev, notice: t('wizardDoneNotice'), error: null }));
+        } catch (error) {
+          setWizard((prev) => ({ ...prev, busy: false, error: error?.message ?? String(error) }));
+        }
+      };
       const [draft, setDraft] = useState('');
       const [saving, setSaving] = useState(false);
       const [busyId, setBusyId] = useState('');
@@ -1448,7 +1580,9 @@ window.__ModuleLoader__.load({
                 ),
               ),
               h('div', { style: ui.saveRow },
-                h('button', { type: 'button', style: ui.buttonPrimary, disabled: settingsSaving, onClick: savePanelSettings }, settingsSaving ? t('addSaving') : t('settingsSave'))),
+                h('button', { type: 'button', style: ui.buttonPrimary, disabled: settingsSaving, onClick: savePanelSettings }, settingsSaving ? t('addSaving') : t('settingsSave')),
+                h('button', { type: 'button', style: ui.buttonGhost, onClick: openWizard }, icon('spark', 13), h('span', null, t('wizardRerun')))),
+
             )),
             card(t('advancedTitle'), h('div', { style: ui.kvList },
               kv(t('judgeLabel'), judgeLabel(status && status.judge) + (judgeModelText ? ' · ' + judgeModelText : '')),
@@ -1471,6 +1605,83 @@ window.__ModuleLoader__.load({
         { id: 'settings', label: t('tabSettings'), icon: 'gear' },
       ];
       const body = tab === 'overview' ? overview : tab === 'pending' ? pending : tab === 'library' ? library : [settingsPane];
+
+      const wizardOverlay = wizard.open
+        ? h('div', { style: ui.overlay },
+            h('div', { style: ui.overlayMask, onClick: closeWizard }),
+            h('div', { style: ui.wizardPanel, role: 'dialog', 'aria-modal': 'true', 'aria-label': t('wizardTitle') },
+              h('div', { style: ui.wizardHead },
+                h('div', { style: ui.wizardDots },
+                  [0, 1, 2].map((index) => h('span', { key: index, style: index === wizard.step ? ui.wizardDotActive : ui.wizardDot }))),
+                h('button', { type: 'button', style: ui.iconButton, onClick: closeWizard, 'aria-label': t('closeNote') }, icon('x', 16))),
+              wizard.step === 0
+                ? h(React.Fragment, null,
+                    h('h2', { style: ui.wizardTitle }, t('wizardStep1Title')),
+                    h('p', { style: ui.wizardText }, t('wizardStep1Text')),
+                    h('div', { style: ui.choiceRow },
+                      h('button', {
+                        type: 'button',
+                        style: wizard.smart ? Object.assign({}, ui.choice, ui.choiceActive) : ui.choice,
+                        onClick: () => setWizard((prev) => ({ ...prev, smart: true })),
+                      },
+                        h('div', { style: ui.choiceTitle }, t('wizardOnTitle')),
+                        h('div', { style: ui.choiceText }, t('wizardOnText'))),
+                      h('button', {
+                        type: 'button',
+                        style: wizard.smart ? ui.choice : Object.assign({}, ui.choice, ui.choiceActive),
+                        onClick: () => setWizard((prev) => ({ ...prev, smart: false })),
+                      },
+                        h('div', { style: ui.choiceTitle }, t('wizardOffTitle')),
+                        h('div', { style: ui.choiceText }, t('wizardOffText')))))
+                : wizard.step === 1
+                  ? h(React.Fragment, null,
+                      h('h2', { style: ui.wizardTitle }, t('wizardStep2Title')),
+                      h('p', { style: ui.wizardText }, t('wizardStep2Text')),
+                      h('div', { style: ui.choiceRow },
+                        h('button', {
+                          type: 'button',
+                          style: wizard.mode === 'local' ? Object.assign({}, ui.choice, ui.choiceActive) : ui.choice,
+                          onClick: () => setWizard((prev) => ({ ...prev, mode: 'local' })),
+                        },
+                          h('div', { style: ui.choiceTitle }, t('wizardLocalTitle')),
+                          h('div', { style: ui.choiceText }, t('wizardLocalText'))),
+                        h('button', {
+                          type: 'button',
+                          style: wizard.mode === 'remote' ? Object.assign({}, ui.choice, ui.choiceActive) : ui.choice,
+                          onClick: () => setWizard((prev) => ({ ...prev, mode: 'remote' })),
+                        },
+                          h('div', { style: ui.choiceTitle }, t('wizardRemoteTitle')),
+                          h('div', { style: ui.choiceText }, t('wizardRemoteText')))),
+                      wizard.mode === 'remote'
+                        ? h('div', { style: ui.stack },
+                            h('input', { style: ui.input, placeholder: t('wizardEndpointPlaceholder'), value: wizard.endpoint, onChange: (event) => setWizard((prev) => ({ ...prev, endpoint: event.target.value })) }),
+                            h('input', { style: ui.input, type: 'password', autoComplete: 'off', placeholder: t('wizardKeyPlaceholder'), value: wizard.apiKey, onChange: (event) => setWizard((prev) => ({ ...prev, apiKey: event.target.value })) }),
+                            h('input', { style: ui.input, placeholder: t('wizardModelPlaceholder'), value: wizard.model, onChange: (event) => setWizard((prev) => ({ ...prev, model: event.target.value })) }))
+                        : null)
+                  : h(React.Fragment, null,
+                      h('h2', { style: ui.wizardTitle }, t('wizardStep3Title')),
+                      h('p', { style: ui.wizardText }, t('wizardStep3Text')),
+                      h('textarea', {
+                        style: ui.textarea,
+                        rows: 3,
+                        placeholder: t('wizardNotePlaceholder'),
+                        value: wizard.note,
+                        onChange: (event) => setWizard((prev) => ({ ...prev, note: event.target.value })),
+                      })),
+              wizard.error ? h('div', { style: ui.errorBanner }, wizard.error) : null,
+              h('div', { style: ui.wizardFoot },
+                h('button', {
+                  type: 'button',
+                  style: ui.buttonGhost,
+                  onClick: () => {
+                    if (wizard.step === 0) closeWizard();
+                    else setWizard((prev) => ({ ...prev, step: Math.max(0, prev.step - 1) }));
+                  },
+                }, wizard.step === 0 ? t('wizardLater') : t('wizardBack')),
+                wizard.step < 2
+                  ? h('button', { type: 'button', style: ui.buttonPrimary, onClick: () => setWizard((prev) => ({ ...prev, step: prev.step + 1 })) }, t('wizardNext'))
+                  : h('button', { type: 'button', style: ui.buttonPrimary, disabled: wizard.busy, onClick: finishWizard }, wizard.busy ? t('addSaving') : t('wizardFinish')))))
+        : null;
 
       const noteOverlay = note
         ? h('div', { style: ui.overlay },
@@ -1521,6 +1732,7 @@ window.__ModuleLoader__.load({
         ),
         h('footer', { style: ui.footer }, t('footer')),
         noteOverlay,
+        wizardOverlay,
       );
     }
 
