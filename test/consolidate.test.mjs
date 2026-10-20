@@ -27,13 +27,13 @@ test('last run state survives in the store runs directory', (t) => {
   assert.equal(readLastRun(store), 123456);
 });
 
-test('maybeSweep is off unless a cadence is configured', (t) => {
+test('maybeSweep is off unless a cadence is configured', async (t) => {
   const dir = temp(t);
   const store = { store: dir };
-  assert.equal(maybeSweep({ getStore: () => store, settings: { consolidate: 'off' } }).ran, false);
+  assert.equal((await maybeSweep({ getStore: () => store, settings: { consolidate: 'off' } })).ran, false);
 });
 
-test('maybeSweep skips a store that ran recently and records the run', (t) => {
+test('maybeSweep skips a store that ran recently and records the run', async (t) => {
   const dir = temp(t);
   const store = { store: dir };
   const now = Date.parse('2026-10-19T00:00:00Z');
@@ -41,23 +41,23 @@ test('maybeSweep skips a store that ran recently and records the run', (t) => {
   let calls = 0;
   const run = () => { calls += 1; return { created: [1, 2] }; };
 
-  const skipped = maybeSweep({ getStore: () => store, settings: { consolidate: 'daily' }, now, run });
+  const skipped = await maybeSweep({ getStore: () => store, settings: { consolidate: 'daily' }, now, run });
   assert.equal(skipped.ran, false);
   assert.equal(skipped.reason, 'not_due');
   assert.equal(calls, 0);
 
-  const ran = maybeSweep({ getStore: () => store, settings: { consolidate: 'daily' }, now: now + CADENCE_MS.daily, run });
+  const ran = await maybeSweep({ getStore: () => store, settings: { consolidate: 'daily' }, now: now + CADENCE_MS.daily, run });
   assert.equal(ran.ran, true);
   assert.equal(ran.created, 2);
   assert.equal(calls, 1);
   assert.equal(readLastRun(store), now + CADENCE_MS.daily);
 });
 
-test('a failing sweep warns instead of throwing and does not record the run', (t) => {
+test('a failing sweep warns instead of throwing and does not record the run', async (t) => {
   const dir = temp(t);
   const store = { store: dir };
   const warns = [];
-  const outcome = maybeSweep({
+  const outcome = await maybeSweep({
     getStore: () => store,
     settings: { consolidate: 'weekly' },
     run: () => { throw new Error('disk full'); },

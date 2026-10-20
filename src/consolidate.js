@@ -40,7 +40,7 @@ export function sweepNow(store) {
   return sweepConsolidation(store, { maxProposals: MAX_SWEEP_PROPOSALS });
 }
 
-export function maybeSweep({ getStore, settings, now = Date.now(), run = sweepNow, logger } = {}) {
+export async function maybeSweep({ getStore, settings, now = Date.now(), run = sweepNow, logger } = {}) {
   const cadence = CADENCE_MS[settings?.consolidate];
   if (!cadence) return { ran: false, reason: 'off' };
   let store;
@@ -53,7 +53,7 @@ export function maybeSweep({ getStore, settings, now = Date.now(), run = sweepNo
   const last = readLastRun(store);
   if (!consolidateDue(now, last, cadence)) return { ran: false, reason: 'not_due', last };
   try {
-    const result = run(store);
+    const result = await run(store);
     writeLastRun(store, now);
     return { ran: true, created: result?.created?.length ?? 0, result };
   } catch (error) {
@@ -63,16 +63,16 @@ export function maybeSweep({ getStore, settings, now = Date.now(), run = sweepNo
 }
 
 // 每小时看一次是否到期；首次先等 90 秒，别和宿主的启动流程抢 IO。
-export function startConsolidationTimer({ getStore, settings, logger, setTimer = setTimeout, clearTimer = clearTimeout, now = Date.now } = {}) {
+export function startConsolidationTimer({ getStore, settings, logger, run = sweepNow, setTimer = setTimeout, clearTimer = clearTimeout, now = Date.now } = {}) {
   if (!CADENCE_MS[settings?.consolidate]) return null;
   let stopped = false;
   let tick = null;
   const check = () => {
     if (stopped) return;
-    const outcome = maybeSweep({ getStore, settings, logger, now: now() });
-    if (outcome.ran) {
+    Promise.resolve(maybeSweep({ getStore, settings, logger, run, now: now() })).then((outcome) => {
+      if (!outcome.ran) return;
       logger?.info?.(`tabellio-dsh: consolidation sweep created ${outcome.created} proposal(s)`);
-    }
+    });
     tick = setTimer(check, 60 * 60 * 1000);
     tick?.unref?.();
   };

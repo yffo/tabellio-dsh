@@ -21,7 +21,8 @@ import { formatRecall } from './src/render.js';
 import { createRpcHandler } from './src/rpc.js';
 import { mountPanelRoute } from './src/web-rpc.js';
 import { registerTools } from './src/tools.js';
-import { startConsolidationTimer } from './src/consolidate.js';
+import { startConsolidationTimer, sweepNow } from './src/consolidate.js';
+import { readReflectNotes, reflectNotes, selectReflectNotes, writeReflections } from './src/reflect.js';
 import { appendAudit } from './src/audit.js';
 import { detectEmbedding, listEmbeddingModels, mergeSemanticResult, probeEmbedding, semanticTop, startIndexer } from './src/semantic.js';
 import { loadPanelSettings, panelSettingsView, pickPanelSettings, savePanelSettings } from './src/settings-file.js';
@@ -91,6 +92,7 @@ export function apply(ctx, config = {}) {
   // was created without this getter).
   const judgeState = { mode: settings.judge, host: 'none', selection: null, last: null };
   const worthState = { mode: settings.writeJudge, last: null };
+  const reflectState = { mode: settings.reflect, last: null };
   // Auto-discovery bookkeeping for the semantic layer (see startSemanticIndexer).
   const semanticMeta = { detected: false, probing: false, error: null };
   // A key typed in the panel wins; the environment variable is the safer place
@@ -111,6 +113,7 @@ export function apply(ctx, config = {}) {
       getLastRecall: () => lastRecall,
       getJudgeState: () => judgeState,
       getWorthState: () => worthState,
+      getReflectState: () => reflectState,
       getSemanticState: () => Object.assign(
         { mode: settings.semantic, endpoint: settings.semanticEndpoint, model: settings.semanticModel, apiKeySet: Boolean(semanticKey()) },
         semanticIndexer?.state ?? { ready: false, size: 0, error: null },
@@ -158,6 +161,57 @@ export function apply(ctx, config = {}) {
   // Optional background consolidation: while the session is idle, look for
   // near-duplicate notes and write merge proposals. Nothing is applied here —
   // the panel's proposal review is still the only approval path.
+  // Reflection (sleep-time "up-leveling"): recent notes → at most two current
+  // state summaries, written as candidates. Nothing is merged automatically.
+  const reflectNow = async (store) => {
+    if (settings.reflect !== 'llm') return;
+    const selection = judgeHost?.currentSelection?.() ?? null;
+    const picked = selectReflectNotes(store, { days: settings.reflectDays, max: settings.reflectMaxNotes });
+    const notes = readReflectNotes(store, picked);
+    if (notes.length < 3) {
+      reflectState.last = { at: Date.now(), created: 0, reason: 'too_few_notes', notes: notes.length };
+      return;
+    }
+    const started = Date.now();
+    const reflections = await reflectNotes({
+      llm: judgeHost?.llm ?? null,
+      selection,
+      notes,
+      timeoutMs: settings.reflectTimeoutMs,
+    });
+    if (!reflections) {
+      reflectState.last = { at: Date.now(), created: 0, reason: 'no_verdict', notes: notes.length, elapsedMs: Date.now() - started };
+      return;
+    }
+    const written = writeReflections(
+      (input, options) => addCandidate(store, input, options),
+      reflections,
+      { source: 'dsh:reflect' },
+    );
+    reflectState.last = {
+      at: Date.now(),
+      created: written.length,
+      titles: written.map((item) => item.title),
+      notes: notes.length,
+      elapsedMs: Date.now() - started,
+      model: selection ? String(selection.model ?? '') : '',
+    };
+    if (written.length > 0) {
+      ctx.logger?.info?.(`tabellio-dsh: reflection wrote ${written.length} candidate(s)`);
+    }
+  };
+  // One cadence for both: the duplicate sweep and the reflection. Reflection
+  // failure never aborts the sweep result.
+  const runConsolidation = async (store) => {
+    const result = sweepNow(store);
+    try {
+      await reflectNow(store);
+    } catch (error) {
+      ctx.logger?.warn?.('tabellio-dsh: reflection failed: ' + (error?.message ?? error));
+    }
+    return result;
+  };
+
   let stopConsolidationTimer = null;
   const startConsolidation = () => {
     try {
@@ -167,7 +221,7 @@ export function apply(ctx, config = {}) {
     }
     stopConsolidationTimer = null;
     if (settings.consolidate === 'off') return;
-    const stopTimer = startConsolidationTimer({ getStore: currentStore, settings, logger: ctx.logger });
+    const stopTimer = startConsolidationTimer({ getStore: currentStore, settings, logger: ctx.logger, run: runConsolidation });
     stopConsolidationTimer = typeof stopTimer === 'function' ? stopTimer : null;
   };
   startConsolidation();
@@ -285,7 +339,8 @@ export function apply(ctx, config = {}) {
   // even when those services activate after the plugin; hosts without them just
   // keep lexical recall (the judge stays off).
   let judgeHost = null;
-  if (settings.judge === 'llm' && typeof ctx.inject === 'function') {
+  const needsModel = settings.judge === 'llm' || settings.writeJudge === 'llm' || settings.reflect === 'llm';
+  if (needsModel && typeof ctx.inject === 'function') {
     ctx.inject(['llm', 'agentDefaultModel'], (sub) => {
       sub.effect?.(() => {
         judgeHost = {

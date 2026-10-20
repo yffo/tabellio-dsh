@@ -59,7 +59,7 @@ function judgeView(state) {
   };
 }
 
-function statusView(settings, store, lastRecall, judgeState, semanticState, worthState) {
+function statusView(settings, store, lastRecall, judgeState, semanticState, worthState, reflectState) {
   const result = status(store);
   return {
     store: store.store,
@@ -82,6 +82,10 @@ function statusView(settings, store, lastRecall, judgeState, semanticState, wort
     writeJudge: {
       mode: settings.writeJudge,
       last: worthState?.last ?? null,
+    },
+    reflect: {
+      mode: settings.reflect ?? 'off',
+      last: reflectState?.last ?? null,
     },
     semantic: {
       mode: settings.semantic,
@@ -136,7 +140,7 @@ function reviewPayload(payload) {
  * Build the channel handler. One store instance is shared with the tools and
  * auto recall, so a hot store invalidate is reflected everywhere.
  */
-export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeState, getWorthState, getSemanticState, getSettingsView, updateSettings, testSemantic, getSemanticModels }) {
+export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeState, getWorthState, getReflectState, getSemanticState, getSettingsView, updateSettings, testSemantic, getSemanticModels }) {
   return async function handler(endpoint, payload) {
     try {
       const store = getStore();
@@ -149,6 +153,7 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
             typeof getJudgeState === 'function' ? getJudgeState() : null,
             typeof getSemanticState === 'function' ? getSemanticState() : null,
             typeof getWorthState === 'function' ? getWorthState() : null,
+            typeof getReflectState === 'function' ? getReflectState() : null,
           ));
         case 'audit': {
           const limit = Math.max(5, Math.min(100, Number(payload?.limit) || 20));

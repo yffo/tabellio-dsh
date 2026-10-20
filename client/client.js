@@ -33,6 +33,9 @@ window.__ModuleLoader__.load({
       writeJudgeLabel: '写侧检查',
       writeJudgeOff: '关闭',
       writeJudgeKept: '保留 {kept}/{asked}',
+      reflectLabel: '反思',
+      reflectOff: '关闭',
+      reflectCreated: '新增 {n} 条摘要',
       semOff: '未开启',
       semBuilding: '正在建索引',
       semReady: '已索引 {n} 条',
@@ -254,6 +257,9 @@ window.__ModuleLoader__.load({
       writeJudgeLabel: 'Write check',
       writeJudgeOff: 'off',
       writeJudgeKept: 'kept {kept}/{asked}',
+      reflectLabel: 'Reflect',
+      reflectOff: 'off',
+      reflectCreated: '{n} summary(ies)',
       semOff: 'off',
       semBuilding: 'indexing',
       semReady: '{n} notes indexed',
@@ -1575,6 +1581,13 @@ window.__ModuleLoader__.load({
                       ? t('writeJudgeKept').replace('{kept}', String(status.writeJudge.last.kept)).replace('{asked}', String(status.writeJudge.last.asked))
                       : t('writeJudgeKept').replace('{kept}', '-').replace('{asked}', '-'),
                   status && status.writeJudge && status.writeJudge.mode === 'llm' ? TONES.info : TONES.neutral),
+                chip(t('reflectLabel'),
+                  !status || !status.reflect || status.reflect.mode !== 'llm'
+                    ? t('reflectOff')
+                    : status.reflect.last && status.reflect.last.created
+                      ? t('reflectCreated').replace('{n}', String(status.reflect.last.created))
+                      : t('reflectOff'),
+                  status && status.reflect && status.reflect.mode === 'llm' ? TONES.info : TONES.neutral),
                 chip(t('judgeLabel'), judgeLabel(status && status.judge), status && status.judge && status.judge.mode === 'llm' ? TONES.good : COLORS.dim),
                 chip(t('capture'), captureLabel, COLORS.dim),
                 chip(t('index'), indexLabel, indexLabel === t('indexOk') ? TONES.good : COLORS.dim)),
