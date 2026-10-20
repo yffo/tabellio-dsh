@@ -17,6 +17,7 @@ import { delegationDepth, isHumanMessage, isChitchat, latestHuman, textOf, trimQ
 import { extractCandidates, hasSecretHint, looksLikeCredentialLeak } from './src/capture.js';
 import { filterByJudge } from './src/judge.js';
 import { readFeedback, aggregateFeedback, rankByFeedback } from './src/feedback.js';
+import { maybeRecordCorrection, outcomePenalties, rankByOutcome } from './src/outcome.js';
 import { filterCandidatesByWorth } from './src/worth.js';
 import { formatRecall } from './src/render.js';
 import { createRpcHandler } from './src/rpc.js';
@@ -330,6 +331,9 @@ export function apply(ctx, config = {}) {
         lastUser: null,
         lastInjectedKey: '',
         lastInjectionMode: '',
+        injectedIds: [],
+        injectedAt: 0,
+        injectedQuery: '',
       };
       states.set(key, state);
     }
@@ -788,6 +792,18 @@ export function apply(ctx, config = {}) {
     state.seen.add(messageId);
     trimSet(state.seen, MAX_SEEN_MESSAGES);
 
+    // A correction on this turn may point at notes injected on the previous
+    // one. Attribution requires visible token overlap, so an unrelated "no,
+    // that's not what I meant" does not get blamed on memory.
+    if (settings.outcomeFeedback) {
+      try {
+        const hit = maybeRecordCorrection({ store: currentStore(), state, text: raw });
+        if (hit) ctx.logger?.info?.('tabellio-dsh: correction recorded for ' + hit.noteIds.length + ' note(s)');
+      } catch (error) {
+        ctx.logger?.debug?.('tabellio-dsh: outcome check skipped: ' + (error?.message ?? error));
+      }
+    }
+
     if (!settings.autoRecall) return decision;
 
     const query = trimQuery(raw, settings.queryChars);
@@ -931,6 +947,15 @@ export function apply(ctx, config = {}) {
           ctx.logger?.debug?.('tabellio-dsh: feedback ranking skipped: ' + (error?.message ?? error));
         }
       }
+      // Corrections recorded from earlier turns only demote, and a single
+      // signal is a nudge rather than a verdict.
+      if (settings.outcomeFeedback && result.items.length > 1) {
+        try {
+          result.items = rankByOutcome(result.items, outcomePenalties(currentStore()));
+        } catch (error) {
+          ctx.logger?.debug?.('tabellio-dsh: outcome ranking skipped: ' + (error?.message ?? error));
+        }
+      }
 
       const text = formatRecall(result);
       if (!text) return decision;
@@ -951,6 +976,9 @@ export function apply(ctx, config = {}) {
         latestRecallText = text;
         state.lastInjectedKey = key;
         state.lastInjectionMode = 'context';
+        state.injectedIds = result.items.map((item) => item.id).slice(0, 6);
+        state.injectedAt = Date.now();
+        state.injectedQuery = query;
         lastRecall = recordRecall({
           at: Date.now(),
           query,
@@ -982,6 +1010,9 @@ export function apply(ctx, config = {}) {
       }
       state.lastInjectedKey = key;
       state.lastInjectionMode = 'notice';
+      state.injectedIds = result.items.map((item) => item.id).slice(0, 6);
+      state.injectedAt = Date.now();
+      state.injectedQuery = query;
       lastRecall = recordRecall({
         at: Date.now(),
         query,

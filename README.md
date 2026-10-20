@@ -145,6 +145,14 @@ dsh plugin --profile desktop add tabellio-dsh
 
 留在配置里的只有进阶项：`recallMinRelevance`/`recallMinScore`/`recallMinCoverage`（召回阈值）、`recallBudgetTokens`、`storePath`、`shadow`、`refreshSeconds`。这些改错会直接影响召回质量或落库位置，所以没有放进面板；默认值已经适配普通用户。
 
+## 纠正会被记住（结果反馈）
+
+记忆注入之后的下一轮，如果你说「不对，应该是白鹭」这类**纠正**，而这句话又和刚注入的笔记
+有实际词面重叠（至少 2 个共同词元），插件会往 `outcome.jsonl` 记一条局部信号：哪几条笔记被
+纠正、当时问的什么。之后这些笔记只在同一查询的排序里小幅降权（每条最多降 24%），不删除、
+不改写、不越过相关性闸门；超过 10 分钟或不相关的「不对」不会被算到记忆头上。
+关掉：`outcomeFeedback: false`。
+
 ## 隐私
 
 - 全部本地读写；网络只到 `127.0.0.1`（本地向量服务），以及宿主默认模型的一次裁决调用（可关）。
@@ -180,6 +188,7 @@ dsh plugin --profile desktop add tabellio-dsh
 | `recallIntentGate` | `true` | 没有记忆意图的问句不注入 |
 | `recallConfidentRelevance` | `0.9` | 首条相关度到这条线时，即使没有意图词也放行 |
 | `feedbackRanking` | `true` | 用「有用 / 不对」反馈给召回结果做小幅重排（不增删笔记） |
+| `outcomeFeedback` | `true` | 注入后下一轮你说「不对/不是…而是」且与被注入笔记有词面重叠时，记一条局部纠正信号，用于小幅降权（10 分钟窗口，不删笔记、不越过闸门） |
 | `recallTrusts` | `user_stated`、`system_derived` | 自动召回信任哪些来源；导入的文档（`external`）默认只参与搜索/面板，不自动注入 |
 | `recallMinCoverage` | `0.33` | 覆盖率闸；长问句会被稀释，默认按对话场景调松 |
 | `recallMinScore` | `0.1` | 最低分 |

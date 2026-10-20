@@ -950,3 +950,26 @@ test('inbox rejects comma-separated ids and credential policy verbs are allowed'
   assert.match(comma.message, /逗号/);
   assert.equal(looksLikeCredentialLeak('密钥由 KMS 管理'), false);
 });
+
+test('a correction after an injected recall is recorded as an outcome', async (t) => {
+  const dir = temp(t);
+  const store = openStore(dir);
+  remember(store, { content: '# 项目代号\n\n项目代号是青鸟，发布前确认一遍。' });
+  const host = fakeHost();
+  apply(host.ctx, { storePath: dir, autoRecall: true, capture: 'off' });
+  const who = agent();
+
+  const first = await runPre(host.handlers, who, [human('m1', '项目代号叫什么？')]);
+  assert.equal(first.messages.length, 2, 'recall notice injected');
+
+  const second = await runPre(host.handlers, who, [human('m2', '不对，项目代号不是青鸟，是白鹭。')]);
+  assert.equal(second.kind, 'enter');
+  const outcomes = fs
+    .readFileSync(path.join(dir, 'outcome.jsonl'), 'utf8')
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+  assert.equal(outcomes.length, 1);
+  assert.equal(outcomes[0].signal, 'corrected');
+  assert.ok(outcomes[0].overlap >= 2);
+});
