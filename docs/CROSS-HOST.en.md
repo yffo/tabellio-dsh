@@ -54,7 +54,7 @@ It uses the same API: durable note → candidate → approval → search → hea
 
 ## What switching hosts takes
 
-The core stays; you write a thin adapter with two hooks — "turn starts" (recall + inject) and "turn ends" (capture candidates) — plus wiring the host model call for `judge`. The contract lives in `memory-service/docs/03-hosts-and-interfaces.md` §7.
+The core stays; you write a thin adapter with two hooks — "turn starts" (recall + inject) and "turn ends" (capture candidates) — plus wiring the host model call for `judge`. The contract lives in `tabellio/docs/03-hosts-and-interfaces.md` §7.
 
 ## Boundaries
 

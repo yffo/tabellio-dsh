@@ -62,7 +62,7 @@ npm run check:cross-host
 
 ## 换宿主要做什么
 
-核心不动，只写一层薄适配器：挑两个时机——「一轮开始」（召回并注入）和「一轮结束」（捕获候选）——再把宿主的模型调用接到 `judge`。契约见 `memory-service/docs/03-hosts-and-interfaces.md` §7。
+核心不动，只写一层薄适配器：挑两个时机——「一轮开始」（召回并注入）和「一轮结束」（捕获候选）——再把宿主的模型调用接到 `judge`。契约见 `tabellio/docs/03-hosts-and-interfaces.md` §7。
 
 ## 边界
 

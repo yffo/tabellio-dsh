@@ -29,7 +29,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 QUERY_FILE = REPO / "tools" / "blind-queries.json"
 DEFAULT_STORE = Path.home() / "memory" / "tabellio"
-DEFAULT_CHECKOUT = Path.home() / "yffto" / "memory-service"
+DEFAULT_CHECKOUT = Path.home() / "yffto" / "tabellio"
 DEFAULT_OUT = Path(
     "/Users/yangfu/yffto/archive/2026-10/scratch/tabellio-dsh-validation/blind/report.md"
 )
@@ -686,7 +686,7 @@ def render_report(summary: dict) -> str:
     add(f"- 记忆库：`{s['store']}`（只读；794 篇笔记 / 23 个逻辑家族 / 26 篇 draft）")
     add(
         "- 调用方式：`node bin/memory recall --store ~/memory/tabellio --json "
-        '--query "<query>"`（cwd `~/yffto/memory-service`；每条查询独立进程）'
+        '--query "<query>"`（cwd `~/yffto/tabellio`；每条查询独立进程）'
     )
     add(
         "- 口径：hit@1 / hit@6 按**期望笔记 id 精确匹配**；括号内 family 级按 `#` 前缀同家族；"
@@ -974,7 +974,7 @@ def render_report(summary: dict) -> str:
         "不得把它们的结果当成 hit@6 或用来反推阈值；主指标只来自 40 条冻结查询 + 10 条缺失事实查询。"
     )
     add(
-        "6. 复现：`cd ~/yffto/memory-service && node bin/memory recall --store ~/memory/tabellio "
+        "6. 复现：`cd ~/yffto/tabellio && node bin/memory recall --store ~/memory/tabellio "
         '--json --query "<q>"`；评测脚本 `python3 tools/blind-eval.py`。'
     )
     add("")
@@ -1005,7 +1005,7 @@ def main() -> int:
         print(f"store notes dir not found: {store / 'notes'}", file=sys.stderr)
         return 2
     if not (checkout / "bin" / "memory").is_file():
-        print(f"memory-service checkout not found: {checkout}", file=sys.stderr)
+        print(f"tabellio checkout not found: {checkout}", file=sys.stderr)
         return 2
 
     queries = load_queries(QUERY_FILE)
