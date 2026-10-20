@@ -69,3 +69,25 @@ npm run check:cross-host
 - 不自动批准、不自动合并/衰减/删除。
 - 不复制数据到第二个库；换宿主不搬家。
 - 插件只是壳：DSH 适配器坏了，CLI 与 MCP 仍然读写同一份记忆。
+
+## Claude Code：钩子与 MCP 的契约检查
+
+Claude Code 与 tabellio 的接法是两段**宿主自己会执行**的命令，所以它们必须能离线验：
+
+```bash
+npm run check:claude-hooks
+```
+
+这条检查在临时 HOME、临时库里依次验证：
+
+1. `tabellio hook install --host claude --session-start --write` 写出的 `~/.claude/settings.json` 形状（`SessionEnd`/`SessionStart` 各一条 command hook，15 秒超时，绝对 bin 路径）；
+2. `SessionEnd` 钩子吃一段真实形状的 transcript，**只**把显式线索（「以后…都…」）写成候选，不含密钥；
+3. `SessionStart` 钩子只读候选数并输出 `additionalContext` 提示，不写库；
+4. `tabellio-mcp` 的 `initialize` / `tools/list` / `tools/call` 往返，且 stdout 只有 JSON-RPC。
+
+它不启动 Claude Code 本体，也不调用任何模型——真实会话需要宿主自己的登录与网络，那是用户侧的最后一步。装到真实环境（会改 `~/.claude/settings.json`，默认 dry-run，先看再写）：
+
+```bash
+tabellio hook install --host claude --session-start          # 预览
+tabellio hook install --host claude --session-start --write  # 写入（自动备份）
+```

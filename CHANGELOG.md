@@ -1,3 +1,9 @@
+## 0.31.0
+
+- Claude Code 契约检查：新增 `tools/cross-host-claude.mjs`（`npm run check:claude-hooks`），在临时 HOME/临时库里验证 hook 安装写出的 settings 形状、SessionEnd 只把显式线索写成候选、SessionStart 只读提示、以及 MCP `initialize`/`tools/list`/`tools/call` 的 stdio 往返（stdout 仅 JSON-RPC）。CI 与 release 流水线都会跑；不需要模型、不联网、不碰真实配置。
+- 文档 `docs/CROSS-HOST.md` 增 Claude Code 一节（含真实安装的预览/写入命令）。
+- 172 个测试 + 30 条验收 + 两套跨宿主检查。
+
 ## 0.30.0
 
 - 成本台账：每轮真正注入记忆时记一条 `runs/usage.jsonl`（注入字符、是否调 judge 与耗时、是否走语义），最多 2000 条；面板概览新增「记忆成本（近 7 天）」卡：注入轮数、字符与估算 tokens（按 3 字符≈1 估算）、judge 调用次数与平均耗时、语义查询次数。新增 `usage.summary` RPC。只统计记忆层自己的开销，不碰宿主对话账本。

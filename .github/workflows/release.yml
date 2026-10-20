@@ -24,6 +24,7 @@ jobs:
       - run: node tests/acceptance.mjs
       - run: node tools/memory-eval.mjs
       - run: npm run check:cross-host
+      - run: npm run check:claude-hooks
       - name: Check tag matches package version
         run: |
           TAG="${GITHUB_REF_NAME#v}"
