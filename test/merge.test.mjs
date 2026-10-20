@@ -7,7 +7,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { openStore, read, remember, status } from 'tabellio';
-import { findConflicts } from '../src/conflicts.js';
+import { findConflicts, readConflictState, writeConflictState } from '../src/conflicts.js';
 import { createToolDefinitions } from '../src/tools.js';
 import { normalizeConfig } from '../src/config.js';
 
@@ -90,4 +90,16 @@ test('recall as_of excludes notes written after that moment', async (t) => {
   assert.equal(now.items.length > 0, true);
   const past = await recall.execute({ query: '发布流程 手动 npm publish', maxNotes: 6, as_of: '2020-01-01' });
   assert.equal(past.items.length, 0);
+});
+
+test('the daily conflict scan state survives a restart', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'tabellio-conflict-state-'));
+  try {
+    const store = openStore(dir);
+    assert.equal(readConflictState(store), null);
+    assert.equal(writeConflictState(store, { at: 1792360000000, count: 2 }), true);
+    assert.deepEqual(readConflictState(store), { at: 1792360000000, count: 2 });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

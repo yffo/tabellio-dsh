@@ -4,7 +4,7 @@
 // same approval gate the `tabellio inbox` CLI uses.
 import { applyContentConsolidation, consolidate, listCandidates, listProposals, proposeConsolidation, read, remember, reviewCandidates, reviewProposals, search, status } from 'tabellio';
 import { buildNotesPage, buildReport } from './report.js';
-import { findConflicts } from './conflicts.js';
+import { findConflicts, readConflictState } from './conflicts.js';
 import { readLastRun } from './consolidate.js';
 import { auditCounts, readAudit, readAuditSince, summarizeAudit } from './audit.js';
 import { appendFeedback, feedbackCounts, readFeedback } from './feedback.js';
@@ -85,6 +85,10 @@ function statusView(settings, store, lastRecall, judgeState, semanticState, wort
     consolidate: {
       mode: settings.consolidate ?? 'off',
       lastRun: readLastRun(store),
+    },
+    conflicts: {
+      mode: settings.consolidate ?? 'off',
+      last: readConflictState(store),
     },
     writeJudge: {
       mode: settings.writeJudge,

@@ -24,6 +24,7 @@ import { createRpcHandler } from './src/rpc.js';
 import { mountPanelRoute } from './src/web-rpc.js';
 import { registerTools } from './src/tools.js';
 import { startConsolidationTimer, sweepNow } from './src/consolidate.js';
+import { findConflicts, writeConflictState } from './src/conflicts.js';
 import { readReflectNotes, reflectNotes, selectReflectNotes, writeReflections } from './src/reflect.js';
 import { appendAudit } from './src/audit.js';
 import { routeCandidate } from './src/approval.js';
@@ -211,6 +212,14 @@ export function apply(ctx, config = {}) {
       await reflectNow(store);
     } catch (error) {
       ctx.logger?.warn?.('tabellio-dsh: reflection failed: ' + (error?.message ?? error));
+    }
+    // Same cadence as the duplicate sweep: a stale-vs-new pair is only useful
+    // if someone sees it, and the panel reads this state without rescanning.
+    try {
+      const pairs = findConflicts(store.scan(), { now: Date.now(), limit: 20 });
+      writeConflictState(store, { at: Date.now(), count: pairs.length });
+    } catch (error) {
+      ctx.logger?.warn?.('tabellio-dsh: conflict scan failed: ' + (error?.message ?? error));
     }
     return result;
   };

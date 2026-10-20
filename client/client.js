@@ -1566,9 +1566,14 @@ window.__ModuleLoader__.load({
                 : null,
             ))
           : null,
-        conflicts && Array.isArray(conflicts.pairs) && conflicts.pairs.length
+        conflicts && Array.isArray(conflicts.pairs)
           ? card(t('conflictsTitle'), h(React.Fragment, null,
-              h('p', { style: ui.muted }, t('conflictsHint')),
+              h('p', { style: ui.muted }, status && status.conflicts && status.conflicts.last
+                ? t('conflictsScanned').replace('{when}', new Date(status.conflicts.last.at).toLocaleString()).replace('{n}', String(status.conflicts.last.count))
+                : t('conflictsHint')),
+              conflicts.pairs.length === 0
+                ? h('p', { style: ui.muted }, t('conflictsNone'))
+                : null,
               h('div', { style: ui.list }, conflicts.pairs.slice(0, 5).map((pair, index) =>
                 h('div', { key: 'conflict-' + index, style: ui.noteRow },
                   h('div', { style: ui.noteMain },

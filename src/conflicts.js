@@ -2,6 +2,11 @@
 // exported "supersede without merge" API, so the plugin's job here is to make
 // the conflict visible; closing the older note goes through tabellio_merge,
 // which is human-gated and receipted.
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const CONFLICT_STATE = 'conflict-state.json';
+
 const LATIN = /[a-z0-9][a-z0-9._-]{1,}/gi;
 const HAN = /[\u4e00-\u9fff]+/g;
 const NUMBERS = /\d+(?:[.,]\d+)*%?/g;
@@ -104,4 +109,25 @@ export function findConflicts(scan, { days = 30, limit = 10, minOverlap = 0.5, n
   }
   pairs.sort((x, y) => y.overlap - x.overlap);
   return { scanned: active.length, pairs: pairs.slice(0, Math.max(1, Math.min(limit, 50))) };
+}
+
+
+/** Last daily conflict scan, so the panel can show it without rescanning. */
+export function readConflictState(store) {
+  try {
+    const parsed = JSON.parse(readFileSync(join(store.store, 'runs', CONFLICT_STATE), 'utf8'));
+    return { at: Number(parsed.at) || 0, count: Number(parsed.count) || 0 };
+  } catch {
+    return null;
+  }
+}
+
+export function writeConflictState(store, { at = Date.now(), count = 0 } = {}) {
+  try {
+    mkdirSync(join(store.store, 'runs'), { recursive: true });
+    writeFileSync(join(store.store, 'runs', CONFLICT_STATE), JSON.stringify({ at, count }) + '\n');
+    return true;
+  } catch {
+    return false;
+  }
 }
