@@ -53,6 +53,7 @@ window.__ModuleLoader__.load({
       settingsModelPick: '从服务端选择一个模型…',
       settingsModel: '模型',
       settingsTest: '测试连接',
+      settingsTestRun: '开始测试',
       settingsTestOk: '连接成功：{dims} 维，{ms}ms',
       settingsTestFail: '连接失败：{err}',
       settingsJudgeLlm: '开启（用小模型裁决）',
@@ -208,6 +209,7 @@ window.__ModuleLoader__.load({
       reasonLowCoverage: '问句太长或太泛，命中词覆盖不够',
       reasonCooccurrence: '缺关键组合词，核心共现要求没满足',
       reasonJudgeNone: '模型判断这些记忆不回答此问题',
+      reasonJudgeKept: '模型裁决后保留',
       reasonSameNotes: '与上轮相同，没有重复注入',
       qualityTotal: '共 {n} 次',
       qualityInjected: '注入',
@@ -355,6 +357,7 @@ window.__ModuleLoader__.load({
       settingsModelPick: 'Pick a model the endpoint reports…',
       settingsModel: 'Model',
       settingsTest: 'Test connection',
+      settingsTestRun: 'Run test',
       settingsTestOk: 'Connected: {dims} dims in {ms}ms',
       settingsTestFail: 'Connection failed: {err}',
       settingsJudgeLlm: 'On (small model verdict)',
@@ -504,6 +507,7 @@ window.__ModuleLoader__.load({
       reasonLowCoverage: 'Question too broad (coverage gate)',
       reasonCooccurrence: 'Required term pair missing',
       reasonJudgeNone: 'Model judged these notes off-topic',
+      reasonJudgeKept: 'kept after the judge review',
       reasonSameNotes: 'Same notes as the previous turn',
       qualityTotal: '{n} recalls',
       qualityInjected: 'injected',
@@ -621,6 +625,11 @@ window.__ModuleLoader__.load({
       pendingNeedYou: 'needs your call',
       pendingNone: 'none',
     };
+
+
+    // The viewer already renders the note title; most notes also start with the
+    // same `# heading`, so drop that first line to avoid showing it twice.
+    const stripHeading = (body) => body.replace(/^#\s+[^\n]*\n+/, '');
 
     const WIZARD_KEY = 'tabellio-dsh:wizard-done';
     const wizardDone = () => {
@@ -857,7 +866,7 @@ window.__ModuleLoader__.load({
       tabs: { display: 'flex', gap: 2, borderBottom: '1px solid ' + COLORS.border },
       tab: {
         display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 10px', marginBottom: -1,
-        border: 'none', borderBottom: '2px solid transparent', background: 'transparent',
+        border: 'none', borderBottom: '2px solid transparent', borderBottomColor: 'transparent', background: 'transparent',
         color: COLORS.dim, fontSize: 13, cursor: 'pointer', borderRadius: '8px 8px 0 0',
       },
       tabActive: {
@@ -1526,6 +1535,7 @@ window.__ModuleLoader__.load({
           below_min_coverage: 'reasonLowCoverage',
           cooccurrence_required_pair_missing: 'reasonCooccurrence',
           llm_judge_kept_none: 'reasonJudgeNone',
+          llm_judge: 'reasonJudgeKept',
           same_notes_as_last_time: 'reasonSameNotes',
           low_information_query: 'reasonLowInfo',
           already_injected: 'reasonAlreadyInjected',
@@ -1917,9 +1927,6 @@ window.__ModuleLoader__.load({
           judge: on ? 'llm' : 'off',
         }));
       };
-      const judgeModelText = status && status.judge && status.judge.selection && status.judge.selection.model
-        ? String(status.judge.selection.model)
-        : t('settingsJudgeDefault');
       const semanticText = sem && sem.mode !== 'off'
         ? sem.probing
           ? t('semBuilding')
@@ -1984,7 +1991,7 @@ window.__ModuleLoader__.load({
                       models.list.map((id) => h('option', { key: id, value: id }, id))))
                     : models.error ? h('p', { style: ui.warnBox }, t('settingsTestFail').replace('{err}', models.error)) : null,
                   control(t('settingsTest'), h('div', { style: ui.testRow },
-                    h('button', { type: 'button', style: ui.buttonGhost, disabled: semanticTest?.loading === true, onClick: runSemanticTest }, icon('check', 14), h('span', null, semanticTest?.loading ? t('loading') : t('settingsTest'))),
+                    h('button', { type: 'button', style: ui.buttonGhost, disabled: semanticTest?.loading === true, onClick: runSemanticTest }, icon('check', 14), h('span', null, semanticTest?.loading ? t('loading') : t('settingsTestRun'))),
                     semanticTest && !semanticTest.loading
                       ? h('span', { style: semanticTest.ok ? ui.okLine : ui.warnBox }, semanticTest.ok
                         ? t('settingsTestOk').replace('{dims}', String(semanticTest.dims)).replace('{ms}', String(semanticTest.ms))
@@ -2021,7 +2028,7 @@ window.__ModuleLoader__.load({
 
             )),
             card(t('advancedTitle'), h('div', { style: ui.kvList },
-              kv(t('judgeLabel'), judgeLabel(status && status.judge) + (judgeModelText ? ' · ' + judgeModelText : '')),
+              kv(t('judgeLabel'), judgeLabel(status && status.judge)),
               kv(t('consolidateLabel'), consolidateLabel(status && status.consolidate)),
               kv(t('semLabel'), semState + (sem && sem.model ? ' · ' + String(sem.model) : '')),
               kv(t('capture'), captureLabel + ' · ' + t('index') + '：' + indexLabel),
@@ -2162,7 +2169,7 @@ window.__ModuleLoader__.load({
                           h('button', { type: 'button', style: ui.buttonGhost, onClick: () => setEditing(null) }, t('editCancel')),
                         ),
                       )
-                    : h('pre', { style: ui.noteBody }, String(note.body || '')),
+                    : h('pre', { style: ui.noteBody }, stripHeading(String(note.body || ''))),
                 note.loading || note.error || editing || !note.provenance
                   ? null
                   : h('div', { style: ui.provBox },

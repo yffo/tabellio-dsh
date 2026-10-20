@@ -1,3 +1,13 @@
+## 0.38.1
+
+- **面板真实浏览器 E2E 修复**（用本地 React harness 渲染真实 DOM 逐项点过）：
+  - 切页签后旧页签残留黑色下划线（React 样式对象复用导致 `border-bottom-color` 回到 `currentColor`）——基础样式显式给 `transparent`。
+  - 「高级状态」里裁决模型名重复显示（`judgeLabel` 已含模型，kv 行又拼一次）。
+  - 上次召回的 `llm_judge` 原因显示英文枚举——新增「模型裁决后保留」文案。
+  - 设置页「测试连接」标签与按钮同名——按钮改为「开始测试」。
+  - 笔记阅读页正文重复显示 `# 标题`（标题已单独渲染）——渲染时剥掉首行一级标题。
+- 179 测试 + 30 验收。
+
 ## 0.38.0
 
 - **Cursor / Codex 只读 MCP 接入**：`docs/CROSS-HOST.md`（及英文版）补上两段可直接粘贴的配置——Cursor `.cursor/mcp.json` 与 Codex `~/.codex/config.toml`——并说明 `npx --package tabellio@0.1.12 tabellio-mcp` 的正确写法（写成 `npx tabellio@0.1.12 tabellio-mcp` 会把可执行名当 CLI 参数）、`--allow-write` 的边界、`TABELLIO_STORE` 显式指定。
