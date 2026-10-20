@@ -221,3 +221,18 @@ node tools/judge-eval.mjs <带 gold 的查询集.json>  # 真实模型裁判抽�
 ## License
 
 MIT
+
+## 评测
+
+`node tools/memory-eval.mjs`（或 `npm run eval:memory`）会在临时库上跑 12 条固定用例，覆盖五类能力：
+
+| 类别 | 含义 | 当前 |
+|---|---|---|
+| knowledge_update | 新旧事实并存时，能否取到当前事实 | 2/2 |
+| temporal | 依赖日期/时段的回忆 | 2/2 |
+| preference | 用户偏好 | 2/2 |
+| project | 项目事实 | 2/2 |
+| abstention | 问的不是记忆时，应该不注入 | 4/4 |
+
+它衡量的是「对/错」，不是命中率。`--strict` 会在低于基线时以非零码退出。
+

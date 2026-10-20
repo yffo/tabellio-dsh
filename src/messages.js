@@ -35,7 +35,7 @@ export function isChitchat(text) {
  * general? Recall can match off-topic questions against unrelated notes by
  * pure lexical coincidence, so injection requires one of these markers.
  */
-const MEMORY_INTENT = /(上次|上回|之前|以前|早先|刚才|我们|咱们|我的|约定|惯例|流程|规则|偏好|习惯|决定|说过|讲过|提过|提到|记录过|笔记|记忆|备忘录|代号|名字|叫什么|怎么定|来龙去脉|历史|当时)/;
+const MEMORY_INTENT = /(上次|上回|之前|以前|早先|刚才|我们|咱们|我的|约定|惯例|流程|规则|规定|偏好|习惯|决定|说过|讲过|提过|提到|记录过|笔记|记忆|备忘录|代号|名字|叫什么|怎么定|来龙去脉|历史|当时|顺序|应该|是否|能不能|可不可以|怎样|放哪|在哪|吗)/;
 
 export function hasMemoryIntent(text) {
   return MEMORY_INTENT.test(String(text ?? ''));

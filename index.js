@@ -16,6 +16,7 @@ import { normalizeConfig } from './src/config.js';
 import { delegationDepth, isHumanMessage, isChitchat, latestHuman, textOf, trimQuery, intentGateAllows } from './src/messages.js';
 import { extractCandidates, hasSecretHint, looksLikeCredentialLeak } from './src/capture.js';
 import { filterByJudge } from './src/judge.js';
+import { filterCandidatesByWorth } from './src/worth.js';
 import { formatRecall } from './src/render.js';
 import { createRpcHandler } from './src/rpc.js';
 import { mountPanelRoute } from './src/web-rpc.js';
@@ -89,6 +90,7 @@ export function apply(ctx, config = {}) {
   // the outside (2026-10-19: status reported judge off because the handler
   // was created without this getter).
   const judgeState = { mode: settings.judge, host: 'none', selection: null, last: null };
+  const worthState = { mode: settings.writeJudge, last: null };
   // Auto-discovery bookkeeping for the semantic layer (see startSemanticIndexer).
   const semanticMeta = { detected: false, probing: false, error: null };
   // A key typed in the panel wins; the environment variable is the safer place
@@ -108,6 +110,7 @@ export function apply(ctx, config = {}) {
       getStore: currentStore,
       getLastRecall: () => lastRecall,
       getJudgeState: () => judgeState,
+      getWorthState: () => worthState,
       getSemanticState: () => Object.assign(
         { mode: settings.semantic, endpoint: settings.semanticEndpoint, model: settings.semanticModel, apiKeySet: Boolean(semanticKey()) },
         semanticIndexer?.state ?? { ready: false, size: 0, error: null },
@@ -392,7 +395,7 @@ export function apply(ctx, config = {}) {
     return { written, failedItems };
   };
 
-  const captureFrom = (agent, where) => {
+  const captureFrom = async (agent, where) => {
     if (settings.capture === 'off') return 0;
     // Delegated agents get prompts like "you are a read-only scout"; capturing
     // those as user preferences is noise. Only the main conversation qualifies.
@@ -435,7 +438,33 @@ export function apply(ctx, config = {}) {
       return written;
     }
 
-    const result = writeCandidates(found, source, where);
+    let keep = found;
+    if (settings.writeJudge === 'llm') {
+      const started = Date.now();
+      const selection = judgeHost?.currentSelection?.() ?? null;
+      const filtered = await filterCandidatesByWorth({
+        llm: judgeHost?.llm ?? null,
+        selection,
+        candidates: keep,
+        timeoutMs: settings.writeJudgeTimeoutMs,
+      });
+      worthState.last = {
+        at: Date.now(),
+        asked: found.length,
+        kept: filtered.judged ? filtered.candidates.length : found.length,
+        judged: filtered.judged,
+        elapsedMs: Date.now() - started,
+        model: selection ? String(selection.model ?? '') : '',
+      };
+      if (filtered.judged) keep = filtered.candidates;
+    }
+    if (keep.length === 0) {
+      state.captured.add(messageId);
+      trimSet(state.captured, MAX_CAPTURED_MESSAGES);
+      return written;
+    }
+
+    const result = writeCandidates(keep, source, where);
     written += result.written;
     if (result.failedItems.length > 0) {
       state.pendingCandidates = result.failedItems;
@@ -817,9 +846,9 @@ export function apply(ctx, config = {}) {
 
   // Turn end is the normal capture boundary. The event is serial and carries
   // { turn, signal, agent }; we only need the agent to find its pending text.
-  ctx.on('agent/turn-stopping', (payload) => {
+  ctx.on('agent/turn-stopping', async (payload) => {
     try {
-      captureFrom(payload?.agent, 'turn-stopping');
+      await captureFrom(payload?.agent, 'turn-stopping');
     } catch (error) {
       ctx.logger?.warn?.('tabellio-dsh: capture boundary failed: ' + (error?.message ?? error));
     }
@@ -827,9 +856,9 @@ export function apply(ctx, config = {}) {
 
   // Disposal catches aborted turns that never reached turn-stopping. It also
   // releases the per-agent state so long-lived hosts do not grow forever.
-  ctx.on('agent/disposed', (payload) => {
+  ctx.on('agent/disposed', async (payload) => {
     try {
-      captureFrom(payload?.agent, 'disposed');
+      await captureFrom(payload?.agent, 'disposed');
     } catch (error) {
       ctx.logger?.warn?.('tabellio-dsh: disposal capture failed: ' + (error?.message ?? error));
     } finally {

@@ -20,4 +20,5 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: node tests/acceptance.mjs
+      - run: node tools/memory-eval.mjs
       - run: npm run check:cross-host

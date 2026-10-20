@@ -59,7 +59,7 @@ function judgeView(state) {
   };
 }
 
-function statusView(settings, store, lastRecall, judgeState, semanticState) {
+function statusView(settings, store, lastRecall, judgeState, semanticState, worthState) {
   const result = status(store);
   return {
     store: store.store,
@@ -78,6 +78,10 @@ function statusView(settings, store, lastRecall, judgeState, semanticState) {
     consolidate: {
       mode: settings.consolidate ?? 'off',
       lastRun: readLastRun(store),
+    },
+    writeJudge: {
+      mode: settings.writeJudge,
+      last: worthState?.last ?? null,
     },
     semantic: {
       mode: settings.semantic,
@@ -132,7 +136,7 @@ function reviewPayload(payload) {
  * Build the channel handler. One store instance is shared with the tools and
  * auto recall, so a hot store invalidate is reflected everywhere.
  */
-export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeState, getSemanticState, getSettingsView, updateSettings, testSemantic, getSemanticModels }) {
+export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeState, getWorthState, getSemanticState, getSettingsView, updateSettings, testSemantic, getSemanticModels }) {
   return async function handler(endpoint, payload) {
     try {
       const store = getStore();
@@ -144,6 +148,7 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
             typeof getLastRecall === 'function' ? getLastRecall() : null,
             typeof getJudgeState === 'function' ? getJudgeState() : null,
             typeof getSemanticState === 'function' ? getSemanticState() : null,
+            typeof getWorthState === 'function' ? getWorthState() : null,
           ));
         case 'audit': {
           const limit = Math.max(5, Math.min(100, Number(payload?.limit) || 20));

@@ -206,3 +206,8 @@ The four independent pre-release test reports are archived under `~/yffto/archiv
 ## License
 
 MIT
+
+## Evaluation
+
+`node tools/memory-eval.mjs` runs 12 fixed cases on a throwaway store across five capabilities: knowledge updates (2/2), temporal (2/2), preferences (2/2), project facts (2/2), and abstention (4/4). It scores correctness, not hit rate; `--strict` fails below the recorded baseline.
+

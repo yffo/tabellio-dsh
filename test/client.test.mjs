@@ -106,40 +106,45 @@ test('client rpcCall unwraps ok envelopes and rejects failures', async () => {
   await assert.rejects(() => rpcCall('inbox.review', { action: 'accept', ids: ['x'] }), /boom/);
 });
 
-test('panel renders the sectioned layout with a populated status', async () => {
+const loadSpec = async () => {
   const { readFile } = await import('node:fs/promises');
   const code = await readFile(path.join(root, 'client', 'client.js'), 'utf8');
   let spec;
   new Function('window', code)({ __ModuleLoader__: { load: (candidate) => { spec = candidate; } } });
+  return spec;
+};
 
+const makeInitial = ({ wizardOpen = false } = {}) => [
+  'overview',
+  { loading: false, error: null, notice: '' },
+  {
+    notes: 795, candidates: 1, proposals: 0, mode: 'inject', capture: 'assist',
+    indexExists: true, indexStale: false, store: '/tmp/store', warnings: [],
+    semantic: { mode: 'local', model: 'qwen3-embedding-0.6b', endpoint: 'http://127.0.0.1:8080/v1/embeddings', ready: true, size: 795, error: null },
+    judge: { mode: 'llm', selection: { model: 'deepseek-flash' }, last: { stage: 'verdict', kept: 1 } },
+    consolidate: { mode: 'daily', lastRun: 1792360000000 },
+    lastRecall: { at: 1792360000000, query: '上次说的阈值', mode: 'context', count: 1, elapsedMs: 900, judged: true, titles: ['阈值'] },
+  },
+  [{ id: 'cand-1', title: '一条候选', chars: 20 }],
+  [],
+  { notes_added: 3, truncated: 0, items: [] },
+  { items: [], counts: {} },
+  { total: 5, byMode: { context: 2, suppressed: 1, refused: 1, judged_out: 1 }, judge: { kept: 2, dropped: 1 }, topMisses: [{ query: '天气', count: 2 }] },
+  { items: [], total: 0, loading: false },
+  { kind: '', days: 0 },
+  null,
+  { open: wizardOpen, step: 0, smart: true, mode: 'local', endpoint: '', model: '', apiKey: '', note: '', error: '', busy: false },
+  '', false, '', '', null, false,
+  { semantic: { mode: 'local', endpoint: 'http://x', model: 'm' }, judge: { mode: 'llm', model: '' }, consolidate: { mode: 'daily' } },
+  { semantic: 'local', semanticEndpoint: 'http://x', semanticModel: 'm', judge: 'llm', judgeModel: '', judgeProvider: '', consolidate: 'daily' },
+  false,
+  null,
+  { loading: false, list: [], error: '' },
+];
+
+const renderPanel = async (initial) => {
+  const spec = await loadSpec();
   let hook = 0;
-  const initial = [
-    'overview',
-    { loading: false, error: null, notice: '' },
-    {
-      notes: 795, candidates: 1, proposals: 0, mode: 'inject', capture: 'assist',
-      indexExists: true, indexStale: false, store: '/tmp/store', warnings: [],
-      semantic: { mode: 'local', model: 'qwen3-embedding-0.6b', endpoint: 'http://127.0.0.1:8080/v1/embeddings', ready: true, size: 795, error: null },
-      judge: { mode: 'llm', selection: { model: 'deepseek-flash' }, last: { stage: 'verdict', kept: 1 } },
-      consolidate: { mode: 'daily', lastRun: 1792360000000 },
-      lastRecall: { at: 1792360000000, query: '上次说的阈值', mode: 'context', count: 1, elapsedMs: 900, judged: true, titles: ['阈值'] },
-    },
-    [{ id: 'cand-1', title: '一条候选', chars: 20 }],
-    [],
-    { notes_added: 3, truncated: 0, items: [] },
-    { items: [], counts: {} },
-    { total: 5, byMode: { context: 2, suppressed: 1, refused: 1, judged_out: 1 }, judge: { kept: 2, dropped: 1 }, topMisses: [{ query: '天气', count: 2 }] },
-    { items: [], total: 0, loading: false },
-    { kind: '', days: 0 },
-    null,
-    { open: true, step: 0, smart: true, mode: 'local', endpoint: '', model: '', apiKey: '', note: '', error: '', busy: false },
-    '', false, '', '', null, false,
-    { semantic: { mode: 'local', endpoint: 'http://x', model: 'm' }, judge: { mode: 'llm', model: '' }, consolidate: { mode: 'daily' } },
-    { semantic: 'local', semanticEndpoint: 'http://x', semanticModel: 'm', judge: 'llm', judgeModel: '', judgeProvider: '', consolidate: 'daily' },
-    false,
-    null,
-    { loading: false, list: [], error: '' },
-  ];
   const react = {
     createElement: (type, props, ...children) => ({ type, props, children }),
     Fragment: 'Fragment',
@@ -151,7 +156,10 @@ test('panel renders the sectioned layout with a populated status', async () => {
     if (name !== 'react') throw new Error('unexpected require ' + name);
     return react;
   });
-  const tree = exports.MemoryPanel({ rpcCall: async () => ({}), t: (key) => 'zh:' + key });
+  return exports.MemoryPanel({ rpcCall: async () => ({}), t: (key) => 'zh:' + key });
+};
+
+const flatText = (tree) => {
   const texts = [];
   const walk = (node) => {
     if (node === null || node === undefined || node === false) return;
@@ -161,9 +169,30 @@ test('panel renders the sectioned layout with a populated status', async () => {
     walk(node.children);
   };
   walk(tree);
-  const flat = texts.join('|');
-  for (const key of ['zh:tabOverview', 'zh:tabPending', 'zh:tabLibrary', 'zh:tabSettings', 'zh:lastRecallLabel', 'zh:notes', 'zh:index', 'zh:wizardStep1Title', 'zh:wizardOnTitle', 'zh:wizardNext']) {
+  return texts.join('|');
+};
+
+test('panel renders tabs and the overview with a populated status', async () => {
+  const flat = flatText(await renderPanel(makeInitial()));
+  for (const key of ['zh:tabOverview', 'zh:tabPending', 'zh:tabLibrary', 'zh:tabSettings', 'zh:lastRecallLabel', 'zh:notes', 'zh:index']) {
     assert.ok(flat.includes(key), 'missing ' + key);
   }
   assert.ok(flat.includes('795'), 'notes metric missing');
+});
+
+test('the wizard renders inline instead of in an overlay layer', async () => {
+  const tree = await renderPanel(makeInitial({ wizardOpen: true }));
+  const flat = flatText(tree);
+  for (const key of ['zh:wizardStep1Title', 'zh:wizardOnTitle', 'zh:wizardNext']) {
+    assert.ok(flat.includes(key), 'missing ' + key);
+  }
+  const styles = [];
+  const walk = (node) => {
+    if (!node || typeof node !== 'object') { if (Array.isArray(node)) node.forEach(walk); return; }
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (node.props && node.props.style && node.props.style.position === 'fixed') styles.push(node);
+    walk(node.children);
+  };
+  walk(tree);
+  assert.equal(styles.length, 0, 'wizard should not use a fixed overlay');
 });

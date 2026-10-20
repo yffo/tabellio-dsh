@@ -42,6 +42,8 @@ export const DEFAULTS = Object.freeze({
   judgeProvider: '',
   judgeModel: '',
   judgeTimeoutMs: 4000,
+  writeJudge: 'off',
+  writeJudgeTimeoutMs: 2500,
   maxCandidatesPerTurn: 2,
   captureMaxSentenceChars: 240,
   // Background consolidation: 'off' keeps everything manual; 'daily'/'weekly'
@@ -142,6 +144,8 @@ export function normalizeConfig(config = {}) {
     judgeProvider,
     judgeModel,
     judgeTimeoutMs: int(raw.judgeTimeoutMs, DEFAULTS.judgeTimeoutMs, 500, 15000),
+    writeJudge: raw.writeJudge === 'llm' || raw.writeJudge === true ? 'llm' : 'off',
+    writeJudgeTimeoutMs: int(raw.writeJudgeTimeoutMs, DEFAULTS.writeJudgeTimeoutMs, 500, 15000),
     maxCandidatesPerTurn: int(raw.maxCandidatesPerTurn, DEFAULTS.maxCandidatesPerTurn, 1, 5),
     captureMaxSentenceChars: int(raw.captureMaxSentenceChars, DEFAULTS.captureMaxSentenceChars, 40, 1000),
     consolidate,

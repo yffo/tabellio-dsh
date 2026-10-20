@@ -30,6 +30,9 @@ window.__ModuleLoader__.load({
       advancedTitle: '高级状态',
       pending: '待批准',
       semLabel: '语义补充',
+      writeJudgeLabel: '写侧检查',
+      writeJudgeOff: '关闭',
+      writeJudgeKept: '保留 {kept}/{asked}',
       semOff: '未开启',
       semBuilding: '正在建索引',
       semReady: '已索引 {n} 条',
@@ -248,6 +251,9 @@ window.__ModuleLoader__.load({
       advancedTitle: 'Advanced status',
       pending: 'pending',
       semLabel: 'Semantic',
+      writeJudgeLabel: 'Write check',
+      writeJudgeOff: 'off',
+      writeJudgeKept: 'kept {kept}/{asked}',
       semOff: 'off',
       semBuilding: 'indexing',
       semReady: '{n} notes indexed',
@@ -865,6 +871,35 @@ window.__ModuleLoader__.load({
       skeletonRow: {
         height: 14, borderRadius: 6, background: 'rgba(120,113,108,.16)',
         animation: 'tbFade .9s ease-in-out infinite alternate',
+      },
+      overlayInline: {
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0,
+        margin: '0 0 12px',
+      },
+      wizardPanelInline: {
+        width: '100%',
+        maxWidth: '100%',
+        background: COLORS.bg,
+        border: '1px solid ' + COLORS.border,
+        borderRadius: 14,
+        padding: '22px 24px 18px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 14,
+      },
+      overlayPanelInline: {
+        width: '100%',
+        maxWidth: '100%',
+        background: COLORS.bg,
+        border: '1px solid ' + COLORS.border,
+        borderRadius: 14,
+        padding: '18px 22px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
       },
       overlay: { position: 'fixed', inset: 0, zIndex: 1000 },
       overlayMask: {
@@ -1533,6 +1568,13 @@ window.__ModuleLoader__.load({
                   h('option', { value: 'off' }, t('smartOff')))),
               h('div', { style: ui.chips },
                 chip(t('semLabel'), semanticText, sem && sem.mode !== 'off' ? (sem.ready ? TONES.good : TONES.warn) : COLORS.dim),
+                chip(t('writeJudgeLabel'),
+                  !status || !status.writeJudge || status.writeJudge.mode !== 'llm'
+                    ? t('writeJudgeOff')
+                    : status.writeJudge.last && status.writeJudge.last.judged
+                      ? t('writeJudgeKept').replace('{kept}', String(status.writeJudge.last.kept)).replace('{asked}', String(status.writeJudge.last.asked))
+                      : t('writeJudgeKept').replace('{kept}', '-').replace('{asked}', '-'),
+                  status && status.writeJudge && status.writeJudge.mode === 'llm' ? TONES.info : TONES.neutral),
                 chip(t('judgeLabel'), judgeLabel(status && status.judge), status && status.judge && status.judge.mode === 'llm' ? TONES.good : COLORS.dim),
                 chip(t('capture'), captureLabel, COLORS.dim),
                 chip(t('index'), indexLabel, indexLabel === t('indexOk') ? TONES.good : COLORS.dim)),
@@ -1606,10 +1648,9 @@ window.__ModuleLoader__.load({
       ];
       const body = tab === 'overview' ? overview : tab === 'pending' ? pending : tab === 'library' ? library : [settingsPane];
 
-      const wizardOverlay = wizard.open
-        ? h('div', { style: ui.overlay },
-            h('div', { style: ui.overlayMask, onClick: closeWizard }),
-            h('div', { style: ui.wizardPanel, role: 'dialog', 'aria-modal': 'true', 'aria-label': t('wizardTitle') },
+      const wizardScreen = wizard.open
+        ? h('div', { style: ui.overlayInline },
+            h('div', { style: ui.wizardPanelInline, role: 'region', 'aria-label': t('wizardTitle') },
               h('div', { style: ui.wizardHead },
                 h('div', { style: ui.wizardDots },
                   [0, 1, 2].map((index) => h('span', { key: index, style: index === wizard.step ? ui.wizardDotActive : ui.wizardDot }))),
@@ -1683,10 +1724,9 @@ window.__ModuleLoader__.load({
                   : h('button', { type: 'button', style: ui.buttonPrimary, disabled: wizard.busy, onClick: finishWizard }, wizard.busy ? t('addSaving') : t('wizardFinish')))))
         : null;
 
-      const noteOverlay = note
-        ? h('div', { style: ui.overlay },
-            h('div', { style: ui.overlayMask, onClick: () => setNote(null) }),
-            h('div', { style: ui.overlayPanel, role: 'dialog', 'aria-modal': 'true', 'aria-label': String(note.title || note.id || '') },
+      const noteScreen = note
+        ? h('div', { style: ui.overlayInline },
+            h('div', { style: ui.overlayPanelInline, role: 'region', 'aria-label': String(note.title || note.id || '') },
               h('div', { style: ui.overlayHead },
                 h('div', null,
                   h('div', { style: ui.overlayTitle }, String(note.title || note.id || '')),
@@ -1717,22 +1757,26 @@ window.__ModuleLoader__.load({
             role: 'tab',
             'aria-selected': tabState === item.id,
             style: tabState === item.id ? Object.assign({}, ui.tab, ui.tabActive) : ui.tab,
-            onClick: () => setTab(item.id),
+            onClick: () => {
+              setNote(null);
+              setWizard((prev) => ({ ...prev, open: false }));
+              setTab(item.id);
+            },
           },
             icon(item.icon, 15),
             h('span', null, item.label),
             item.count > 0 ? h('span', { style: ui.tabBadge }, String(item.count)) : null,
           ))),
-        h('div', { key: tabState, style: ui.tabBody, className: 'tb-tabbody' },
-          status || tab === 'settings' ? body : h('div', { style: ui.skeleton },
-            h('div', { style: ui.skeletonRow }),
-            h('div', { style: ui.skeletonRow }),
-            h('div', { style: ui.skeletonRow }),
-          ),
+        h('div', { key: wizard.open ? 'wizard' : note ? 'note' : tabState, style: ui.tabBody, className: 'tb-tabbody' },
+          wizard.open ? wizardScreen
+            : note ? noteScreen
+              : status || tab === 'settings' ? body : h('div', { style: ui.skeleton },
+                h('div', { style: ui.skeletonRow }),
+                h('div', { style: ui.skeletonRow }),
+                h('div', { style: ui.skeletonRow }),
+              ),
         ),
-        h('footer', { style: ui.footer }, t('footer')),
-        noteOverlay,
-        wizardOverlay,
+        wizard.open || note ? null : h('footer', { style: ui.footer }, t('footer')),
       );
     }
 
