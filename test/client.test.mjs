@@ -140,6 +140,7 @@ const makeInitial = ({ wizardOpen = false } = {}) => [
   false,
   null,
   { loading: false, list: [], error: '' },
+  null,
 ];
 
 const renderPanel = async (initial) => {

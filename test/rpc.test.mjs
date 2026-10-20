@@ -44,6 +44,18 @@ test('status reports counts and the current delivery mode', async (t) => {
   assert.equal(result.value.consolidate.lastRun, 0);
 });
 
+test('conflicts.list surfaces a rewording pair over the panel channel', async (t) => {
+  const { dir, store } = await tempStore(t);
+  remember(store, { content: '发布流程：手动 npm publish，发布前跑 npm test。' });
+  remember(store, { content: '发布流程改成推送 tag，自动 npm publish；不再手动发布。' });
+  const handler = handlerFor(dir, store);
+  const result = await handler('conflicts.list', { days: 30, limit: 5 });
+  assert.equal(result.ok, true);
+  assert.equal(result.value.scanned, 2);
+  assert.equal(result.value.pairs.length, 1);
+  assert.ok(result.value.pairs[0].signals.length >= 1);
+});
+
 test('audit.summary aggregates the recent recall trail', async (t) => {
   const { dir, store } = await tempStore(t);
   const { appendAudit } = await import('../src/audit.js');

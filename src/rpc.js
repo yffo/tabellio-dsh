@@ -4,6 +4,7 @@
 // same approval gate the `tabellio inbox` CLI uses.
 import { listCandidates, listProposals, read, remember, reviewCandidates, reviewProposals, search, status } from 'tabellio';
 import { buildNotesPage, buildReport } from './report.js';
+import { findConflicts } from './conflicts.js';
 import { readLastRun } from './consolidate.js';
 import { auditCounts, readAudit, readAuditSince, summarizeAudit } from './audit.js';
 
@@ -159,6 +160,27 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
           const limit = Math.max(5, Math.min(100, Number(payload?.limit) || 20));
           const items = readAudit(store, { limit });
           return ok({ items, counts: auditCounts(items), window: limit });
+        }
+        case 'conflicts.list': {
+          const days = payload?.days === undefined ? 30 : Math.min(365, Math.max(1, Math.trunc(Number(payload.days) || 30)));
+          const limit = payload?.limit === undefined ? 10 : Math.min(50, Math.max(1, Math.trunc(Number(payload.limit) || 10)));
+          const found = findConflicts(getStore().scan(), { days, limit });
+          return ok({
+            days,
+            scanned: found.scanned,
+            pairs: found.pairs.map((pair) => ({
+              older_id: pair.older.id,
+              older_title: pair.older.title,
+              older_at: pair.older.at,
+              older_snippet: pair.older.snippet,
+              newer_id: pair.newer.id,
+              newer_title: pair.newer.title,
+              newer_at: pair.newer.at,
+              newer_snippet: pair.newer.snippet,
+              overlap: pair.overlap,
+              signals: pair.signals,
+            })),
+          });
         }
         case 'audit.summary': {
           const days = Math.max(1, Math.min(31, Number(payload?.days) || 7));
