@@ -1,3 +1,7 @@
+## 0.21.1
+
+- 新增只读延迟基准 `tools/recall-bench.mjs` 与 `npm run bench:recall`；README 记录 1411 条笔记下的实测数字（词面 p95 约 225ms，叠加语义 p95 约 312ms，judge 命中后约 1.0–1.3s）。
+
 ## 0.21.0
 
 - 面板「进阶设置」新增两个开关：助手结论沉淀（`captureAssistant`）与纠正反馈（`outcomeFeedback`），写入 `panel-settings.json` 即生效，不用改配置文件。
