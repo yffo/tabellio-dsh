@@ -210,6 +210,7 @@ dsh plugin --profile desktop add tabellio-dsh
 | `capture` | `explicit` | `explicit` / `implicit` / `assist` / `off` |
 | `semantic` | `auto` | `auto` / `local` / `off`：`auto` 自动发现本机嵌入服务并补充召回，`local` 固定用配置地址，`off` 纯词面 |
 | `semanticEndpoint` / `semanticModel` | `http://127.0.0.1:8080/v1/embeddings` / `qwen3-embedding-0.6b` | 首选地址与模型（`auto` 失败时会继续探测其他常见端口） |
+| `semanticRefreshMinutes` | `5` | 语义索引增量刷新间隔（分钟）；`0` 关闭，只在新笔记写入后的下次重启索引 |
 | `semanticMinSimilarity` | `0.55` | 低于这个余弦相似度的语义命中不加进召回 |
 | `consolidate` | `off` | 后台巩固：`daily`/`weekly` 时定时扫近似重复笔记并写合并提案（只产提案，批准仍在面板） |
 | `maxCandidatesPerTurn` | `2` | 每轮候选上限，1–5 |

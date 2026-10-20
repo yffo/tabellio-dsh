@@ -701,6 +701,7 @@ export function apply(ctx, config = {}) {
       model,
       apiKey: semanticKey(),
       logger: ctx.logger,
+      refreshMs: Math.max(0, Number(settings.semanticRefreshMinutes) || 0) * 60 * 1000,
     });
   };
   const startSemanticIndexer = () => {

@@ -162,11 +162,14 @@ export async function refreshIndex({ store, endpoint = DEFAULT_ENDPOINT, model =
  * Build the index in the background. The returned state is what the recall path
  * reads; until `ready` is true the plugin behaves exactly like before.
  */
-export function startIndexer({ store, endpoint = DEFAULT_ENDPOINT, model = DEFAULT_MODEL, apiKey = '', logger, delayMs = 2500 }) {
-  const state = { ready: false, size: 0, changed: 0, error: null, startedAt: Date.now() };
+export function startIndexer({ store, endpoint = DEFAULT_ENDPOINT, model = DEFAULT_MODEL, apiKey = '', logger, delayMs = 2500, refreshMs = 5 * 60 * 1000 }) {
+  const state = { ready: false, size: 0, changed: 0, error: null, startedAt: Date.now(), refreshedAt: null };
   let disposed = false;
+  let inFlight = false;
+  let timer = null;
   const run = async () => {
-    if (disposed) return;
+    if (disposed || inFlight) return;
+    inFlight = true;
     try {
       const result = await refreshIndex({ store, endpoint, model, apiKey });
       if (disposed) return;
@@ -174,13 +177,29 @@ export function startIndexer({ store, endpoint = DEFAULT_ENDPOINT, model = DEFAU
       state.size = result.size;
       state.changed = result.changed;
       state.ready = true;
-      logger?.info?.('tabellio-dsh: semantic index ready (' + result.size + ' notes, ' + result.changed + ' refreshed)');
+      state.error = null;
+      state.refreshedAt = Date.now();
+      const line = 'tabellio-dsh: semantic index ready (' + result.size + ' notes, ' + result.changed + ' refreshed)';
+      if (result.changed > 0 || !state.loggedOnce) {
+        state.loggedOnce = true;
+        logger?.info?.(line);
+      } else {
+        logger?.debug?.(line);
+      }
     } catch (error) {
       state.error = error?.message ?? String(error);
       logger?.warn?.('tabellio-dsh: semantic index unavailable: ' + state.error);
+    } finally {
+      inFlight = false;
     }
   };
-  const timer = setTimeout(run, delayMs);
+  const tick = async () => {
+    await run();
+    if (disposed || refreshMs <= 0) return;
+    timer = setTimeout(tick, refreshMs);
+    timer.unref?.();
+  };
+  timer = setTimeout(tick, delayMs);
   timer.unref?.();
   return { state, run, dispose() { disposed = true; clearTimeout(timer); } };
 }

@@ -133,6 +133,26 @@ test('refreshIndex skips unchanged notes on the second pass', async (t) => {
   assert.equal(second.changed, 0);
 });
 
+
+test('the indexer refreshes new notes without a restart', async (t) => {
+  const endpoint = await fakeEmbeddingServer(t);
+  const { store } = await tempStore(t);
+  remember(store, { content: '语义刷新测试：启动时只索引这一条。', title: '首条' });
+  const indexer = startIndexer({ store, endpoint, model: 'fake', delayMs: 20, refreshMs: 80, logger: { info() {}, debug() {}, warn() {} } });
+  t.after(() => indexer.dispose());
+  const waitFor = async (check) => {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      if (check()) return true;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    return false;
+  };
+  assert.equal(await waitFor(() => indexer.state.ready === true), true);
+  const before = indexer.state.size;
+  remember(store, { content: '语义刷新测试：这条是索引建好之后才写的。', title: '后写的' });
+  assert.equal(await waitFor(() => indexer.state.size > before), true);
+});
+
 test('startIndexer reports failure instead of throwing when the endpoint is down', async (t) => {
   const { store } = await tempStore(t);
   remember(store, { content: '端点为不可达时索引应失败而非崩溃。', title: '失败路径' });

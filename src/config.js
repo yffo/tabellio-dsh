@@ -79,6 +79,7 @@ export const DEFAULTS = Object.freeze({
   semanticMinSimilarity: 0.55,
   semanticTop: 8,
   semanticTimeoutMs: 2500,
+  semanticRefreshMinutes: 5,
 });
 
 export function expandHome(value) {
@@ -178,5 +179,6 @@ export function normalizeConfig(config = {}) {
     semanticMinSimilarity: ratio(raw.semanticMinSimilarity, DEFAULTS.semanticMinSimilarity),
     semanticTop: int(raw.semanticTop, DEFAULTS.semanticTop, 1, 20),
     semanticTimeoutMs: int(raw.semanticTimeoutMs, DEFAULTS.semanticTimeoutMs, 300, 15000),
+    semanticRefreshMinutes: int(raw.semanticRefreshMinutes, DEFAULTS.semanticRefreshMinutes, 0, 1440),
   };
 }
