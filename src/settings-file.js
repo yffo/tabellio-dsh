@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const SETTINGS_FILE = 'panel-settings.json';
-export const SETTING_KEYS = ['semantic', 'semanticEndpoint', 'semanticModel', 'semanticApiKey', 'judge', 'judgeModel', 'judgeProvider', 'consolidate', 'capture', 'delivery', 'recallMaxNotes'];
+export const SETTING_KEYS = ['semantic', 'semanticEndpoint', 'semanticModel', 'semanticApiKey', 'judge', 'judgeModel', 'judgeProvider', 'consolidate', 'capture', 'delivery', 'recallMaxNotes', 'captureAssistant', 'outcomeFeedback'];
 
 const str = (value, max) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
 
@@ -26,6 +26,8 @@ export function pickPanelSettings(raw) {
   if (['off', 'explicit', 'implicit', 'assist'].includes(raw.capture)) out.capture = raw.capture;
   if (raw.delivery === 'notice' || raw.delivery === 'context') out.delivery = raw.delivery;
   if (Number.isInteger(raw.recallMaxNotes) && raw.recallMaxNotes >= 1 && raw.recallMaxNotes <= 20) out.recallMaxNotes = raw.recallMaxNotes;
+  if (raw.captureAssistant === true || raw.captureAssistant === false) out.captureAssistant = raw.captureAssistant;
+  if (raw.outcomeFeedback === true || raw.outcomeFeedback === false) out.outcomeFeedback = raw.outcomeFeedback;
   return out;
 }
 
@@ -55,5 +57,7 @@ export function panelSettingsView(settings) {
     capture: { mode: settings.capture },
     delivery: { mode: settings.delivery },
     recallMaxNotes: settings.recallMaxNotes,
+    captureAssistant: settings.captureAssistant === true,
+    outcomeFeedback: settings.outcomeFeedback !== false,
   };
 }

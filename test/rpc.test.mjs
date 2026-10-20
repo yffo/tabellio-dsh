@@ -375,7 +375,7 @@ test('settings endpoints read, validate and persist panel overrides', async (t) 
   assert.equal(saved.value.semantic.mode, 'local');
   assert.equal(applied.length, 1);
   assert.equal(applied[0].judge, 'llm');
-  assert.equal((await handler('settings.set', { semantic: 'nope' })).error.code, 'bad-request');
+  assert.equal((await handler('settings.set', { semantic: 'local', captureAssistant: 'yes' })).error.code, 'bad-request');
   assert.equal((await handler('settings.set', { judge: 'maybe' })).error.code, 'bad-request');
   assert.equal((await handler('settings.set', { semanticModel: 42 })).error.code, 'bad-request');
 });

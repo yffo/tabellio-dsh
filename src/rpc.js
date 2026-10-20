@@ -258,6 +258,9 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
           if (patch.semanticApiKey !== undefined && (typeof patch.semanticApiKey !== 'string' || patch.semanticApiKey.length > 512)) {
             return fail('bad-request', 'semanticApiKey must be a string of at most 512 chars');
           }
+          for (const key of ['captureAssistant', 'outcomeFeedback']) {
+            if (patch[key] !== undefined && typeof patch[key] !== 'boolean') return fail('bad-request', key + ' must be a boolean');
+          }
           for (const key of ['semanticModel', 'judgeModel', 'judgeProvider']) {
             if (patch[key] !== undefined && typeof patch[key] !== 'string') return fail('bad-request', key + ' must be a string');
             if (typeof patch[key] === 'string' && patch[key].length > 120) return fail('bad-request', key + ' is too long');
