@@ -156,6 +156,16 @@ window.__ModuleLoader__.load({
       audError: '出错',
       audUnknown: '其它',
       qualityLabel: '召回质量（近 7 天）',
+      provTitle: '来源与使用',
+      provFrom: '写入来源',
+      provTrust: '信任级别',
+      provStatus: '状态',
+      provActive: '有效',
+      provSuperseded: '已被取代',
+      provRecalls: '被用过',
+      provRecalledN: '召回 {n} 次',
+      provNever: '还没被召回',
+      provTags: '标签',
       auditLabel: '最近召回记录',
       reasonNoIntent: '这句不像在问记忆，没带线索词',
       reasonConfident: '高置信直通（没线索但相关度很高）',
@@ -399,6 +409,16 @@ window.__ModuleLoader__.load({
       audError: 'error',
       audUnknown: 'other',
       qualityLabel: 'Recall quality (7 days)',
+      provTitle: 'Origin and usage',
+      provFrom: 'Written by',
+      provTrust: 'Trust',
+      provStatus: 'Status',
+      provActive: 'Active',
+      provSuperseded: 'Superseded',
+      provRecalls: 'Used',
+      provRecalledN: 'recalled {n} times',
+      provNever: 'Never recalled yet',
+      provTags: 'Tags',
       auditLabel: 'Recent recalls',
       reasonNoIntent: 'No memory cue in the message',
       reasonConfident: 'Confident match without a cue',
@@ -843,6 +863,10 @@ window.__ModuleLoader__.load({
       auditHead: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 },
       auditQuery: { fontSize: 12.5, color: COLORS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
       auditMeta: { fontSize: 11.5, color: COLORS.dim, lineHeight: 1.5 },
+      provBox: { marginTop: 14, paddingTop: 12, borderTop: '1px solid ' + COLORS.border, display: 'flex', flexDirection: 'column', gap: 6 },
+      provTitle: { fontSize: 12, fontWeight: 650, color: COLORS.dim, letterSpacing: '.02em' },
+      provRow: { display: 'flex', gap: 10, fontSize: 12, lineHeight: 1.6 },
+      provLabel: { color: COLORS.dim, minWidth: 56 },
       recallLine: { display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' },
       recallQuery: { fontSize: 13.5, fontWeight: 550, overflowWrap: 'anywhere' },
       recallMeta: { color: COLORS.dim, fontSize: 12, display: 'flex', gap: 10, flexWrap: 'wrap' },
@@ -1163,8 +1187,11 @@ window.__ModuleLoader__.load({
           if (!id) return;
           setNote({ id, loading: true });
           try {
-            const result = await rpcCall('read', { id });
-            setNote({ ...result, loading: false });
+            const [result, provenance] = await Promise.all([
+              rpcCall('read', { id }),
+              rpcCall('provenance', { id }).catch(() => null),
+            ]);
+            setNote({ ...result, provenance, loading: false });
           } catch (error) {
             setNote({ id, loading: false, error: error?.message ?? String(error) });
           }
@@ -1864,6 +1891,20 @@ window.__ModuleLoader__.load({
               ),
               h('div', { style: ui.overlayBody },
                 note.loading ? h('p', { style: ui.muted }, t('loading')) : note.error ? h('p', { style: ui.errorLine }, String(note.error)) : h('pre', { style: ui.noteBody }, String(note.body || '')),
+                note.loading || note.error || !note.provenance
+                  ? null
+                  : h('div', { style: ui.provBox },
+                      h('div', { style: ui.provTitle }, t('provTitle')),
+                      h('div', { style: ui.provRow }, h('span', { style: ui.provLabel }, t('provFrom')), h('span', null, String(note.provenance.writtenBy || '—'))),
+                      h('div', { style: ui.provRow }, h('span', { style: ui.provLabel }, t('provTrust')), h('span', null, String(note.provenance.trust || '—') + (note.provenance.scope ? ' · ' + note.provenance.scope : ''))),
+                      h('div', { style: ui.provRow }, h('span', { style: ui.provLabel }, t('provStatus')), h('span', null, note.provenance.supersededBy ? t('provSuperseded') + ' → ' + note.provenance.supersededBy : t('provActive'))),
+                      h('div', { style: ui.provRow }, h('span', { style: ui.provLabel }, t('provRecalls')), h('span', null, note.provenance.recalled && note.provenance.recalled.count
+                        ? t('provRecalledN').replace('{n}', String(note.provenance.recalled.count)) + (note.provenance.recalled.lastAt ? ' · ' + new Date(note.provenance.recalled.lastAt).toLocaleString() : '')
+                        : t('provNever'))),
+                      Array.isArray(note.provenance.tags) && note.provenance.tags.length
+                        ? h('div', { style: ui.provRow }, h('span', { style: ui.provLabel }, t('provTags')), h('span', null, note.provenance.tags.join(' · ')))
+                        : null,
+                    ),
                 note.loading || note.error ? null : h('div', { style: ui.actionRow },
                   h('span', { style: ui.muted }, t('feedbackAsk')),
                   h('button', {

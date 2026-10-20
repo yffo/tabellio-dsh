@@ -9,6 +9,7 @@ import { readLastRun } from './consolidate.js';
 import { auditCounts, readAudit, readAuditSince, summarizeAudit } from './audit.js';
 import { appendFeedback, feedbackCounts, readFeedback } from './feedback.js';
 import { outcomeSummary } from './outcome.js';
+import { provenanceView } from './provenance.js';
 
 export const RPC_CHANNEL = '/tabellio-dsh';
 export const MAX_REVIEW_IDS = 50;
@@ -378,6 +379,12 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
             title,
             notes: Number(status(store).notes) || 0,
           });
+        }
+        case 'provenance': {
+          if (typeof payload?.id !== 'string' || !payload.id.trim()) return fail('bad-request', 'id is required');
+          const view = provenanceView(getStore(), payload.id);
+          if (!view) return fail('not-found', 'note not found');
+          return ok(view);
         }
         case 'read': {
           const id = typeof payload?.id === 'string' ? payload.id.trim() : '';

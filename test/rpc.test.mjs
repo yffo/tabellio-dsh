@@ -327,6 +327,20 @@ test('read returns note content for the panel viewer and rejects bad ids', async
   assert.equal((await handler('read', { id: 'DOES-NOT-EXIST' })).ok, false);
 });
 
+test('provenance reports where a note came from and where it was used', async (t) => {
+  const { dir, store } = await tempStore(t);
+  const written = remember(store, { content: '面板来源测试：发版由 CI 完成，不手动上传。' }, { writtenBy: 'test:provenance' });
+  const handler = handlerFor(dir, store);
+
+  const view = await handler('provenance', { id: written.id });
+  assert.equal(view.ok, true);
+  assert.equal(view.value.writtenBy, 'test:provenance');
+  assert.equal(view.value.recalled.count, 0);
+
+  assert.equal((await handler('provenance', {})).ok, false);
+  assert.equal((await handler('provenance', { id: 'DOES-NOT-EXIST' })).ok, false);
+});
+
 test('remember writes from the panel and rejects empty, short or oversized content', async (t) => {
   const { dir, store } = await tempStore(t);
   const handler = handlerFor(dir, store);
