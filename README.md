@@ -109,6 +109,7 @@ dsh plugin --profile desktop add tabellio-dsh
 
 | 开关 | 默认 | 一句话 |
 |---|---|---|
+| `autoApprove` | `off` | 仅在 `writeJudge: llm` 同时开启时生效：显式且长期的单主题约定可自动入库（T0），其余仍进候选。 |
 | `capture` | `assist` | 记什么：`assist` 最省心；`explicit` 只记「记住…」；`off` 关闭 |
 | `delivery` | `context` | 怎么送：`context` 静默（推荐）；`notice` 在对话里显示一条提示 |
 | `shadow` | `false` | 只记录召回、不注入，用来对比其他记忆插件 |

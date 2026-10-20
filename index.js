@@ -11,7 +11,7 @@
  * human approves it with `tabellio inbox`.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import { addCandidate, listCandidates, openStore, read as readNote, recallQuery, status as storeStatus } from 'tabellio';
+import { addCandidate, listCandidates, openStore, read as readNote, recallQuery, remember, status as storeStatus } from 'tabellio';
 import { normalizeConfig } from './src/config.js';
 import { delegationDepth, isHumanMessage, isChitchat, latestHuman, textOf, trimQuery, intentGateAllows } from './src/messages.js';
 import { extractCandidates, hasSecretHint, looksLikeCredentialLeak } from './src/capture.js';
@@ -25,6 +25,7 @@ import { registerTools } from './src/tools.js';
 import { startConsolidationTimer, sweepNow } from './src/consolidate.js';
 import { readReflectNotes, reflectNotes, selectReflectNotes, writeReflections } from './src/reflect.js';
 import { appendAudit } from './src/audit.js';
+import { routeCandidate } from './src/approval.js';
 import { detectEmbedding, listEmbeddingModels, mergeSemanticResult, probeEmbedding, semanticTop, startIndexer } from './src/semantic.js';
 import { loadPanelSettings, panelSettingsView, pickPanelSettings, savePanelSettings } from './src/settings-file.js';
 
@@ -469,29 +470,68 @@ export function apply(ctx, config = {}) {
 
   const writeCandidates = (candidates, source, where) => {
     let written = 0;
+    let autoApproved = 0;
     const failedItems = [];
     for (const candidate of candidates) {
+      const body = String(candidate.body ?? candidate.sentence ?? '');
       // A candidate longer than tabellio's per-note cap (400 chars) could never
       // be approved later, so do not write it in the first place.
-      if ([...String(candidate.body ?? candidate.sentence ?? '')].length > 400) {
+      if ([...body].length > 400) {
         ctx.logger?.info?.('tabellio-dsh: capture skipped a candidate longer than the 400-char note cap');
         continue;
       }
       // Second gate, right before persistence: extractCandidates already drops
       // credential-bearing messages, but the tool path and future callers share
       // this writer, so never let a secret reach notes/candidates/.
-      if (looksLikeCredentialLeak(candidate.body ?? candidate.sentence ?? '')) {
+      if (looksLikeCredentialLeak(body)) {
         ctx.logger?.info?.('tabellio-dsh: capture dropped a candidate that looks like a credential value');
         continue;
+      }
+      const route = routeCandidate(body, { store: currentStore(), autoApprove: settings.autoApprove });
+      // Pattern-only T0 measured P 0.64 on the adversarial corpus (dangerous
+      // rules that disable tests/backups/HTTPS pass any lexical envelope), so
+      // an automatic write also requires the write-side model judgment. Without
+      // that service the sentence stays a candidate.
+      if (route.action === 'auto' && settings.writeJudge === 'llm') {
+        try {
+          const result = remember(
+            currentStore(),
+            { content: body },
+            {
+              kind: 'semantic',
+              trust: 'user_stated',
+              tags: ['dsh', 'auto-approve'],
+              writtenBy: 'auto:dsh',
+              sourceRef: source,
+            },
+          );
+          if (result?.ok) {
+            autoApproved += 1;
+            appendAudit(currentStore(), {
+              query: body.slice(0, 120),
+              mode: 'auto_approve',
+              refused: false,
+              count: 1,
+              reason: route.reasons.join('; ') || 't0',
+              titles: [candidate.title ?? ''],
+            });
+            continue;
+          }
+          // The write gate refused it: keep it as a normal candidate so the
+          // user can still see and decide, instead of losing the sentence.
+          ctx.logger?.info?.('tabellio-dsh: auto-approve fell back to a candidate: ' + (result?.reason ?? 'gate'));
+        } catch (error) {
+          ctx.logger?.warn?.('tabellio-dsh: auto-approve failed, keeping a candidate: ' + (error?.message ?? error));
+        }
       }
       try {
         const result = addCandidate(
           currentStore(),
           {
-            text: candidate.body,
+            text: body,
             source,
             kind: 'semantic',
-            tags: ['dsh', 'auto-capture'],
+            tags: ['dsh', 'auto-capture', 'tier:' + route.tier],
           },
           { writtenBy: 'capture:dsh' },
         );
@@ -511,7 +551,7 @@ export function apply(ctx, config = {}) {
         'tabellio-dsh: ' + failedItems.length + ' of ' + candidates.length + ' candidates were not written at ' + where + ' (store read-only or full?)',
       );
     }
-    return { written, failedItems };
+    return { written, autoApproved, failedItems };
   };
 
   const captureFrom = async (agent, where) => {

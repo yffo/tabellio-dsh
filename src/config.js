@@ -32,6 +32,10 @@ export const DEFAULTS = Object.freeze({
   // stated or the system derived — otherwise 600+ docs drown ordinary chat.
   recallTrusts: ['user_stated', 'system_derived'],
   capture: 'explicit',
+  // Auto-approval of the narrow T0 class (explicit "remember this" + durable +
+  // single topic + no credential/conflict/authority). Off by default: the
+  // adversarial corpus showed a naive version admitting 60.8% wrong memories.
+  autoApprove: 'off',
   // How a recall reaches the model: 'notice' appends one visible user notice;
   // 'context' registers it as quiet runtime context in the system prompt.
   delivery: 'notice',
@@ -144,6 +148,7 @@ export function normalizeConfig(config = {}) {
     recallConfidentRelevance: ratio(raw.recallConfidentRelevance, DEFAULTS.recallConfidentRelevance),
     feedbackRanking: raw.feedbackRanking === undefined ? DEFAULTS.feedbackRanking : raw.feedbackRanking === true,
     recallTrusts: trusts(raw.recallTrusts),
+    autoApprove: raw.autoApprove === 't0' ? 't0' : 'off',
     capture,
     delivery: raw.delivery === 'context' ? 'context' : 'notice',
     judge,
