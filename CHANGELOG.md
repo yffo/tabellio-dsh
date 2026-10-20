@@ -1,3 +1,9 @@
+## 0.38.0
+
+- **Cursor / Codex 只读 MCP 接入**：`docs/CROSS-HOST.md`（及英文版）补上两段可直接粘贴的配置——Cursor `.cursor/mcp.json` 与 Codex `~/.codex/config.toml`——并说明 `npx --package tabellio@0.1.12 tabellio-mcp` 的正确写法（写成 `npx tabellio@0.1.12 tabellio-mcp` 会把可执行名当 CLI 参数）、`--allow-write` 的边界、`TABELLIO_STORE` 显式指定。
+- 新增 `npm run check:mcp`（`tools/cross-host-mcp.mjs`）：临时库启动 MCP 服务器，验证默认只读工具面、`--allow-write` 写工具面、`tools/call` 往返、stdout 纯 JSON-RPC，并校验文档里的命令拼写；CI 与 release workflow 均加入。
+- 179 测试 + 30 验收。
+
 ## 0.37.0
 
 - **裁决趋势（近 4 周）**：`judgeTrend` 按周统计 judge 调用、被复核次数与同意率；「最近 7 天」卡新增一行，形如 `2/3 · 1/1 · — · —`（复核/调用），一眼看出模型裁决有没有长期跑偏。

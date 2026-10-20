@@ -91,3 +91,44 @@ npm run check:claude-hooks
 tabellio hook install --host claude --session-start          # 预览
 tabellio hook install --host claude --session-start --write  # 写入（自动备份）
 ```
+
+## Cursor / Codex：MCP 只读接入
+
+tabellio 的 MCP 服务器默认只读（`recall` / `search` / `read` / `list` / `status`）；写入口 `remember` / `capture` 需要显式 `--allow-write`。所以 Cursor、Codex 这类「只读检索」宿主不需要任何额外适配，只要把命令配进去。
+
+Cursor（项目里的 `.cursor/mcp.json`，或全局 `~/.cursor/mcp.json`）：
+
+```json
+{
+  "mcpServers": {
+    "tabellio": {
+      "command": "npx",
+      "args": ["-y", "--package", "tabellio@0.1.12", "tabellio-mcp"],
+      "env": { "TABELLIO_STORE": "/Users/you/memory/tabellio" }
+    }
+  }
+}
+```
+
+Codex（`~/.codex/config.toml`）：
+
+```toml
+[mcp_servers.tabellio]
+command = "npx"
+args = ["-y", "--package", "tabellio@0.1.12", "tabellio-mcp"]
+env = { TABELLIO_STORE = "/Users/you/memory/tabellio" }
+```
+
+要点：
+
+- `npx --package` 后面的 `tabellio-mcp` 是包里的第二个可执行名；写成 `npx tabellio@0.1.12 tabellio-mcp` 会把 `tabellio-mcp` 当成 CLI 的参数（会报「未知命令」）。
+- 想让 agent 也能写候选，在 `args` 末尾加 `--allow-write`；这仍然只写候选/笔记，批准与合并仍由人做。
+- 库路径用 `TABELLIO_STORE` 显式指定，避免宿主以不同 HOME 启动时读到空的默认库。
+
+一致性检查（不需要任何宿主）：
+
+```bash
+npm run check:mcp
+```
+
+它在临时库里启动 `tabellio-mcp`，验证默认工具面只读、`--allow-write` 才出现写工具、`tools/call` 往返正常、stdout 只有 JSON-RPC，并校验上面两段文档里的命令拼写没有退化。

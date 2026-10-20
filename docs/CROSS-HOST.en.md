@@ -61,3 +61,38 @@ The core stays; you write a thin adapter with two hooks — "turn starts" (recal
 - No auto-approval, no automatic merge/decay/delete.
 - No second copy of the data; switching hosts does not move the library.
 - The plugin is just the shell: if the DSH adapter breaks, the CLI and MCP still read and write the same memory.
+
+## Cursor / Codex: read-only MCP
+
+The MCP server is read-only by default (`recall` / `search` / `read` / `list` / `status`); `remember` and `capture` only appear with `--allow-write`.
+
+Cursor (`.cursor/mcp.json` in a project or `~/.cursor/mcp.json` globally):
+
+```json
+{
+  "mcpServers": {
+    "tabellio": {
+      "command": "npx",
+      "args": ["-y", "--package", "tabellio@0.1.12", "tabellio-mcp"],
+      "env": { "TABELLIO_STORE": "/Users/you/memory/tabellio" }
+    }
+  }
+}
+```
+
+Codex (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers.tabellio]
+command = "npx"
+args = ["-y", "--package", "tabellio@0.1.12", "tabellio-mcp"]
+env = { TABELLIO_STORE = "/Users/you/memory/tabellio" }
+```
+
+Notes:
+
+- The `tabellio-mcp` after `--package` is the package's second executable; `npx tabellio@0.1.12 tabellio-mcp` passes it to the CLI as an argument and fails with "unknown command".
+- Add `--allow-write` at the end of `args` to let the agent write candidates/notes; approval and merging stay human.
+- Set `TABELLIO_STORE` explicitly so a host started from another HOME does not read an empty default store.
+
+Offline check: `npm run check:mcp` starts the server against a temporary store and verifies the read-only surface, the `--allow-write` surface, a `tools/call` round-trip, JSON-only stdout, and that the snippets above stay accurate.

@@ -25,6 +25,7 @@ jobs:
       - run: node tools/memory-eval.mjs
       - run: npm run check:cross-host
       - run: npm run check:claude-hooks
+      - run: npm run check:mcp
       - run: npm run check:conformance
       - name: Check tag matches package version
         run: |
