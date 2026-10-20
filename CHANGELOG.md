@@ -1,3 +1,12 @@
+## 0.33.2
+
+把核心的一致性自检接进参考适配器的 CI：插件作为「DSH 适配器」必须证明自己守住核心不变量。
+
+- 新增 `npm run check:conformance`（调 `node node_modules/tabellio/tools/conformance.mjs`，22 项检查、临时库、不联网）。
+- `.github/workflows/ci.yml` 与 `release.yml` 在测试后各加一步一致性自检。
+- 依赖：`tabellio` 升到 `^0.1.9`（核心 0.1.9 发布包首次带 `tools/`）。
+- 实测：插件 170 测试 + 验收 30 + 核心自检 22/22。
+
 ## 0.33.1
 
 语义层改吃核心：索引格式、可索引条件、余弦排序与合并全部来自 `tabellio@^0.1.8`，插件只保留 embedding 服务适配与后台调度。
