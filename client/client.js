@@ -156,6 +156,14 @@ window.__ModuleLoader__.load({
       audError: '出错',
       audUnknown: '其它',
       qualityLabel: '召回质量（近 7 天）',
+      auditLabel: '最近召回记录',
+      reasonNoIntent: '这句不像在问记忆，没带线索词',
+      reasonConfident: '高置信直通（没线索但相关度很高）',
+      reasonLowScore: '命中太弱，低于相关度门槛',
+      reasonLowCoverage: '问句太长或太泛，命中词覆盖不够',
+      reasonCooccurrence: '缺关键组合词，核心共现要求没满足',
+      reasonJudgeNone: '模型判断这些记忆不回答此问题',
+      reasonSameNotes: '与上轮相同，没有重复注入',
       qualityTotal: '共 {n} 次',
       qualityInjected: '注入',
       qualityBlocked: '拦下',
@@ -391,6 +399,14 @@ window.__ModuleLoader__.load({
       audError: 'error',
       audUnknown: 'other',
       qualityLabel: 'Recall quality (7 days)',
+      auditLabel: 'Recent recalls',
+      reasonNoIntent: 'No memory cue in the message',
+      reasonConfident: 'Confident match without a cue',
+      reasonLowScore: 'Match too weak (below relevance gate)',
+      reasonLowCoverage: 'Question too broad (coverage gate)',
+      reasonCooccurrence: 'Required term pair missing',
+      reasonJudgeNone: 'Model judged these notes off-topic',
+      reasonSameNotes: 'Same notes as the previous turn',
       qualityTotal: '{n} recalls',
       qualityInjected: 'injected',
       qualityBlocked: 'gated',
@@ -821,6 +837,12 @@ window.__ModuleLoader__.load({
         display: 'inline-block', padding: '1px 7px', borderRadius: 999, fontSize: 11,
         border: '1px solid ' + COLORS.border, color: COLORS.dim,
       },
+      recallReason: { marginTop: 4, fontSize: 12, color: COLORS.dim, lineHeight: 1.5 },
+      auditList: { display: 'flex', flexDirection: 'column' },
+      auditRow: { display: 'flex', flexDirection: 'column', gap: 3, padding: '8px 0', borderBottom: '1px solid ' + COLORS.border },
+      auditHead: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 },
+      auditQuery: { fontSize: 12.5, color: COLORS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+      auditMeta: { fontSize: 11.5, color: COLORS.dim, lineHeight: 1.5 },
       recallLine: { display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' },
       recallQuery: { fontSize: 13.5, fontWeight: 550, overflowWrap: 'anywhere' },
       recallMeta: { color: COLORS.dim, fontSize: 12, display: 'flex', gap: 10, flexWrap: 'wrap' },
@@ -1308,6 +1330,20 @@ window.__ModuleLoader__.load({
         return t(map[mode] || 'audUnknown');
       };
 
+      const reasonLabel = (reason) => {
+        if (!reason) return '';
+        const map = {
+          no_memory_intent: 'reasonNoIntent',
+          confident_hit: 'reasonConfident',
+          top_score_below_threshold: 'reasonLowScore',
+          below_min_coverage: 'reasonLowCoverage',
+          cooccurrence_required_pair_missing: 'reasonCooccurrence',
+          llm_judge_kept_none: 'reasonJudgeNone',
+          same_notes_as_last_time: 'reasonSameNotes',
+        };
+        return map[reason] ? t(map[reason]) : String(reason);
+      };
+
       const consolidateLabel = (info) => {
         if (!info || info.mode === 'off') return t('consOff');
         const cadence = info.mode === 'weekly' ? t('consWeekly') : t('consDaily');
@@ -1415,6 +1451,11 @@ window.__ModuleLoader__.load({
                 h('span', { style: ui.badge }, auditModeLabel(status.lastRecall.mode)),
                 h('span', { style: ui.recallQuery }, '「' + String(status.lastRecall.query || '').slice(0, 60) + '」'),
                 h('span', { style: ui.recallMeta }, t('lrHits').replace('{n}', String(status.lastRecall.count ?? 0)) + (status.lastRecall.elapsedMs ? ' · ' + status.lastRecall.elapsedMs + 'ms' : '')),
+              ),
+              status.lastRecall.reason
+                ? h('div', { style: ui.recallReason }, reasonLabel(status.lastRecall.reason))
+                : null,
+              h(React.Fragment, null,
               ),
               new Date(status.lastRecall.at).toLocaleString(),
               Array.isArray(status.lastRecall.titles) && status.lastRecall.titles.length
