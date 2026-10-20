@@ -8,6 +8,7 @@ import { openStore, remember } from 'tabellio';
 import { normalizeConfig } from '../src/config.js';
 import {
   cosine,
+  detectEmbedding,
   loadIndex,
   mergeSemanticResult,
   refreshIndex,
@@ -104,17 +105,55 @@ test('startIndexer reports failure instead of throwing when the endpoint is down
   indexer.dispose();
 });
 
-test('semantic config defaults off and normalizes to local', () => {
-  const off = normalizeConfig({});
-  assert.equal(off.semantic, 'off');
-  assert.equal(off.semanticMinSimilarity, 0.55);
+test('semantic config defaults to auto and keeps explicit modes', () => {
+  const auto = normalizeConfig({});
+  assert.equal(auto.semantic, 'auto');
+  assert.equal(auto.semanticMinSimilarity, 0.55);
+  assert.equal(normalizeConfig({ semantic: 'off' }).semantic, 'off');
   const local = normalizeConfig({ semantic: 'local', semanticTop: 99, semanticMinSimilarity: 3 });
   assert.equal(local.semantic, 'local');
   assert.equal(local.semanticTop, 20);
   assert.equal(local.semanticMinSimilarity, 1);
+  assert.equal(normalizeConfig({ semantic: 'bogus' }).semantic, 'auto');
 });
 
 test('cosine is scale invariant and zero for orthogonal vectors', () => {
   assert.equal(cosine([1, 0], [2, 0]), 1);
   assert.equal(cosine([1, 0], [0, 1]), 0);
+});
+
+test('auto-discovery asks /v1/models and falls back to candidate names', async (t) => {
+  const server = http.createServer((req, res) => {
+    if (req.url === '/v1/models') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ data: [{ id: 'qwen3-embedding-0.6b' }] }));
+      return;
+    }
+    if (req.url === '/v1/embeddings') {
+      let raw = '';
+      req.on('data', (chunk) => { raw += chunk; });
+      req.on('end', () => {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ data: [{ embedding: [0.1, 0.2, 0.3] }] }));
+      });
+      return;
+    }
+    res.writeHead(404); res.end();
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => server.close());
+  const port = server.address().port;
+  const found = await detectEmbedding({
+    candidates: [{ endpoint: 'http://127.0.0.1:' + port + '/v1/embeddings', models: ['fallback-name'] }],
+    timeoutMs: 1000,
+  });
+  assert.deepEqual(found, { endpoint: 'http://127.0.0.1:' + port + '/v1/embeddings', model: 'qwen3-embedding-0.6b', dims: 3 });
+});
+
+test('auto-discovery returns null when nothing answers', async () => {
+  const found = await detectEmbedding({
+    candidates: [{ endpoint: 'http://127.0.0.1:9/v1/embeddings', models: ['nope'] }],
+    timeoutMs: 300,
+  });
+  assert.equal(found, null);
 });

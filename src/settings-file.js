@@ -15,7 +15,7 @@ const str = (value, max) => (typeof value === 'string' ? value.trim().slice(0, m
 export function pickPanelSettings(raw) {
   if (!raw || typeof raw !== 'object') return {};
   const out = {};
-  if (raw.semantic === 'off' || raw.semantic === 'local') out.semantic = raw.semantic;
+  if (raw.semantic === 'off' || raw.semantic === 'local' || raw.semantic === 'auto') out.semantic = raw.semantic;
   if (raw.judge === 'off' || raw.judge === 'llm') out.judge = raw.judge;
   if (raw.consolidate === 'off' || raw.consolidate === 'daily' || raw.consolidate === 'weekly') out.consolidate = raw.consolidate;
   if (typeof raw.semanticEndpoint === 'string') out.semanticEndpoint = str(raw.semanticEndpoint, 200);
@@ -48,7 +48,7 @@ export function savePanelSettings(store, patch) {
 
 export function panelSettingsView(settings) {
   return {
-    semantic: { mode: settings.semantic === 'local' ? 'local' : 'off', endpoint: settings.semanticEndpoint, model: settings.semanticModel },
+    semantic: { mode: settings.semantic, endpoint: settings.semanticEndpoint, model: settings.semanticModel },
     judge: { mode: settings.judge === 'llm' ? 'llm' : 'off', provider: settings.judgeProvider, model: settings.judgeModel },
     consolidate: { mode: settings.consolidate },
     capture: { mode: settings.capture },

@@ -34,9 +34,11 @@ export const DEFAULTS = Object.freeze({
   // How a recall reaches the model: 'notice' appends one visible user notice;
   // 'context' registers it as quiet runtime context in the system prompt.
   delivery: 'notice',
-  // Optional relevance judge before injection: 'off' keeps lexical recall,
-  // 'llm' asks one small host-model call to drop notes that only share words.
-  judge: 'off',
+  // Relevance judge before injection: 'llm' asks one small host-model call to
+  // drop notes that only share words; 'off' keeps raw lexical recall. Default
+  // on: with a local host model the call is cheap and the precision gain is
+  // the difference between "memory works" and "memory is noise".
+  judge: 'llm',
   judgeProvider: '',
   judgeModel: '',
   judgeTimeoutMs: 4000,
@@ -46,10 +48,10 @@ export const DEFAULTS = Object.freeze({
   // run a near-duplicate sweep that writes merge proposals only. Approval stays
   // in the panel, so this never rewrites memory by itself.
   consolidate: 'off',
-  // Optional local semantic layer: 'off' is pure BM25; 'local' builds a
-  // background embedding index and adds the semantic hits BM25 missed. It
-  // defaults off because it needs a local embedding endpoint.
-  semantic: 'off',
+  // Semantic supplement: 'auto' probes well-known local embedding endpoints and
+  // falls back to lexical recall when none answers; 'local' pins the configured
+  // endpoint/model; 'off' is pure BM25.
+  semantic: 'auto',
   semanticEndpoint: 'http://127.0.0.1:8080/v1/embeddings',
   semanticModel: 'qwen3-embedding-0.6b',
   semanticMinSimilarity: 0.55,
@@ -98,11 +100,11 @@ const trusts = (value) => {
 export function normalizeConfig(config = {}) {
   const raw = config && typeof config === 'object' ? config : {};
   const captureRaw = raw.capture === undefined ? DEFAULTS.capture : raw.capture;
-  const judge = raw.judge === 'llm' || raw.judge === true ? 'llm' : 'off';
+  const judge = raw.judge === 'off' ? 'off' : 'llm';
   const judgeProvider = String(raw.judgeProvider ?? '').trim();
   const judgeModel = String(raw.judgeModel ?? '').trim();
   const consolidate = raw.consolidate === 'daily' || raw.consolidate === 'weekly' ? raw.consolidate : 'off';
-  const semantic = raw.semantic === 'local' || raw.semantic === true ? 'local' : 'off';
+  const semantic = raw.semantic === 'off' ? 'off' : raw.semantic === 'local' ? 'local' : 'auto';
   const capture = captureRaw === true
     ? 'explicit'
     : captureRaw === false

@@ -216,6 +216,62 @@ export function mergeSemanticResult(result, { hits = [], readNote, maxNotes = 6 
  */
 export async function probeEmbedding({ endpoint, model, timeoutMs = 2500 }) {
   const started = Date.now();
-  const vectors = await embedMany({ endpoint, model, texts: ['ping'], timeoutMs });
+  const vectors = await embedTexts({ endpoint, model, inputs: ['ping'], timeoutMs });
   return { ok: true, dims: vectors[0].length, ms: Date.now() - started };
+}
+
+/**
+ * Zero-config discovery for the semantic layer. Ordinary users should not have
+ * to know an endpoint or a model name: probe the ports that local embedding
+ * servers actually listen on, ask /v1/models when the server supports it, and
+ * fall back to the model names this project has shipped with.
+ */
+export const EMBED_CANDIDATES = [
+  { endpoint: 'http://127.0.0.1:8080/v1/embeddings', models: ['qwen3-embedding-0.6b'] },
+  { endpoint: 'http://127.0.0.1:11434/v1/embeddings', models: ['nomic-embed-text', 'bge-m3', 'qwen3-embedding:0.6b'] },
+  { endpoint: 'http://127.0.0.1:1234/v1/embeddings', models: ['text-embedding-nomic-embed-text-v1.5'] },
+  { endpoint: 'http://127.0.0.1:8000/v1/embeddings', models: ['bge-m3', 'qwen3-embedding-0.6b'] },
+];
+
+async function fetchEmbeddingModels(endpoint, timeoutMs) {
+  try {
+    const url = String(endpoint).replace(/\/embeddings\/?$/, '/models');
+    const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!response.ok) return [];
+    const data = await response.json();
+    return (Array.isArray(data?.data) ? data.data : [])
+      .map((item) => item?.id)
+      .filter((id) => typeof id === 'string' && /embed/i.test(id));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Return the first endpoint/model pair that answers an embeddings call.
+ * `endpoint`/`model` narrow the search (explicitly configured values win);
+ * otherwise every candidate is probed once. Returns null when nothing answers.
+ */
+export async function detectEmbedding({ endpoint, model, timeoutMs = 1200, candidates = EMBED_CANDIDATES } = {}) {
+  if (endpoint && model) {
+    try {
+      const probe = await probeEmbedding({ endpoint, model, timeoutMs });
+      return { endpoint, model, dims: probe.dims };
+    } catch {
+      // fall through to discovery
+    }
+  }
+  for (const candidate of candidates) {
+    const discovered = model ? [] : await fetchEmbeddingModels(candidate.endpoint, timeoutMs);
+    const names = [...new Set([model, ...discovered, ...candidate.models].filter(Boolean))];
+    for (const name of names) {
+      try {
+        const probe = await probeEmbedding({ endpoint: candidate.endpoint, model: name, timeoutMs });
+        return { endpoint: candidate.endpoint, model: name, dims: probe.dims };
+      } catch {
+        // try the next model name
+      }
+    }
+  }
+  return null;
 }

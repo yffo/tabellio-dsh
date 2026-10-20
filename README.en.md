@@ -12,7 +12,7 @@ English | [简体中文](README.md)
 
 It watches the conversation for agreements and preferences worth keeping, drops them into a *candidate inbox*, and only stores them after you approve. Days later, ask "how did we decide that?" and it remembers on its own.
 
-Everything lives in plain Markdown files on your own machine. No network, no uploads — except when you explicitly turn on `judge: llm`, in which case candidate notes are handed to the host model for a single relevant/not-relevant verdict.
+Everything lives in plain Markdown files on your own machine. Nothing is uploaded; network traffic stays on loopback — discovering a local embedding service (`semantic: auto`) and one small relevant/not-relevant judge call with the host's current model (`judge: llm`, can be turned off).
 
 <p align="center">
   <img src="docs/assets/hero.svg" alt="tabellio-dsh: candidate inbox → you approve → recalled next time" width="820" />
@@ -76,7 +76,7 @@ recalled automatically (budgeted, capped, silent on small talk)
 Things you may care about:
 
 - **One nudge for waiting candidates.** When candidates are waiting for approval, the quiet context adds one line (at most once every six hours); open Settings → Memory to approve them.
-- **No hidden model calls.** By default it calls no model and makes no network requests. Only when you turn on the "LLM judge" switch does it ask your already-configured DSH model for one small relevance decision (off by default).
+- **One small model call by default.** When recall hits, the current DSH default model makes one tiny relevance decision. To spend nothing, switch off "Smart memory" under Settings. No data leaves your machine except that host-model call.
 - **It does not store whole conversations.** It only picks sentences like agreements, preferences and corrections that are worth remembering long-term.
 - **It does not write down passwords.** Sentences containing a plaintext password or token are skipped; policy lines such as "credentials live in 1Password" are kept.
 - **It leaves small talk alone.** Memory is only brought into context when the question looks like it is about your history, agreements or preferences.
@@ -110,7 +110,7 @@ Nothing here is required. To fine-tune, change them in your DSH profile config:
 | `capture` | `assist` | What to remember: `assist` is easiest; `explicit` records only when you say "remember…"; `off` disables |
 | `delivery` | `context` | How to deliver: `context` is silent (recommended); `notice` shows a message in the chat |
 | `shadow` | `false` | Record recalls without injecting, to compare against other memory plugins |
-| `judge` | `off` | Re-check recalls with a model: more accurate, one extra model call per turn |
+| `judge` | `llm` | Re-check recalls with a model: more accurate, one small call per hit |
 | `storePath` | `~/memory/tabellio` | Where memory lives |
 
 All other advanced settings are in the [developer notes](#for-developers).
@@ -124,13 +124,13 @@ The panel has four tabs, so state is never dumped all at once:
 - **Overview** — how many memories, what is pending, index health, the last recall, 7-day recall quality, and the newest notes;
 - **Waiting for you** — new candidates and merge proposals; approve or dismiss one or many, and nothing enters `notes/` until approved;
 - **Library** — write a memory, search and open a full note, page through all notes with kind/time filters;
-- **Settings** — semantic supplement, model judge, capture depth, how memory is delivered, notes per turn and consolidation, applied on save; the judge model and latency, semantic index size, store path and index warnings stay on the same page.
+- **Settings** — one "Smart memory" switch (on = auto-discover a local embedding service and filter false recalls with the default model; off = lexical only). Endpoint/model, capture depth, delivery, notes per turn and consolidation live under "Advanced"; applied on save. The judge model and latency, semantic index size, store path and index warnings stay on the same page.
 
-Ordinary users never touch a config file: the panel edits the **semantic supplement** (on/off, endpoint, model, test connection), the **model judge** (on/off, judge model; empty means the current DSH default model) and **background consolidation** (off/daily/weekly). Changes apply immediately and are stored in `panel-settings.json` inside the memory folder, so they travel with the store and never touch host config. No local model? Keep it off; recall stays lexical and everything else works.
+Ordinary users never touch a config file: the panel asks one question — is **Smart memory** on (default yes)? When on, it probes common local embedding ports (llama-swap, Ollama, LM Studio…), uses whatever answers, and falls back to lexical matching without errors when nothing does. Endpoint, model, capture depth, delivery, notes per turn and consolidation sit under "Advanced" and save to `panel-settings.json` inside the memory folder.
 
 ## Privacy
 
-- All reads and writes are local; no network requests (except `judge: llm`, which calls the model you configured).
+- All reads and writes are local; network traffic is loopback only (local embeddings) plus one host-model judge call, which can be disabled.
 - No telemetry is collected.
 - Plain Markdown; keep it on a disk you trust and encrypt.
 
@@ -171,13 +171,13 @@ Ordinary users never touch a config file: the panel edits the **semantic supplem
 | `queryChars` | `400` | Long messages keep head and tail |
 | `refreshSeconds` | `30` | Store rescan interval; 0 rescans on every event |
 | `capture` | `explicit` | `explicit` / `implicit` / `assist` / `off` |
-| `semantic` | `off` | `off` / `local`: local embedding supplement (OpenAI-style `/v1/embeddings`, default `qwen3-embedding-0.6b`) |
-| `semanticEndpoint` / `semanticModel` | `http://127.0.0.1:8080/v1/embeddings` / `qwen3-embedding-0.6b` | Embedding endpoint and model |
+| `semantic` | `auto` | `auto` / `local` / `off`: `auto` discovers a local embedding service, `local` pins the configured one, `off` is lexical |
+| `semanticEndpoint` / `semanticModel` | `http://127.0.0.1:8080/v1/embeddings` / `qwen3-embedding-0.6b` | Preferred endpoint and model (`auto` keeps probing other common ports when it fails) |
 | `semanticMinSimilarity` | `0.55` | Semantic hits below this cosine similarity are not added |
 | `consolidate` | `off` | Background sweep: `daily`/`weekly` writes merge proposals for near-duplicate notes (proposals only; approval stays in the panel) |
 | `maxCandidatesPerTurn` | `2` | Candidates per turn, 1–5 |
 | `captureMaxSentenceChars` | `240` | Per-sentence cap, 40–1000 |
-| `judge` | `off` | `off` / `llm` |
+| `judge` | `llm` | `llm` / `off` |
 | `judgeProvider` / `judgeModel` | empty | Leave empty to use the host default model |
 | `judgeTimeoutMs` | `4000` | Judge timeout, 500–15000; falls back to lexical matching |
 
@@ -197,7 +197,7 @@ The four independent pre-release test reports are archived under `~/yffto/archiv
 
 - Never auto-approves candidates, and never auto-merges/decays/deletes notes.
 - Does not fake DSH lifecycle events.
-- No network access (except `judge: llm`).
+- No uploads; loopback-only network access (local embeddings, host model).
 
 </details>
 

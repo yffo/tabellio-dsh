@@ -5,7 +5,8 @@
 # layer only adds DSH-native tools, budgeted auto-recall at the start of a
 # user turn, and candidate capture at turn/session end.
 #
-# Everything is local: no network, no daemon. Judge calls are opt-in (`judge: llm`).
+# Everything is local: it only talks to a local embedding service, no cloud and no
+# daemon of its own. Judge uses the host's current default model (opt-out with `judge: off`).
 - insert:
     - id: tabellio
       name: tabellio-dsh
@@ -26,7 +27,7 @@
         delivery: context
         shadow: false
         # Off by default: one small host-model call per recall when enabled.
-        judge: off
+        judge: llm
         recallIntentGate: true
         # Background near-duplicate sweep: off | daily | weekly. It only writes
         # merge proposals; approval still happens in the panel.
@@ -34,7 +35,9 @@
         # Optional local embedding supplement. 'local' needs an OpenAI-style
         # /v1/embeddings endpoint (e.g. llama-swap + qwen3-embedding-0.6b);
         # anything unreachable falls back to lexical recall silently.
-        semantic: off
+        semantic: auto
+        # Preferred endpoint/model; `semantic: auto` also probes other common
+        # local ports and falls back to lexical recall when none answers.
         semanticEndpoint: http://127.0.0.1:8080/v1/embeddings
         semanticModel: qwen3-embedding-0.6b
         semanticMinSimilarity: 0.55

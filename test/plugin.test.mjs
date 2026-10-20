@@ -725,17 +725,19 @@ test('an empty storePath falls back to the expanded default, not a literal tilde
 test('panel route mounts through the optional webServer inject', async (t) => {
   const dir = temp(t);
   const registered = [];
-  let injected;
+  const injections = [];
   const ctx = {
     get() { return undefined; },
     tools: { register() {} },
     on() {},
     logger: { warn() {} },
     effect(fn) { return fn(); },
-    inject(deps, callback) { injected = { deps, callback }; return {}; },
+    inject(deps, callback) { injections.push({ deps, callback }); return {}; },
   };
   apply(ctx, { storePath: dir, autoRecall: false, capture: 'off' });
-  assert.deepEqual(injected?.deps, ['webServer']);
+  assert.ok(injections.length >= 1);
+  const injected = injections.find((entry) => entry.deps.includes('webServer'));
+  assert.ok(injected, 'webServer dependency is declared');
 
   const web = {
     getOrigin: () => 'http://127.0.0.1:57077',

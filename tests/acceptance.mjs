@@ -538,7 +538,9 @@ testCase('meta-01', 'plugin metadata, seven tools and lifecycle handlers registe
   for (const event of ['agent/pre-step', 'agent/turn-stopping', 'agent/disposed']) {
     assert.ok((host.handlers.get(event) ?? []).length >= 1, `missing handler for ${event}`);
   }
-  assert.deepEqual(host.injectCalls.map((entry) => entry.deps.join(',')), ['webServer']);
+  const injectDeps = host.injectCalls.map((entry) => entry.deps.join(','));
+  assert.ok(injectDeps.includes('webServer'), 'panel declares webServer via ctx.inject');
+  assert.ok(injectDeps.some((deps) => deps.includes('llm')), 'judge declares llm via ctx.inject');
   return { observations: ['非 webServer 的可选服务通过 ctx.inject 声明；本测试的 fake host 会同步激活它们。'] };
 });
 

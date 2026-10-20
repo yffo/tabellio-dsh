@@ -190,6 +190,13 @@ window.__ModuleLoader__.load({
       tabPending: '待批准',
       tabLibrary: '记忆库',
       tabSettings: '设置',
+      smartLabel: '智能记忆',
+      smartOn: '开启（语义 + 模型裁决）',
+      smartOff: '关闭（只做词面匹配）',
+      smartHint: '开启后自动发现本机向量服务，并用当前默认模型过滤误召回；没有向量服务时自动退回词面匹配。',
+      advancedSettings: '进阶设置（一般不用改）',
+      settingsEndpointAuto: '留空 = 自动发现',
+      settingsModelAuto: '留空 = 自动发现',
       pendingNeedYou: '需要你决定',
       pendingNone: '暂无',
     };
@@ -354,6 +361,13 @@ window.__ModuleLoader__.load({
       tabPending: 'Review',
       tabLibrary: 'Library',
       tabSettings: 'Settings',
+      smartLabel: 'Smart memory',
+      smartOn: 'On (semantic + model judge)',
+      smartOff: 'Off (lexical only)',
+      smartHint: 'Finds a local embedding service automatically and uses the current default model to filter false recalls; without one it falls back to lexical matching.',
+      advancedSettings: 'Advanced (rarely needed)',
+      settingsEndpointAuto: 'blank = auto-detect',
+      settingsModelAuto: 'blank = auto-detect',
       pendingNeedYou: 'needs your call',
       pendingNone: 'none',
     };
@@ -708,6 +722,8 @@ window.__ModuleLoader__.load({
         background: 'rgba(185, 28, 28, .06)', color: TONES.bad, fontSize: 12.5, overflowWrap: 'anywhere',
       },
       testRow: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+      details: { marginTop: 4 },
+      summary: { cursor: 'pointer', fontSize: 12.5, color: COLORS.dim, padding: '4px 0' },
       controlRow: { display: 'grid', gridTemplateColumns: '150px 1fr', alignItems: 'center', gap: 10 },
       controlLabel: { color: COLORS.dim, fontSize: 12.5 },
       toast: {
@@ -1047,11 +1063,13 @@ window.__ModuleLoader__.load({
       ensurePanelCss();
 
       const sem = status ? status.semantic : null;
-      const semState = !sem || sem.mode !== 'local'
+      const semState = !sem || sem.mode === 'off'
         ? t('semOff')
-        : sem.ready
-          ? t('semReady').replace('{n}', String(sem.size))
-          : sem.error ? t('semError') : t('semBuilding');
+        : sem.probing
+          ? t('semBuilding')
+          : sem.ready
+            ? t('semReady').replace('{n}', String(sem.size))
+            : sem.error ? t('semError') : t('semBuilding');
       const pendingTotal = status ? Number(status.candidates || 0) + Number(status.proposals || 0) : 0;
       const hasPendingLabel = (count) => (count > 0 ? t('pendingNeedYou') : t('pendingNone'));
       const canReview = busyId === '';
@@ -1102,7 +1120,7 @@ window.__ModuleLoader__.load({
         h('div', { style: ui.chips, key: 'chips' },
           chip(t('mode'), modeLabel, status.mode === 'inject' ? TONES.good : status.mode === 'shadow' ? TONES.info : TONES.neutral),
           chip(t('capture'), captureLabel, status.capture === 'off' ? TONES.neutral : TONES.accent),
-          chip(t('semLabel'), semState, sem && sem.mode === 'local' ? TONES.info : TONES.neutral),
+          chip(t('semLabel'), semState, sem && sem.mode !== 'off' ? TONES.info : TONES.neutral),
           chip(t('consolidateLabel'), status.consolidate && status.consolidate.mode !== 'off' ? consolidateLabel(status.consolidate) : t('consOff'), status.consolidate && status.consolidate.mode !== 'off' ? TONES.good : TONES.neutral),
         ),
         status.notes === 0
@@ -1277,51 +1295,67 @@ window.__ModuleLoader__.load({
 
       const setField = (key) => (event) => setSettingsDraft((prev) => ({ ...prev, [key]: event.target.value }));
       const control = (label, node) => h('label', { style: ui.controlRow }, h('span', { style: ui.controlLabel }, label), node);
+      const smartOn = Boolean(settingsDraft && settingsDraft.semantic !== 'off');
+      const setSmart = (event) => {
+        const on = event.target.value === 'on';
+        setSettingsDraft((prev) => ({
+          ...prev,
+          semantic: on ? 'auto' : 'off',
+          judge: on ? 'llm' : 'off',
+        }));
+      };
+      const judgeModelText = status && status.judge && status.judge.selection && status.judge.selection.model
+        ? String(status.judge.selection.model)
+        : t('settingsJudgeDefault');
+      const semanticText = sem && sem.mode !== 'off'
+        ? sem.probing
+          ? t('semBuilding')
+          : sem.ready
+            ? t('semReady').replace('{n}', String(sem.size)) + (sem.model ? ' · ' + String(sem.model) : '')
+            : sem.error ? t('semError') : t('semBuilding')
+        : t('semOff');
+
       const settingsPane = settingsDraft
         ? h(React.Fragment, null,
             card(t('settingsTitle'), h('div', null,
               h('p', { style: ui.muted }, t('settingsHint')),
-              control(t('semLabel'), h('select', { style: ui.select, value: settingsDraft.semantic, onChange: setField('semantic') },
-                h('option', { value: 'off' }, t('semOff')),
-                h('option', { value: 'local' }, t('settingsSemanticLocal')))),
-              settingsDraft.semantic === 'local'
-                ? h(React.Fragment, null,
-                    control(t('settingsEndpoint'), h('input', { style: ui.input, value: settingsDraft.semanticEndpoint, onChange: setField('semanticEndpoint'), placeholder: 'http://127.0.0.1:8080/v1/embeddings' })),
-                    control(t('settingsModel'), h('input', { style: ui.input, value: settingsDraft.semanticModel, onChange: setField('semanticModel'), placeholder: 'qwen3-embedding-0.6b' })),
-                    h('div', { style: ui.testRow },
-                      h('button', { type: 'button', style: ui.buttonGhost, disabled: semanticTest?.loading === true, onClick: runSemanticTest }, semanticTest?.loading ? t('loading') : t('settingsTest')),
-                      semanticTest && !semanticTest.loading
-                        ? h('span', { style: semanticTest.ok ? ui.okLine : ui.errorLine }, semanticTest.ok
-                          ? t('settingsTestOk').replace('{dims}', String(semanticTest.dims)).replace('{ms}', String(semanticTest.ms))
-                          : t('settingsTestFail').replace('{err}', String(semanticTest.error || '')))
-                        : null),
-                  )
-                : null,
-              control(t('judgeLabel'), h('select', { style: ui.select, value: settingsDraft.judge, onChange: setField('judge') },
-                h('option', { value: 'off' }, t('judgeOff')),
-                h('option', { value: 'llm' }, t('settingsJudgeLlm')))),
-              settingsDraft.judge === 'llm'
-                ? control(t('settingsJudgeModel'), h('input', { style: ui.input, value: settingsDraft.judgeModel, onChange: setField('judgeModel'), placeholder: t('settingsJudgeDefault') }))
-                : null,
-              control(t('settingsCapture'), h('select', { style: ui.select, value: settingsDraft.capture, onChange: setField('capture') },
-                h('option', { value: 'off' }, t('capOff')),
-                h('option', { value: 'explicit' }, t('capExplicit')),
-                h('option', { value: 'implicit' }, t('capImplicit')),
-                h('option', { value: 'assist' }, t('capAssist')))),
-              control(t('settingsDelivery'), h('select', { style: ui.select, value: settingsDraft.delivery, onChange: setField('delivery') },
-                h('option', { value: 'context' }, t('settingsDeliveryContext')),
-                h('option', { value: 'notice' }, t('settingsDeliveryNotice')))),
-              control(t('settingsMaxNotes'), h('input', { style: ui.inputSmall, type: 'number', min: 1, max: 20, value: settingsDraft.recallMaxNotes, onChange: setField('recallMaxNotes') })),
-              control(t('consolidateLabel'), h('select', { style: ui.select, value: settingsDraft.consolidate, onChange: setField('consolidate') },
-                h('option', { value: 'off' }, t('consOff')),
-                h('option', { value: 'daily' }, t('consDaily')),
-                h('option', { value: 'weekly' }, t('consWeekly')))),
+              control(t('smartLabel'), h('select', { style: ui.select, value: smartOn ? 'on' : 'off', onChange: setSmart },
+                h('option', { value: 'on' }, t('smartOn')),
+                h('option', { value: 'off' }, t('smartOff')))),
+              h('p', { style: ui.muted }, t('smartHint')),
+              h('p', { style: ui.muted }, t('semLabel') + '：' + semanticText + ' · ' + t('judgeLabel') + '：' + judgeLabel(status && status.judge)),
+              h('details', { style: ui.details },
+                h('summary', { style: ui.summary }, t('advancedSettings')),
+                control(t('settingsEndpoint'), h('input', { style: ui.input, value: settingsDraft.semanticEndpoint, onChange: setField('semanticEndpoint'), placeholder: t('settingsEndpointAuto') })),
+                control(t('settingsModel'), h('input', { style: ui.input, value: settingsDraft.semanticModel, onChange: setField('semanticModel'), placeholder: t('settingsModelAuto') })),
+                h('div', { style: ui.testRow },
+                  h('button', { type: 'button', style: ui.buttonGhost, disabled: semanticTest?.loading === true, onClick: runSemanticTest }, semanticTest?.loading ? t('loading') : t('settingsTest')),
+                  semanticTest && !semanticTest.loading
+                    ? h('span', { style: semanticTest.ok ? ui.okLine : ui.warnBox }, semanticTest.ok
+                      ? t('settingsTestOk').replace('{dims}', String(semanticTest.dims)).replace('{ms}', String(semanticTest.ms))
+                      : t('settingsTestFail').replace('{err}', String(semanticTest.error || '')))
+                    : null),
+                control(t('settingsJudgeModel'), h('input', { style: ui.input, value: settingsDraft.judgeModel, onChange: setField('judgeModel'), placeholder: t('settingsJudgeDefault') })),
+                control(t('settingsCapture'), h('select', { style: ui.select, value: settingsDraft.capture, onChange: setField('capture') },
+                  h('option', { value: 'off' }, t('capOff')),
+                  h('option', { value: 'explicit' }, t('capExplicit')),
+                  h('option', { value: 'implicit' }, t('capImplicit')),
+                  h('option', { value: 'assist' }, t('capAssist')))),
+                control(t('settingsDelivery'), h('select', { style: ui.select, value: settingsDraft.delivery, onChange: setField('delivery') },
+                  h('option', { value: 'context' }, t('settingsDeliveryContext')),
+                  h('option', { value: 'notice' }, t('settingsDeliveryNotice')))),
+                control(t('settingsMaxNotes'), h('input', { style: ui.inputSmall, type: 'number', min: 1, max: 20, value: settingsDraft.recallMaxNotes, onChange: setField('recallMaxNotes') })),
+                control(t('consolidateLabel'), h('select', { style: ui.select, value: settingsDraft.consolidate, onChange: setField('consolidate') },
+                  h('option', { value: 'off' }, t('consOff')),
+                  h('option', { value: 'daily' }, t('consDaily')),
+                  h('option', { value: 'weekly' }, t('consWeekly')))),
+              ),
               h('div', { style: ui.saveRow },
                 h('button', { type: 'button', style: ui.buttonPrimary, disabled: settingsSaving, onClick: savePanelSettings }, settingsSaving ? t('addSaving') : t('settingsSave')),
                 h('span', { style: ui.muted }, t('settingsSourceHint'))),
             )),
             card(t('advancedTitle'), h('div', null,
-              h('p', { style: ui.muted }, t('judgeLabel') + '：' + judgeLabel(status && status.judge)),
+              h('p', { style: ui.muted }, t('judgeLabel') + '：' + judgeLabel(status && status.judge) + (judgeModelText ? ' · ' + judgeModelText : '')),
               h('p', { style: ui.muted }, t('consolidateLabel') + '：' + consolidateLabel(status && status.consolidate)),
               h('p', { style: ui.muted }, t('semLabel') + '：' + semState + (sem && sem.model ? ' · ' + String(sem.model) : '')),
               h('p', { style: ui.muted }, t('capture') + '：' + captureLabel + ' · ' + t('index') + '：' + indexLabel),

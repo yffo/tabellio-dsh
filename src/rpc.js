@@ -161,8 +161,8 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
         case 'settings.set': {
           if (typeof updateSettings !== 'function') return fail('unsupported', 'settings are read-only on this host');
           const patch = payload ?? {};
-          if (patch.semantic !== undefined && !['off', 'local'].includes(patch.semantic)) {
-            return fail('bad-request', 'semantic must be "off" or "local"');
+          if (patch.semantic !== undefined && !['off', 'local', 'auto'].includes(patch.semantic)) {
+            return fail('bad-request', 'semantic must be "off", "local" or "auto"');
           }
           if (patch.judge !== undefined && !['off', 'llm'].includes(patch.judge)) {
             return fail('bad-request', 'judge must be "off" or "llm"');

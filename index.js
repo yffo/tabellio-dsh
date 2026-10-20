@@ -22,7 +22,7 @@ import { mountPanelRoute } from './src/web-rpc.js';
 import { registerTools } from './src/tools.js';
 import { startConsolidationTimer } from './src/consolidate.js';
 import { appendAudit } from './src/audit.js';
-import { mergeSemanticResult, probeEmbedding, semanticTop, startIndexer } from './src/semantic.js';
+import { detectEmbedding, mergeSemanticResult, probeEmbedding, semanticTop, startIndexer } from './src/semantic.js';
 import { loadPanelSettings, panelSettingsView, pickPanelSettings, savePanelSettings } from './src/settings-file.js';
 
 export const name = 'tabellio-dsh';
@@ -89,6 +89,8 @@ export function apply(ctx, config = {}) {
   // the outside (2026-10-19: status reported judge off because the handler
   // was created without this getter).
   const judgeState = { mode: settings.judge, host: 'none', selection: null, last: null };
+  // Auto-discovery bookkeeping for the semantic layer (see startSemanticIndexer).
+  const semanticMeta = { detected: false, probing: false, error: null };
 
   // Optional panel channel: the browser memory tab reads status and reviews
   // candidates through this handler. The browser posts a `client-request` to
@@ -103,7 +105,11 @@ export function apply(ctx, config = {}) {
       getStore: currentStore,
       getLastRecall: () => lastRecall,
       getJudgeState: () => judgeState,
-      getSemanticState: () => semanticIndexer?.state ?? null,
+      getSemanticState: () => Object.assign(
+        { mode: settings.semantic, endpoint: settings.semanticEndpoint, model: settings.semanticModel },
+        semanticIndexer?.state ?? { ready: false, size: 0, error: null },
+        { detected: semanticMeta.detected, probing: semanticMeta.probing, error: semanticIndexer?.state?.error ?? semanticMeta.error },
+      ),
       getSettingsView: () => panelSettingsView(settings),
       updateSettings: (patch) => applyRuntimeSettings(patch),
       testSemantic: () => probeEmbedding({
@@ -441,7 +447,7 @@ export function apply(ctx, config = {}) {
   // shadow A/B keeps measuring BM25 alone, and it only ever appends hits that
   // BM25 missed; a failure leaves the lexical result untouched.
   const augmentWithSemantic = async (result, query) => {
-    if (settings.semantic !== 'local' || !semanticIndexer?.state?.ready) return result;
+    if (settings.semantic === 'off' || !semanticIndexer?.state?.ready) return result;
     try {
       const hits = await semanticTop({
         index: semanticIndexer.state.index,
@@ -466,6 +472,15 @@ export function apply(ctx, config = {}) {
   // Build the embedding index in the background; until it is ready every turn
   // behaves exactly like the lexical version.
   let semanticIndexer = null;
+  let semanticGeneration = 0;
+  const buildSemanticIndex = (endpoint, model) => {
+    semanticIndexer = startIndexer({
+      store: currentStore(),
+      endpoint,
+      model,
+      logger: ctx.logger,
+    });
+  };
   const startSemanticIndexer = () => {
     try {
       semanticIndexer?.dispose?.();
@@ -473,12 +488,40 @@ export function apply(ctx, config = {}) {
       // rebuilding the index must never break the current session
     }
     semanticIndexer = null;
-    if (settings.semantic !== 'local') return;
-    semanticIndexer = startIndexer({
-      store: currentStore(),
+    semanticGeneration += 1;
+    const generation = semanticGeneration;
+    semanticMeta.detected = false;
+    semanticMeta.probing = false;
+    semanticMeta.error = null;
+    if (settings.semantic === 'off') return;
+    if (settings.semantic === 'local') {
+      buildSemanticIndex(settings.semanticEndpoint, settings.semanticModel);
+      return;
+    }
+    // 'auto': find a local embedding server in the background. Until it answers
+    // the plugin behaves exactly like the lexical build.
+    semanticMeta.probing = true;
+    detectEmbedding({
       endpoint: settings.semanticEndpoint,
       model: settings.semanticModel,
-      logger: ctx.logger,
+      timeoutMs: Math.min(settings.semanticTimeoutMs, 1500),
+    }).then((found) => {
+      if (generation !== semanticGeneration) return;
+      semanticMeta.probing = false;
+      if (!found) {
+        semanticMeta.error = 'no local embedding service found';
+        ctx.logger?.debug?.('tabellio-dsh: semantic auto-discovery found no local embedding service');
+        return;
+      }
+      settings.semanticEndpoint = found.endpoint;
+      settings.semanticModel = found.model;
+      semanticMeta.detected = true;
+      ctx.logger?.info?.('tabellio-dsh: semantic endpoint auto-detected (' + found.model + ' at ' + found.endpoint + ')');
+      buildSemanticIndex(found.endpoint, found.model);
+    }).catch((error) => {
+      if (generation !== semanticGeneration) return;
+      semanticMeta.probing = false;
+      semanticMeta.error = error?.message ?? String(error);
     });
   };
   startSemanticIndexer();

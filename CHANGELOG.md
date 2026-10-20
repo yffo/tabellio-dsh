@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.0
+- 零配置：`semantic` 默认 `auto`，自动探测本机常见向量端点（llama-swap / Ollama / LM Studio / :8000）与 `/v1/models`，没有服务就静默退回词面匹配；`judge` 默认 `llm`，命中时用宿主当前默认模型做一次小裁决（失败放行）。
+- 面板设置收成一个「智能记忆」开关（开 = 语义 + 裁决，关 = 纯词面）；服务地址/模型、捕获、投递、每轮条数、巩固节奏收进「进阶设置」。
+- 修复 `probeEmbedding` 调用未定义的 `embedMany`（“测试连接”必失败）——改为 `embedTexts`；自动发现因此可用。
+- 出厂 `cordis.patch.yml` 同步：`semantic: auto`、`judge: llm`。
+- 103 个单元测试 + 30 条验收。
+
 ## 0.11.0
 - 面板整体重做：四个页签（概览 / 待批准 / 记忆库 / 设置），统一间距与字号、图标按钮、动效与焦点样式；候选与提案卡片、笔记阅读浮层、空态与骨架屏重做。
 - 面板设置此前读不到、保存静默失效：插件没把 `getSettingsView/updateSettings/testSemantic/getSemanticState` 接进 RPC handler，现已接通并用面板真实走通「读取 → 修改 → 落 panel-settings.json」。
