@@ -168,6 +168,15 @@ window.__ModuleLoader__.load({
       editSaved: '已保存为新版本，旧版本标记为被取代。',
       editUnchanged: '内容和原来一样，没有生成新版本。',
       editTooLong: '超过单条 400 字上限，请精简后再保存。',
+      judgeReviewTitle: '裁决复核',
+      judgeReviewSummary: '近 7 天裁决 {n} 次，已复核 {m} 次，同意 {k} 次；每条裁决都记了它保留/丢弃了哪些记忆。',
+      judgeReviewHint: '模型每次裁决后，这里会记下它保留/丢弃了哪些记忆，方便你抽查它是不是开始乱判。',
+      judgeReviewMeta: '保留 {kept} · 丢弃 {dropped}',
+      judgeReviewRight: '判得对',
+      judgeReviewWrong: '判错了',
+      judgeReviewSaved: '已记录复核结果。',
+      judgeReviewedRight: '复核：对',
+      judgeReviewedWrong: '复核：错',
       provTitle: '来源与使用',
       provTimeline: '时间线',
       provTimelineEmpty: '还没有使用记录',
@@ -435,6 +444,15 @@ window.__ModuleLoader__.load({
       editSaved: 'Saved as a new version; the old one is marked superseded.',
       editUnchanged: 'Nothing changed, so no new version was created.',
       editTooLong: 'Over the 400-char limit for one note; shorten it first.',
+      judgeReviewTitle: 'Judge review',
+      judgeReviewSummary: 'Last 7 days: {n} decisions, {m} reviewed, {k} agreed. Each decision records what the judge kept and dropped.',
+      judgeReviewHint: 'After each judge call this keeps what it kept and dropped, so you can spot a bad streak.',
+      judgeReviewMeta: 'Kept {kept} · dropped {dropped}',
+      judgeReviewRight: 'Correct',
+      judgeReviewWrong: 'Wrong',
+      judgeReviewSaved: 'Review recorded.',
+      judgeReviewedRight: 'Review: correct',
+      judgeReviewedWrong: 'Review: wrong',
       provTitle: 'Origin and usage',
       provTimeline: 'Timeline',
       provTimelineEmpty: 'No usage recorded yet',
@@ -1126,6 +1144,7 @@ window.__ModuleLoader__.load({
   const [conflicts, setConflicts] = useState(null);
   const [conflictPreview, setConflictPreview] = useState(null);
   const [judgeSample, setJudgeSample] = useState(null);
+  const [usageInfo, setUsageInfo] = useState(null);
 
       const load = useCallback(async () => {
         setState((prev) => ({ ...prev, loading: true, error: null }));
@@ -1208,6 +1227,12 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         loadJudgeSample();
       }, [loadJudgeSample]);
+
+      useEffect(() => {
+        rpcCall('usage.summary', { days: 7 })
+          .then((result) => setUsageInfo(result))
+          .catch(() => {});
+      }, [rpcCall]);
 
       const find = useCallback(async () => {
         const text = query.trim();
@@ -1628,6 +1653,19 @@ window.__ModuleLoader__.load({
                         }, t('judgeReviewWrong')))
                     : h('span', { style: event.reviewed ? ui.goodBadge : ui.badBadge }, event.reviewed ? t('judgeReviewedRight') : t('judgeReviewedWrong')),
                 ))),
+            ))
+          : null,
+        usageInfo
+          ? card(t('usageTitle'), h(React.Fragment, null,
+              h('p', { style: ui.muted }, t('usageHint')),
+              usageInfo.recalls > 0
+                ? h('div', { style: ui.kvList },
+                    h('div', { style: ui.kvRow }, h('span', { style: ui.kvKey }, t('usageChars')), h('span', { style: ui.kvValue }, String(usageInfo.injected) + ' / ' + String(usageInfo.recalls))),
+                    h('div', { style: ui.kvRow }, h('span', { style: ui.kvKey }, t('usageTokens')), h('span', { style: ui.kvValue }, String(usageInfo.chars) + ' → ~' + String(usageInfo.tokensEst))),
+                    h('div', { style: ui.kvRow }, h('span', { style: ui.kvKey }, t('judgeLabel')), h('span', { style: ui.kvValue }, String(usageInfo.judgeCalls) + (usageInfo.judgeCalls ? ' · ' + String(usageInfo.judgeMsAvg) + 'ms' : ''))),
+                    h('div', { style: ui.kvRow }, h('span', { style: ui.kvKey }, t('semanticLabel')), h('span', { style: ui.kvValue }, String(usageInfo.semanticCalls))),
+                  )
+                : h('p', { style: ui.muted }, t('usageEmpty')),
             ))
           : null,
         conflicts && Array.isArray(conflicts.pairs)

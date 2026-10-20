@@ -516,3 +516,15 @@ test('judge sampling endpoints expose decisions and accept reviews', async (t) =
   assert.equal(after.value.events[0].reviewed, true);
   assert.deepEqual(after.value.quality, { total: 1, reviewed: 1, agreed: 1 });
 });
+
+test('usage.summary reports the memory layer overhead', async (t) => {
+  const { dir, store } = await tempStore(t);
+  const handler = handlerFor(dir, store);
+  const { appendUsage } = await import('../src/usage.js');
+  appendUsage(store, { at: Date.now() - 1000, mode: 'context', chars: 90, judge: 1, judgeMs: 700, semantic: 1 });
+  const result = await handler('usage.summary', { days: 7 });
+  assert.equal(result.ok, true);
+  assert.equal(result.value.injected, 1);
+  assert.equal(result.value.chars, 90);
+  assert.equal(result.value.judgeCalls, 1);
+});

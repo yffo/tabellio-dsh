@@ -12,6 +12,7 @@ import { outcomeSummary } from './outcome.js';
 import { noteTimeline, provenanceView } from './provenance.js';
 import { editNote } from './edit.js';
 import { appendJudgeReview, judgeQuality, readJudgeLog, readJudgeReviews } from './judge-log.js';
+import { usageSummary } from './usage.js';
 
 export const RPC_CHANNEL = '/tabellio-dsh';
 export const MAX_REVIEW_IDS = 50;
@@ -401,6 +402,10 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
           const result = consolidate(store, { archive: [payload.id.trim()], apply: true });
           if (!result.ok) return fail('forget-failed', String(result.reason ?? 'archive failed'));
           return ok({ ok: true, id: payload.id.trim(), archived: true, already: false, message: '已忘掉，不再自动召回。' });
+        }
+        case 'usage.summary': {
+          const days = Math.min(31, Math.max(1, Number(payload?.days) || 7));
+          return ok(usageSummary(getStore(), { days }));
         }
         case 'judge.recent': {
           const limit = Math.min(30, Math.max(1, Number(payload?.limit) || 10));

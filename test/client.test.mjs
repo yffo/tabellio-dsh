@@ -144,6 +144,7 @@ const makeInitial = ({ wizardOpen = false } = {}) => [
   null,
   null,
   null,
+  null,
 ];
 
 const renderPanel = async (initial) => {

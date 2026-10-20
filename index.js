@@ -17,6 +17,7 @@ import { delegationDepth, isHumanMessage, isChitchat, latestHuman, textOf, trimQ
 import { extractAssistantConclusion, extractCandidates, hasSecretHint, looksLikeCredentialLeak } from './src/capture.js';
 import { filterByJudge } from './src/judge.js';
 import { appendJudgeEvent } from './src/judge-log.js';
+import { appendUsage } from './src/usage.js';
 import { readFeedback, aggregateFeedback, rankByFeedback } from './src/feedback.js';
 import { maybeRecordCorrection, outcomePenalties, rankByOutcome } from './src/outcome.js';
 import { filterCandidatesByWorth } from './src/worth.js';
@@ -877,6 +878,13 @@ export function apply(ctx, config = {}) {
           elapsedMs: Date.now() - recallStartedAt,
           receiptPath: result?.receiptPath ?? null,
         });
+        appendUsage(currentStore(), {
+          at: Date.now(),
+          mode: 'shadow',
+          chars: 0,
+          semantic: settings.semantic === 'off' ? 0 : 1,
+          notes: Array.isArray(result?.items) ? result.items.length : 0,
+        });
         ctx.logger?.info?.('tabellio-dsh: shadow recall recorded (' + (result?.refused ? 'refused' : (result?.items?.length ?? 0) + ' hit(s)') + ')');
         return decision;
       }
@@ -1035,6 +1043,15 @@ export function apply(ctx, config = {}) {
           elapsedMs: Date.now() - recallStartedAt,
           receiptPath: result.receiptPath ?? null,
         });
+        appendUsage(currentStore(), {
+          at: Date.now(),
+          mode: 'context',
+          chars: text.length,
+          judge: judged ? 1 : 0,
+          judgeMs: judged ? (judgeState.last?.elapsedMs ?? 0) : 0,
+          semantic: settings.semantic === 'off' ? 0 : 1,
+          notes: result.items.length,
+        });
         return decision;
       }
 
@@ -1068,6 +1085,15 @@ export function apply(ctx, config = {}) {
         titles: recallTitles(result),
         elapsedMs: Date.now() - recallStartedAt,
         receiptPath: result.receiptPath ?? null,
+      });
+      appendUsage(currentStore(), {
+        at: Date.now(),
+        mode: 'notice',
+        chars: text.length,
+        judge: judged ? 1 : 0,
+        judgeMs: judged ? (judgeState.last?.elapsedMs ?? 0) : 0,
+        semantic: settings.semantic === 'off' ? 0 : 1,
+        notes: result.items.length,
       });
 
       return {
