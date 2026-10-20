@@ -327,6 +327,25 @@ test('read returns note content for the panel viewer and rejects bad ids', async
   assert.equal((await handler('read', { id: 'DOES-NOT-EXIST' })).ok, false);
 });
 
+
+test('edit replaces a note and retires the old version through the core', async (t) => {
+  const { dir, store } = await tempStore(t);
+  const written = remember(store, { content: '发布步骤：先在本地 npm publish。', title: '发布步骤' });
+  const handler = handlerFor(dir, store);
+
+  const done = await handler('edit', { id: written.id, title: '发布步骤', content: '发布步骤：推 tag 触发 CI。' });
+  assert.equal(done.ok, true);
+  assert.equal(done.value.superseded, written.id);
+  assert.equal(done.value.oldRetired, true);
+  assert.notEqual(done.value.id, written.id);
+  assert.equal(read(store, done.value.id).ok, true);
+  assert.equal(read(store, written.id).note.superseded_by, done.value.id);
+
+  assert.equal((await handler('edit', { id: '', content: 'x' })).ok, false);
+  assert.equal((await handler('edit', { id: written.id, content: '   ' })).ok, false);
+  assert.equal((await handler('edit', { id: 'NOPE', content: 'x' })).ok, false);
+});
+
 test('forget archives a note so automatic recall stops returning it', async (t) => {
   const { dir, store } = await tempStore(t);
   const written = remember(store, { content: '遗忘测试：这条以后不该再被自动召回。' }, { writtenBy: 'test:forget' });

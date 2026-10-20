@@ -518,7 +518,7 @@ for (const combo of MATRIX) {
 // ---------------------------------------------------------------------------
 // 1. Metadata / registration
 // ---------------------------------------------------------------------------
-testCase('meta-01', 'plugin metadata, nine tools and lifecycle handlers registered', async () => {
+testCase('meta-01', 'plugin metadata, twelve tools and lifecycle handlers registered', async () => {
   assert.equal(pluginName, 'tabellio-dsh');
   assert.deepEqual(inject, ['tools']);
   assert.equal(normalizeConfig({ capture: 'bogus' }).capture, 'off');
@@ -533,7 +533,7 @@ testCase('meta-01', 'plugin metadata, nine tools and lifecycle handlers register
 
   assert.deepEqual(
     host.tools.map((tool) => tool.name).sort(),
-    ['tabellio_capture', 'tabellio_conflicts', 'tabellio_feedback', 'tabellio_forget', 'tabellio_inbox', 'tabellio_merge', 'tabellio_read', 'tabellio_recall', 'tabellio_report', 'tabellio_search', 'tabellio_status'],
+    ['tabellio_capture', 'tabellio_conflicts', 'tabellio_edit', 'tabellio_feedback', 'tabellio_forget', 'tabellio_inbox', 'tabellio_merge', 'tabellio_read', 'tabellio_recall', 'tabellio_report', 'tabellio_search', 'tabellio_status'],
   );
   for (const event of ['agent/pre-step', 'agent/turn-stopping', 'agent/disposed']) {
     assert.ok((host.handlers.get(event) ?? []).length >= 1, `missing handler for ${event}`);
@@ -558,14 +558,15 @@ const TOOL_CONTRACT = {
   tabellio_conflicts: { params: ['days', 'limit', 'min_overlap'], required: null, optional: [] },
   tabellio_merge: { params: ['ids', 'confirm'], required: ['ids'], optional: ['confirm'] },
   tabellio_feedback: { params: ['id', 'signal', 'query'], required: ['id', 'signal'], optional: ['query'] },
+  tabellio_edit: { params: ['id', 'content', 'title'], required: ['id', 'content'], optional: ['title'] },
   tabellio_forget: { params: ['id', 'confirm'], required: ['id'], optional: ['confirm'] },
 };
 
-testCase('tools-01-schema', 'eleven tool schemas: required, additionalProperties:false, output schema and render', async () => {
+testCase('tools-01-schema', 'twelve tool schemas: required, additionalProperties:false, output schema and render', async () => {
   const dir = tempStore('tools-schema');
   const host = createHost();
   apply(host.ctx, { storePath: dir, autoRecall: false, capture: 'off', refreshSeconds: 0 });
-  assert.equal(host.tools.length, 11);
+  assert.equal(host.tools.length, 12);
   const observations = [];
   for (const [name, expected] of Object.entries(TOOL_CONTRACT)) {
     const tool = findTool(host, name);

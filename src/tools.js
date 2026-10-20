@@ -4,6 +4,7 @@ import { formatRecallTool } from './render.js';
 import { buildReport, renderReport } from './report.js';
 import { looksLikeCredentialLeak } from './capture.js';
 import { appendFeedback, feedbackCounts, readFeedback, SIGNALS } from './feedback.js';
+import { editNote } from './edit.js';
 
 const jsonText = (_args, value) => [{ type: 'text', text: JSON.stringify(value) }];
 const plainText = (text) => [{ type: 'text', text }];
@@ -878,6 +879,61 @@ export function createToolDefinitions({ settings, getStore, getLastRecall = () =
           return { ok: false, id: noteId, archived: false, reason: String(result.reason ?? 'archive_failed'), message: '归档失败：' + (result.reason ?? 'unknown') + '。' };
         }
         return { ok: true, id: noteId, archived: true, reason: '', message: '已忘掉这条记忆，自动召回不再使用它（文件保留，可审计）。' };
+      },
+    },
+    {
+      name: 'tabellio_edit',
+      description:
+        'Replace a note with an edited version (the old text is kept and marked superseded by the new one). ' +
+        'Only call after the human explicitly asked to change that memory; automatic recall switches to the new version.',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string', description: 'Note id from tabellio_recall/search/read.' },
+          content: { type: 'string', description: 'New body text (max 400 chars including the title line).' },
+          title: { type: 'string', description: 'Optional new title (default: keep the current one).' },
+        },
+        required: ['id', 'content'],
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            ok: { type: 'boolean' },
+            id: { type: 'string' },
+            superseded: { type: 'string' },
+            old_retired: { type: 'boolean' },
+            reason: { type: 'string' },
+            message: { type: 'string' },
+          },
+          required: ['ok', 'id', 'superseded', 'old_retired', 'reason', 'message'],
+        },
+        render: (args, value) => plainText(String(value.message)),
+      },
+      execute: async ({ id, content, title }) => {
+        const noteId = String(id ?? '').trim();
+        if (!noteId) return { ok: false, id: '', superseded: '', old_retired: false, reason: 'missing_id', message: '需要笔记 id。' };
+        if (!String(content ?? '').trim()) return { ok: false, id: noteId, superseded: '', old_retired: false, reason: 'empty', message: '新正文不能为空。' };
+        const result = editNote(getStore(), { id: noteId, content, title });
+        if (!result.ok) {
+          const messages = {
+            not_found: '找不到这条笔记。',
+            unchanged: '内容和原来一样，没有生成新版本。',
+            too_long: '超过单条 400 字上限，请拆分或精简后再改。',
+            empty: '新正文不能为空。',
+          };
+          return { ok: false, id: noteId, superseded: '', old_retired: false, reason: String(result.reason || 'edit_failed'), message: messages[result.reason] || ('修改失败：' + (result.reason || 'unknown')) };
+        }
+        return {
+          ok: true,
+          id: String(result.id),
+          superseded: String(result.superseded || ''),
+          old_retired: Boolean(result.oldRetired),
+          reason: '',
+          message: '已保存为新版本（' + String(result.id) + '），旧版本标记为被取代，自动召回改用新版本。',
+        };
       },
     },
   ];

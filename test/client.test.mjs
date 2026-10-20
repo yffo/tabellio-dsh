@@ -133,6 +133,7 @@ const makeInitial = ({ wizardOpen = false } = {}) => [
   { items: [], total: 0, loading: false },
   { kind: '', days: 0 },
   null,
+  null,
   { open: wizardOpen, step: 0, smart: true, mode: 'local', endpoint: '', model: '', apiKey: '', note: '', error: '', busy: false },
   '', false, '', '', null, false,
   { semantic: { mode: 'local', endpoint: 'http://x', model: 'm' }, judge: { mode: 'llm', model: '' }, consolidate: { mode: 'daily' } },

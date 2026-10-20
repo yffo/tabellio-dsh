@@ -10,6 +10,7 @@ import { auditCounts, readAudit, readAuditSince, summarizeAudit } from './audit.
 import { appendFeedback, feedbackCounts, readFeedback } from './feedback.js';
 import { outcomeSummary } from './outcome.js';
 import { noteTimeline, provenanceView } from './provenance.js';
+import { editNote } from './edit.js';
 
 export const RPC_CHANNEL = '/tabellio-dsh';
 export const MAX_REVIEW_IDS = 50;
@@ -395,6 +396,21 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
           const result = consolidate(store, { archive: [payload.id.trim()], apply: true });
           if (!result.ok) return fail('forget-failed', String(result.reason ?? 'archive failed'));
           return ok({ ok: true, id: payload.id.trim(), archived: true, already: false, message: '已忘掉，不再自动召回。' });
+        }
+        case 'edit': {
+          const id = typeof payload?.id === 'string' ? payload.id.trim() : '';
+          const content = typeof payload?.content === 'string' ? payload.content : '';
+          if (!id) return fail('bad-request', 'id is required');
+          if (!content.trim()) return fail('bad-request', 'content is required');
+          if (content.length > MAX_WRITE_CHARS) return fail('bad-request', 'content is too long');
+          const title = typeof payload?.title === 'string' ? payload.title.slice(0, 120) : undefined;
+          const result = editNote(getStore(), { id, content, title });
+          if (!result.ok) {
+            if (result.reason === 'not_found') return fail('not-found', 'note not found');
+            if (result.reason === 'too_long') return fail('too-long', 'content exceeds the 400-char note limit', { chars: result.chars, limit: result.limit });
+            return fail('edit-failed', String(result.reason || 'edit failed'), result);
+          }
+          return ok(result);
         }
         case 'timeline': {
           if (typeof payload?.id !== 'string' || !payload.id.trim()) return fail('bad-request', 'id is required');

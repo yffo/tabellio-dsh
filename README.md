@@ -181,7 +181,7 @@ dsh plugin --profile desktop add tabellio-dsh
 
 ### 工具
 
-`tabellio_recall` / `tabellio_search` / `tabellio_read` / `tabellio_status` / `tabellio_capture` / `tabellio_inbox` / `tabellio_report`（周报）/ `tabellio_conflicts`（只读：列出可能过时的笔记对）/ `tabellio_merge`（人批准后合并新旧说法，旧笔记标记被取代）/ `tabellio_feedback`（记录「这条有用 / 不对」，只调整后续排序，不改笔记）/ `tabellio_forget`（人确认后归档一条笔记，自动召回不再使用；文件保留可审计）。`tabellio_recall` 与 `tabellio_search` 支持 `as_of` 按某个时间点查询。工具与 CLI、MCP 共用同一套预算、拒答和写入闸门。
+`tabellio_recall` / `tabellio_search` / `tabellio_read` / `tabellio_status` / `tabellio_capture` / `tabellio_inbox` / `tabellio_report`（周报）/ `tabellio_conflicts`（只读：列出可能过时的笔记对）/ `tabellio_merge`（人批准后合并新旧说法，旧笔记标记被取代）/ `tabellio_feedback`（记录「这条有用 / 不对」，只调整后续排序，不改笔记）/ `tabellio_forget`（人确认后归档一条笔记，自动召回不再使用；文件保留可审计）/ `tabellio_edit`（人要求修改时写入新版本并标记旧版本被取代，自动召回切到新版本）。`tabellio_recall` 与 `tabellio_search` 支持 `as_of` 按某个时间点查询。工具与 CLI、MCP 共用同一套预算、拒答和写入闸门。
 
 ### 配置全表
 

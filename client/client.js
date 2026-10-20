@@ -159,6 +159,15 @@ window.__ModuleLoader__.load({
       forgetButton: '忘掉这条',
       forgetConfirm: '确认忘掉这条记忆？自动召回将不再使用它；文件会保留，仍可审计。',
       forgetDone: '已忘掉，自动召回不再使用它。',
+      editButton: '编辑',
+      editTitle: '标题',
+      editBody: '正文',
+      editHint: '保存后会生成新版本，旧版本标记为被取代；自动召回改用新版本。',
+      editSave: '保存修改',
+      editCancel: '取消',
+      editSaved: '已保存为新版本，旧版本标记为被取代。',
+      editUnchanged: '内容和原来一样，没有生成新版本。',
+      editTooLong: '超过单条 400 字上限，请精简后再保存。',
       provTitle: '来源与使用',
       provTimeline: '时间线',
       provTimelineEmpty: '还没有使用记录',
@@ -417,6 +426,15 @@ window.__ModuleLoader__.load({
       forgetButton: 'Forget this',
       forgetConfirm: 'Forget this memory? Automatic recall will stop using it; the file stays for audit.',
       forgetDone: 'Forgotten; automatic recall will not use it.',
+      editButton: 'Edit',
+      editTitle: 'Title',
+      editBody: 'Body',
+      editHint: 'Saving creates a new version and marks the old one as superseded; automatic recall switches to the new one.',
+      editSave: 'Save changes',
+      editCancel: 'Cancel',
+      editSaved: 'Saved as a new version; the old one is marked superseded.',
+      editUnchanged: 'Nothing changed, so no new version was created.',
+      editTooLong: 'Over the 400-char limit for one note; shorten it first.',
       provTitle: 'Origin and usage',
       provTimeline: 'Timeline',
       provTimelineEmpty: 'No usage recorded yet',
@@ -698,6 +716,7 @@ window.__ModuleLoader__.load({
       trash: ['M3 6h18', 'M8 6V4h8v2', 'M6 6l1 14h10l1-14', 'M10 11v5', 'M14 11v5'],
       eye: ['M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'],
       arrow: ['M5 12h14', 'M13 6l6 6-6 6'],
+      edit: ['M12 20h9', 'M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'],
     };
 
     function icon(name, size = 16) {
@@ -876,6 +895,8 @@ window.__ModuleLoader__.load({
       auditMeta: { fontSize: 11.5, color: COLORS.dim, lineHeight: 1.5 },
       timeline: { display: 'flex', flexDirection: 'column', gap: 2 },
       timelineRow: { display: 'flex', gap: 10, fontSize: 11.5, lineHeight: 1.6 },
+      editForm: { display: 'flex', flexDirection: 'column', gap: 6 },
+      editArea: { width: '100%', boxSizing: 'border-box', minHeight: 160, padding: '10px 12px', borderRadius: 10, border: '1px solid ' + COLORS.border, background: COLORS.surface, color: COLORS.text, fontSize: 13, lineHeight: 1.6, fontFamily: 'inherit', resize: 'vertical' },
       timelineAt: { color: COLORS.dim, minWidth: 118, flexShrink: 0, fontVariantNumeric: 'tabular-nums' },
       timelineText: { color: COLORS.text, minWidth: 0 },
       provBox: { marginTop: 14, paddingTop: 12, borderTop: '1px solid ' + COLORS.border, display: 'flex', flexDirection: 'column', gap: 6 },
@@ -1038,6 +1059,7 @@ window.__ModuleLoader__.load({
       const [older, setOlder] = useState({ items: [], total: 0, loading: false });
       const [filters, setFilters] = useState({ kind: '', days: 0 });
       const [note, setNote] = useState(null);
+      const [editing, setEditing] = useState(null);
       const [wizard, setWizard] = useState(() => ({
         open: !wizardDone(),
         step: 0,
@@ -1200,6 +1222,7 @@ window.__ModuleLoader__.load({
       const openNote = useCallback(
         async (id) => {
           if (!id) return;
+          setEditing(null);
           setNote({ id, loading: true });
           try {
             const [result, provenance, timeline] = await Promise.all([
@@ -1906,8 +1929,42 @@ window.__ModuleLoader__.load({
                 h('button', { type: 'button', style: ui.iconButton, onClick: () => setNote(null), 'aria-label': t('closeNote') }, icon('x', 16)),
               ),
               h('div', { style: ui.overlayBody },
-                note.loading ? h('p', { style: ui.muted }, t('loading')) : note.error ? h('p', { style: ui.errorLine }, String(note.error)) : h('pre', { style: ui.noteBody }, String(note.body || '')),
-                note.loading || note.error || !note.provenance
+                note.loading || note.error
+                  ? h('p', { style: note.error ? ui.errorLine : ui.muted }, note.error ? String(note.error) : t('loading'))
+                  : editing
+                    ? h('div', { style: ui.editForm },
+                        h('label', { style: ui.provLabel }, t('editTitle')),
+                        h('input', { style: ui.input, value: editing.title, onChange: (event) => setEditing((prev) => ({ ...prev, title: event.target.value })) }),
+                        h('label', { style: ui.provLabel }, t('editBody')),
+                        h('textarea', { style: ui.editArea, rows: 8, value: editing.content, onChange: (event) => setEditing((prev) => ({ ...prev, content: event.target.value })) }),
+                        h('p', { style: ui.rowHint }, t('editHint')),
+                        editing.error ? h('p', { style: ui.errorLine }, editing.error) : null,
+                        h('div', { style: ui.actionRow },
+                          h('button', {
+                            type: 'button',
+                            style: ui.buttonPrimary,
+                            disabled: editing.busy,
+                            onClick: async () => {
+                              setEditing((prev) => ({ ...prev, busy: true, error: '' }));
+                              try {
+                                const result = await rpcCall('edit', { id: note.id, title: editing.title, content: editing.content });
+                                setEditing(null);
+                                setNote(null);
+                                setState((prev) => ({ ...prev, notice: t('editSaved'), error: null }));
+                                load();
+                                void result;
+                              } catch (error) {
+                                const message = String(error?.message || error);
+                                const friendly = /too-long/i.test(message) ? t('editTooLong') : /unchanged/i.test(message) ? t('editUnchanged') : message;
+                                setEditing((prev) => ({ ...prev, busy: false, error: friendly }));
+                              }
+                            },
+                          }, editing.busy ? t('addSaving') : t('editSave')),
+                          h('button', { type: 'button', style: ui.buttonGhost, onClick: () => setEditing(null) }, t('editCancel')),
+                        ),
+                      )
+                    : h('pre', { style: ui.noteBody }, String(note.body || '')),
+                note.loading || note.error || editing || !note.provenance
                   ? null
                   : h('div', { style: ui.provBox },
                       h('div', { style: ui.provTitle }, t('provTitle')),
@@ -1929,7 +1986,12 @@ window.__ModuleLoader__.load({
                           : h('p', { style: ui.muted }, t('provTimelineEmpty'))
                       ),
                     ),
-                note.loading || note.error ? null : h('div', { style: ui.actionRow },
+                note.loading || note.error || editing ? null : h('div', { style: ui.actionRow },
+                  h('button', {
+                    type: 'button',
+                    style: ui.buttonGhost,
+                    onClick: () => setEditing({ title: String(note.title || ''), content: String(note.body || ''), busy: false, error: '' }),
+                  }, icon('edit', 14), h('span', null, t('editButton'))),
                   h('span', { style: ui.muted }, t('feedbackAsk')),
                   h('button', {
                     type: 'button',
