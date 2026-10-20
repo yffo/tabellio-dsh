@@ -5,8 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { openStore, remember } from 'tabellio';
 import { noteProvenance, noteTimeline, provenanceView, recallUsage } from '../src/provenance.js';
-import { appendFeedback } from '../src/feedback.js';
-import { appendOutcome } from '../src/outcome.js';
+import { recordFeedback } from 'tabellio';
 
 const temp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'tabellio-provenance-'));
 
@@ -60,8 +59,8 @@ test('timeline merges creation, recalls, corrections and feedback', () => {
   const runs = path.join(dir, 'runs');
   fs.mkdirSync(runs, { recursive: true });
   fs.writeFileSync(path.join(runs, 'rcp_00000001.json'), JSON.stringify({ items: [{ id }], query: '发版怎么走？', createdAt: '2026-10-19T06:00:00+08:00' }));
-  appendFeedback(store, { id, signal: 'useful' });
-  appendOutcome(store, { noteIds: [id], query: '发版方式', at: Date.now() });
+  recordFeedback(store, { id, signal: 'useful' });
+  recordFeedback(store, { noteIds: [id], signal: 'corrected', query: '发版方式' });
 
   const events = noteTimeline(store, id);
   assert.ok(events.some((event) => event.kind === 'created'));

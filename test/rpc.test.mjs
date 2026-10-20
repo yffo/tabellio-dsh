@@ -68,7 +68,7 @@ test('feedback.add records a signal and status reports the counts', async (t) =>
   const { dir, store } = await tempStore(t);
   const handler = handlerFor(dir, store);
   const before = await handler('status', {});
-  assert.deepEqual(before.value.feedback, { total: 0, useful: 0, wrong: 0, stale: 0 });
+  assert.deepEqual(before.value.feedback, { total: 0, useful: 0, wrong: 0, stale: 0, corrected: 0 });
 
   const written = await handler('feedback.add', { id: '01ABC', signal: 'useful' });
   assert.equal(written.ok, true);

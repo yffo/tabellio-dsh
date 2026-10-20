@@ -983,14 +983,14 @@ test('a correction after an injected recall is recorded as an outcome', async (t
 
   const second = await runPre(host.handlers, who, [human('m2', '不对，项目代号不是青鸟，是白鹭。')]);
   assert.equal(second.kind, 'enter');
-  const outcomes = fs
-    .readFileSync(path.join(dir, 'outcome.jsonl'), 'utf8')
+  const rows = fs
+    .readFileSync(path.join(dir, 'runs', 'feedback.jsonl'), 'utf8')
     .split('\n')
     .filter(Boolean)
     .map((line) => JSON.parse(line));
-  assert.equal(outcomes.length, 1);
-  assert.equal(outcomes[0].signal, 'corrected');
-  assert.ok(outcomes[0].overlap >= 3);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].signal, 'corrected');
+  assert.equal(rows[0].source, 'dsh:outcome');
 });
 
 const emitSession = (handlers, session, event) => {
