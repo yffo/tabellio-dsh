@@ -5,9 +5,7 @@
 // recall receipts under runs/. Nothing new is written here.
 import fs from 'node:fs';
 import path from 'node:path';
-import { read } from 'tabellio';
-import { readFeedback } from './feedback.js';
-import { readOutcomes } from './outcome.js';
+import { read, readFeedback } from 'tabellio';
 
 export const MAX_RECEIPT_SCAN = 500;
 
@@ -98,15 +96,15 @@ export function noteTimeline(store, id, { limit = 20, maxReceipts = MAX_RECEIPT_
     const at = msOfStamp(receipt.createdAt);
     if (at) events.push({ at, kind: 'recall', text: '召回：' + String(receipt.query || '').slice(0, 60), query: String(receipt.query || '') });
   }
-  for (const outcome of readOutcomes(store)) {
-    if (!Array.isArray(outcome.noteIds) || !outcome.noteIds.includes(id)) continue;
-    const at = Number(outcome.at) || null;
-    if (at) events.push({ at, kind: 'correction', text: '你纠正过的对话：' + String(outcome.query || '').slice(0, 60) });
-  }
-  for (const entry of readFeedback(store)) {
-    if (entry.id !== id) continue;
+  for (const entry of readFeedback(store, { max: 5000 })) {
+    if (!Array.isArray(entry.noteIds) || !entry.noteIds.includes(id)) continue;
     const at = Number(entry.at) || null;
-    if (at) events.push({ at, kind: 'feedback', text: FEEDBACK_TEXT[entry.signal] || '面板反馈' });
+    if (!at) continue;
+    if (entry.signal === 'corrected') {
+      events.push({ at, kind: 'correction', text: '你纠正过的对话：' + String(entry.query || '').slice(0, 60) });
+    } else {
+      events.push({ at, kind: 'feedback', text: FEEDBACK_TEXT[entry.signal] || '面板反馈' });
+    }
   }
   return events.sort((a, b) => b.at - a.at).slice(0, limit);
 }

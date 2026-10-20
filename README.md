@@ -196,7 +196,9 @@ dsh plugin --profile desktop add tabellio-dsh
 | `recallMaxNotes` | `6` | 最多几条，1–20 |
 | `recallIntentGate` | `true` | 没有记忆意图的问句不注入 |
 | `recallConfidentRelevance` | `0.9` | 首条相关度到这条线时，即使没有意图词也放行 |
-| `feedbackRanking` | `true` | 用「有用 / 不对」反馈给召回结果做小幅重排（不增删笔记） |
+| `feedbackRanking` | `true` | 用「有用 / 不对」反馈给召回结果做小幅重排（不增删笔记；事件存核心的 `<store>/runs/feedback.jsonl`） |
+| `decayDays` | `180` | 遗忘衰减半衰期（天）；`0` 关闭。只压排序，不归档 |
+| `decayFloor` | `0.6` | 衰减下限（0–1）；`user_stated` 与 `evergreen` 笔记不衰减 |
 | `captureAssistant` | `false` | 每轮结束时把助手给出的结论/决定（含结论、以后、统一等线索）整理成一条候选，仍需你批准；默认关。 |
 | `outcomeFeedback` | `true` | 注入后下一轮你说「不对/不是…而是」且与被注入笔记有词面重叠时，记一条局部纠正信号，用于小幅降权（10 分钟窗口，不删笔记、不越过闸门） |
 | `recallTrusts` | `user_stated`、`system_derived` | 自动召回信任哪些来源；导入的文档（`external`）默认只参与搜索/面板，不自动注入 |

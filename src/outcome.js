@@ -1,26 +1,18 @@
-// Retrieval outcome: turn a later "no, that's wrong" into a local signal about
-// the memory that was actually injected before it. The signal never deletes a
-// note and never outvotes the core relevance gates; it only nudges order, and
-// only when the correction sentence visibly talks about the same topic
-// (token overlap with the note body) — otherwise we would blame the memory for
-// an unrelated mistake.
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
-import path from 'node:path';
-import { read as readNote } from 'tabellio';
+// Retrieval outcome: turn a later "no, that's wrong" into a correction event
+// about the memory that was actually injected before it. Attribution stays in
+// the adapter (it needs turn state); the event log and ranking belong to the
+// core so every host shares the same feedback.
+import { read as readNote, readFeedback, recordFeedback } from 'tabellio';
 import { tokensOf } from './conflicts.js';
 
-export const OUTCOME_FILE = 'outcome.jsonl';
 export const OUTCOME_WINDOW_MS = 10 * 60 * 1000;
-const MAX_ENTRIES = 5000;
 
-const pathFor = (store) => path.join(store?.store ?? '', OUTCOME_FILE);
 // A correction cue broad enough for attribution: the overlap requirement, not
 // the wording, is what keeps unrelated complaints from blaming a note.
 const CORRECTION_CUE = /(不对|错了|放错|写错|说错|记错|弄错|搞错|改错|算错|不是|改成|改为|纠正|更正|应该是|其实是)/;
-const correctionRe = CORRECTION_CUE;
 
 export function hasCorrectionCue(text) {
-  return correctionRe.test(String(text ?? ''));
+  return CORRECTION_CUE.test(String(text ?? ''));
 }
 
 export function sharedTokenCount(a, b) {
@@ -32,61 +24,9 @@ export function sharedTokenCount(a, b) {
   return shared;
 }
 
-export function appendOutcome(store, entry = {}) {
-  const noteIds = [...new Set((Array.isArray(entry.noteIds) ? entry.noteIds : []).map(String).filter(Boolean))].slice(0, 6);
-  if (!noteIds.length) return { ok: false, reason: 'missing_notes' };
-  try {
-    const dir = store?.store;
-    if (!dir) return { ok: false, reason: 'missing_store' };
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    const line = JSON.stringify({
-      signal: 'corrected',
-      noteIds,
-      query: String(entry.query ?? '').slice(0, 120),
-      excerpt: String(entry.excerpt ?? '').slice(0, 160),
-      overlap: Number(entry.overlap) || 0,
-      at: Number(entry.at) || Date.now(),
-    });
-    appendFileSync(pathFor(store), line + '\n', 'utf8');
-    return { ok: true, noteIds };
-  } catch (error) {
-    return { ok: false, reason: 'write_failed', message: String(error?.message ?? error) };
-  }
-}
-
-export function readOutcomes(store, { max = MAX_ENTRIES } = {}) {
-  try {
-    const file = pathFor(store);
-    if (!existsSync(file)) return [];
-    const lines = readFileSync(file, 'utf8').split('\n').filter(Boolean);
-    const parsed = [];
-    for (const line of lines) {
-      try {
-        const item = JSON.parse(line);
-        if (item && Array.isArray(item.noteIds)) parsed.push(item);
-      } catch {
-        // A half-written line from a crash is skipped, not fatal.
-      }
-    }
-    return parsed.slice(-max);
-  } catch {
-    return [];
-  }
-}
-
-export function outcomePenalties(store, { days = 30, now = Date.now() } = {}) {
-  const since = now - days * 24 * 60 * 60 * 1000;
-  const counts = new Map();
-  for (const entry of readOutcomes(store)) {
-    if ((Number(entry.at) || 0) < since) continue;
-    for (const id of entry.noteIds) counts.set(id, (counts.get(id) ?? 0) + 1);
-  }
-  return counts;
-}
-
 /**
  * Record a correction against the notes injected on the previous turn, when
- * (and only when) the two texts share at least two tokens. Pass `state` with
+ * (and only when) the two texts share at least three tokens. Pass `state` with
  * `injectedIds`/`injectedAt`/`injectedQuery`; returns the recorded hit or null.
  */
 export function maybeRecordCorrection({ store, state, text, now = Date.now() } = {}) {
@@ -107,27 +47,33 @@ export function maybeRecordCorrection({ store, state, text, now = Date.now() } =
   // (for example a meeting change inside a project whose codename was recalled),
   // so a correction needs three before it can demote a note.
   if (overlap < 3) return null;
-  const saved = appendOutcome(store, { noteIds, query: state.injectedQuery, excerpt: text, overlap, at: now });
-  if (!saved.ok) return null;
+  const saved = recordFeedback(store, {
+    noteIds,
+    signal: 'corrected',
+    query: state.injectedQuery,
+    source: 'dsh:outcome',
+  });
+  if (!saved?.ok) return null;
   state.injectedIds = [];
   return { noteIds, overlap };
 }
 
+/** Corrections in the window, counted from the core's feedback log. */
 export function outcomeSummary(store, { days = 30, now = Date.now() } = {}) {
-  const penalties = outcomePenalties(store, { days, now });
+  const since = now - Math.max(0, days) * 24 * 60 * 60 * 1000;
+  const notes = new Set();
   let corrected = 0;
-  for (const count of penalties.values()) corrected += count;
-  return { corrected, notes: penalties.size };
+  for (const row of readFeedback(store, { max: 5000 })) {
+    if (row.signal !== 'corrected' || (Number(row.at) || 0) < since) continue;
+    corrected += 1;
+    for (const id of row.noteIds ?? []) notes.add(String(id));
+  }
+  return { corrected, notes: notes.size };
 }
 
-/** Demote notes that were corrected before; stable, bounded, never removes. */
-export function rankByOutcome(items, penalties, { step = 0.08, cap = 3 } = {}) {
-  if (!Array.isArray(items) || !penalties || !penalties.size) return items;
-  return items
-    .map((item, index) => {
-      const count = Math.min(cap, penalties.get(item.id) ?? 0);
-      return { item, index, factor: 1 - step * count };
-    })
-    .sort((a, b) => b.factor - a.factor || a.index - b.index)
-    .map((row) => row.item);
+export function feedbackCountsFrom(store, { max = 2000 } = {}) {
+  const rows = readFeedback(store, { max });
+  const counts = { total: rows.length, useful: 0, wrong: 0, stale: 0, corrected: 0 };
+  for (const row of rows) if (counts[row.signal] !== undefined) counts[row.signal] += 1;
+  return counts;
 }

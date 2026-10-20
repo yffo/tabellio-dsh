@@ -33,6 +33,8 @@ export const DEFAULTS = Object.freeze({
   // question in the same set stayed at or below 0.911.
   recallConfidentRelevance: 0.9,
   feedbackRanking: true,
+  decayDays: 180,
+  decayFloor: 0.6,
   // Imported reference documents carry trust 'external'. They stay searchable
   // from the panel and the tools, but auto-recall only injects what the user
   // stated or the system derived — otherwise 600+ docs drown ordinary chat.
@@ -157,6 +159,8 @@ export function normalizeConfig(config = {}) {
     recallIntentGate: raw.recallIntentGate === undefined ? DEFAULTS.recallIntentGate : raw.recallIntentGate === true,
     recallConfidentRelevance: ratio(raw.recallConfidentRelevance, DEFAULTS.recallConfidentRelevance),
     feedbackRanking: raw.feedbackRanking === undefined ? DEFAULTS.feedbackRanking : raw.feedbackRanking === true,
+    decayDays: int(raw.decayDays, DEFAULTS.decayDays, 0, 3650),
+    decayFloor: ratio(raw.decayFloor, DEFAULTS.decayFloor),
     recallTrusts: trusts(raw.recallTrusts),
     autoApprove: raw.autoApprove === 't0' ? 't0' : 'off',
     capture,

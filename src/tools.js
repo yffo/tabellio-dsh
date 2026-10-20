@@ -1,9 +1,9 @@
-import { addCandidate, applyContentConsolidation, consolidate, listCandidates, proposeConsolidation, read, recallQuery, reviewCandidates, search, status } from 'tabellio';
+import { addCandidate, applyContentConsolidation, consolidate, listCandidates, proposeConsolidation, read, recallQuery, reviewCandidates, search, status, recordFeedback, feedbackSummary } from 'tabellio';
 import { findConflicts } from './conflicts.js';
 import { formatRecallTool } from './render.js';
 import { buildReport, renderReport } from './report.js';
 import { looksLikeCredentialLeak } from './capture.js';
-import { appendFeedback, feedbackCounts, readFeedback, SIGNALS } from './feedback.js';
+const SIGNALS = new Set(['useful', 'wrong', 'stale']);
 import { editNote } from './edit.js';
 
 const jsonText = (_args, value) => [{ type: 'text', text: JSON.stringify(value) }];
@@ -808,8 +808,9 @@ export function createToolDefinitions({ settings, getStore, getLastRecall = () =
               useful: { type: 'integer' },
               wrong: { type: 'integer' },
               stale: { type: 'integer' },
+              corrected: { type: 'integer' },
             },
-            required: ['total', 'useful', 'wrong', 'stale'],
+            required: ['total', 'useful', 'wrong', 'stale', 'corrected'],
           },
           message: { type: 'string' },
         },
@@ -818,8 +819,9 @@ export function createToolDefinitions({ settings, getStore, getLastRecall = () =
         render: (args, value) => plainText(String(value.message)),
       },
       execute: async ({ id, signal, query }) => {
-        const written = appendFeedback(getStore(), { id, signal, query, source: 'dsh:tool' });
-        const counts = feedbackCounts(readFeedback(getStore()));
+        const written = recordFeedback(getStore(), { id, signal, query, source: 'dsh:tool' });
+        const summary = feedbackSummary(getStore(), { days: 3650 });
+        const counts = { total: summary.total, ...summary.counts };
         const label = { useful: '有用', wrong: '不对', stale: '过时' }[String(signal)] ?? String(signal);
         return {
           ok: Boolean(written.ok),

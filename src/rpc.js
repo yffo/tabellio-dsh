@@ -2,12 +2,11 @@
 // reject, and search the store. Every endpoint is a thin projection of the
 // tabellio API — the panel never writes memory directly, it only exercises the
 // same approval gate the `tabellio inbox` CLI uses.
-import { applyContentConsolidation, consolidate, listCandidates, listProposals, proposeConsolidation, read, remember, reviewCandidates, reviewProposals, search, status } from 'tabellio';
+import { applyContentConsolidation, consolidate, listCandidates, listProposals, proposeConsolidation, read, remember, reviewCandidates, reviewProposals, search, status, recordFeedback, feedbackSummary } from 'tabellio';
 import { buildNotesPage, buildReport } from './report.js';
 import { findConflicts, readConflictState } from './conflicts.js';
 import { readLastRun } from './consolidate.js';
 import { auditCounts, readAudit, readAuditSince, summarizeAudit } from './audit.js';
-import { appendFeedback, feedbackCounts, readFeedback } from './feedback.js';
 import { outcomeSummary } from './outcome.js';
 import { noteTimeline, provenanceView } from './provenance.js';
 import { editNote } from './edit.js';
@@ -69,7 +68,7 @@ function judgeView(state) {
 function statusView(settings, store, lastRecall, judgeState, semanticState, worthState, reflectState) {
   const result = status(store);
   return {
-    feedback: feedbackCounts(readFeedback(store, { max: 2000 })),
+    feedback: summarizeFeedback(store),
     outcome: outcomeSummary(store),
     store: store.store,
     exists: Boolean(store.exists()),
@@ -153,6 +152,11 @@ function reviewPayload(payload) {
  * Build the channel handler. One store instance is shared with the tools and
  * auto recall, so a hot store invalidate is reflected everywhere.
  */
+function summarizeFeedback(store) {
+  const summary = feedbackSummary(store, { days: 3650 });
+  return { total: summary.total, ...summary.counts };
+}
+
 export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeState, getWorthState, getReflectState, getSemanticState, getSettingsView, updateSettings, testSemantic, getSemanticModels }) {
   return async function handler(endpoint, payload) {
     try {
@@ -223,7 +227,7 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
           const id = String(payload?.id ?? '').trim();
           const signal = String(payload?.signal ?? '').trim();
           if (!id) return fail('bad-request', 'id must be a non-empty string');
-          const written = appendFeedback(store, { id, signal, query: String(payload?.query ?? ''), source: 'dsh:panel' });
+          const written = recordFeedback(store, { id, signal, query: String(payload?.query ?? ''), source: 'dsh:panel' });
           if (!written.ok) return fail('bad-request', written.reason ?? 'write_failed');
           return ok(written);
         }

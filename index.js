@@ -18,8 +18,7 @@ import { extractAssistantConclusion, extractCandidates, hasSecretHint, looksLike
 import { createJudgeCache, filterByJudge, judgeCacheKey } from './src/judge.js';
 import { appendJudgeEvent } from './src/judge-log.js';
 import { appendUsage } from './src/usage.js';
-import { readFeedback, aggregateFeedback, rankByFeedback } from './src/feedback.js';
-import { maybeRecordCorrection, outcomePenalties, rankByOutcome } from './src/outcome.js';
+import { maybeRecordCorrection } from './src/outcome.js';
 import { filterCandidatesByWorth } from './src/worth.js';
 import { formatRecall } from './src/render.js';
 import { createRpcHandler } from './src/rpc.js';
@@ -854,6 +853,10 @@ export function apply(ctx, config = {}) {
         // Reference documents are searchable on demand, not injected: an
         // imported doc's trust is 'external' and the default list excludes it.
         trusts: settings.recallTrusts,
+        // Ranking enhancements live in the core now: feedback only reorders
+        // already-admitted items, and decay is opt-in via decayDays.
+        applyFeedback: settings.feedbackRanking,
+        decay: settings.decayDays > 0 ? { halfLifeDays: settings.decayDays, floor: settings.decayFloor } : null,
         // Shadow mode records the same recall as a durable receipt in the
         // store (runs/rcp_*.json), so an A/B can be replayed with
         // `tabellio explain --receipt`, without touching the turn.
@@ -1001,25 +1004,6 @@ export function apply(ctx, config = {}) {
           });
         } catch {
           // the sampling log is diagnostics; never let it break a turn
-        }
-      }
-
-      // Usage feedback only reorders; it never adds, drops or rewrites a note.
-      if (settings.feedbackRanking && result.items.length > 1) {
-        try {
-          const aggregates = aggregateFeedback(readFeedback(currentStore(), { max: 2000 }));
-          result.items = rankByFeedback(result.items, aggregates);
-        } catch (error) {
-          ctx.logger?.debug?.('tabellio-dsh: feedback ranking skipped: ' + (error?.message ?? error));
-        }
-      }
-      // Corrections recorded from earlier turns only demote, and a single
-      // signal is a nudge rather than a verdict.
-      if (settings.outcomeFeedback && result.items.length > 1) {
-        try {
-          result.items = rankByOutcome(result.items, outcomePenalties(currentStore()));
-        } catch (error) {
-          ctx.logger?.debug?.('tabellio-dsh: outcome ranking skipped: ' + (error?.message ?? error));
         }
       }
 

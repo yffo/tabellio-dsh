@@ -1,3 +1,13 @@
+## 0.33.0
+
+把「反馈排序」和「遗忘衰减」交还给核心：插件不再自己存 `panel-feedback.jsonl` / `outcome.jsonl`，也不再自己算排序权重。
+
+- **反馈落点**：`tabellio_feedback` 工具与 `feedback.add` 面板端点改调核心 `recordFeedback`，事件统一写 `<store>/runs/feedback.jsonl`；核心读取时自动合并旧的两个插件文件，历史反馈不丢。
+- **排序**：召回不再由插件二次排序，而是在调用核心 `recallQuery` 时传 `applyFeedback`（由 `feedbackRanking` 控制）与 `decay`（由 `decayDays` / `decayFloor` 控制）。核心只调顺序，不增删、不越过召回闸。
+- **纠错归因仍留在插件**：`maybeRecordCorrection` 需要上一轮的注入状态与会话上下文，判定命中后写一条核心 `corrected` 事件；不再自建日志。
+- **新增配置**：`decayDays`（默认 180，`0` 关闭）与 `decayFloor`（默认 0.6）；`trust: user_stated` 与 `evergreen` 笔记不衰减。
+- **行为差异**：`outcomeFeedback` 只控制「是否做纠错归因」，不再控制排序。
+
 ## 0.32.1
 
 - 面板主题修复：改用宿主真实 token（`--dsw-alias-*`，暗色模式不再白底），补齐缺失的 `COLORS.bg/surface/input` 与 `ui.errorLine/noteMain/kvKey/kvValue` 样式。
