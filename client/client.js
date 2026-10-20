@@ -224,6 +224,14 @@ window.__ModuleLoader__.load({
     conflictsCancel: '取消',
     conflictsMerged: '已合并为 ',
     conflictsPreviewFailed: '这两条现在不能合并',
+    conflictsScanned: '上次扫描：{when} · {n} 对',
+    conflictsNone: '没有发现可能过时的记忆',
+    semanticLabel: '语义',
+    usageTitle: '记忆使用与成本',
+    usageHint: '近 7 天本机统计；token 为估算，实际费用由所用模型决定。',
+    usageChars: '注入字符 / 召回次数',
+    usageTokens: '字符 → 估算 token',
+    usageEmpty: '这段时间还没有召回记录',
       feedbackAsk: '这条记忆准吗？',
       feedbackUseful: '有用',
       feedbackWrong: '不对 / 过时',
@@ -500,6 +508,26 @@ window.__ModuleLoader__.load({
     conflictsCancel: 'Cancel',
     conflictsMerged: 'Merged into ',
     conflictsPreviewFailed: 'These two notes cannot be merged right now',
+    conflictsScanned: 'Last scan: {when} · {n} pair(s)',
+    conflictsNone: 'No probably-outdated memories found',
+    semanticLabel: 'Semantic',
+    usageTitle: 'Memory usage & cost',
+    usageHint: 'Local stats for the last 7 days; tokens are estimated and the real cost depends on the model.',
+    usageChars: 'Injected chars / recalls',
+    usageTokens: 'Chars → estimated tokens',
+    usageEmpty: 'No recall activity in this period',
+    consolidateLabel: 'Daily maintenance',
+    consDaily: 'Daily',
+    consWeekly: 'Weekly',
+    consOff: 'Off',
+    consNever: 'Not run yet',
+    consLast: 'Last {when}',
+    settingsCapture: 'Capture from conversation',
+    settingsDelivery: 'How memories reach you',
+    settingsDeliveryContext: 'Quiet context (no chat lines)',
+    settingsDeliveryNotice: 'Notice in chat',
+    settingsMaxNotes: 'Max memories per turn',
+    settingsSourceHint: 'Saved to panel-settings.json; advanced thresholds stay in host config.',
     feedbackAsk: 'Was this memory accurate?',
     feedbackUseful: 'Helpful',
     feedbackWrong: 'Wrong / stale',
@@ -586,12 +614,22 @@ window.__ModuleLoader__.load({
       }
     };
 
+    // Prefer the host's real theme tokens (`--dsw-alias-*`), keep the older
+    // `--dsh-*` names as a second fallback for older shells, and only then a
+    // light-mode literal. A missing token must never leave `background:
+    // undefined` in a style object.
     const COLORS = {
-      text: 'var(--dsh-text-primary, #1f2328)',
-      dim: 'var(--dsh-text-secondary, #6b7280)',
-      border: 'var(--dsh-border-color, rgba(127,127,127,0.28))',
-      card: 'var(--dsh-fill-secondary, rgba(127,127,127,0.08))',
-      accent: 'var(--dsh-accent-color, #4f6ef7)',
+      text: 'var(--dsw-alias-label-primary, var(--dsh-text-primary, #1f2328))',
+      dim: 'var(--dsw-alias-label-secondary, var(--dsh-text-secondary, #6b7280))',
+      border: 'var(--dsw-alias-border-l1, var(--dsh-border-color, rgba(127,127,127,0.28)))',
+      card: 'var(--dsw-alias-bg-layer-2, var(--dsh-fill-secondary, rgba(127,127,127,0.08)))',
+      bg: 'var(--dsw-alias-bg-layer-1, #ffffff)',
+      surface: 'var(--dsw-alias-bg-layer-2, #ffffff)',
+      input: 'var(--dsw-alias-bg-overlay, #ffffff)',
+      accent: 'var(--dsw-alias-brand-primary, var(--dsh-accent-color, #4f6ef7))',
+      good: 'var(--dsw-alias-state-success-primary, #15803D)',
+      warn: 'var(--dsw-alias-state-warn-primary, #B45309)',
+      bad: 'var(--dsw-alias-state-error-primary, #B91C1C)',
     };
 
     const styles = {
@@ -949,6 +987,10 @@ window.__ModuleLoader__.load({
       hitTitle: { minWidth: 0, overflowWrap: 'anywhere' },
       score: { color: COLORS.dim, flexShrink: 0, fontVariantNumeric: 'tabular-nums', fontSize: 12 },
       muted: { color: COLORS.dim, fontSize: 12.5, margin: 0 },
+      errorLine: { color: COLORS.bad, fontSize: 12.5, margin: 0, lineHeight: 1.55 },
+      noteMain: { display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 },
+      kvKey: { color: COLORS.dim, fontSize: 12, flexShrink: 0 },
+      kvValue: { color: COLORS.text, fontSize: 12, fontVariantNumeric: 'tabular-nums' },
       firstRun: {
         display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px',
         border: '1px dashed ' + COLORS.border, borderRadius: 12, color: COLORS.dim, fontSize: 12.5,
