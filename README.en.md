@@ -182,6 +182,7 @@ Ordinary users never touch a config file: the panel asks one question — is **S
 | `captureMaxSentenceChars` | `240` | Per-sentence cap, 40–1000 |
 | `judge` | `llm` | `llm` / `off` |
 | `judgeProvider` / `judgeModel` | empty | Leave empty to use the host default model |
+| `judgeCacheMinutes` | `10` | Reuse a verdict for the same question and recall set within this window; `0` disables |
 | `judgeTimeoutMs` | `4000` | Judge timeout, 500–15000; falls back to lexical matching |
 
 ### Tests and evaluation

@@ -6,6 +6,7 @@
 // the notes that actually help, before the recall is injected. Every failure
 // path falls back to the unjudged hits: the judge may remove noise, it must
 // never remove memory because the model call broke.
+import { createHash } from 'node:crypto';
 import { read } from 'tabellio';
 
 export const JUDGE_TIMEOUT_MS = 4000;
@@ -159,4 +160,39 @@ export async function filterByJudge({ llm, selection, query, items, store, maxNo
   // be vetoed: keep them instead of silently dropping the recall tail.
   const judgedIds = new Set(notes.map((note) => note.id));
   return { items: items.filter((item) => !judgedIds.has(item.id) || ids.has(item.id)), judged: true };
+}
+
+/**
+ * A short-lived verdict cache: the same question against the same note set
+ * should not pay for a model call twice. The key includes the note ids, so a
+ * changed recall set is always re-judged. `0` minutes disables the cache.
+ */
+export function judgeCacheKey(query, ids) {
+  const normalized = String(query ?? '').trim().toLowerCase();
+  return createHash('sha1').update(normalized + '\u0000' + ids.join('\u0000')).digest('hex').slice(0, 16);
+}
+
+export function createJudgeCache({ ttlMs = 10 * 60 * 1000, now = () => Date.now(), max = 200 } = {}) {
+  const entries = new Map();
+  return {
+    get(key) {
+      const entry = entries.get(key);
+      if (!entry) return null;
+      if (now() - entry.at > ttlMs) {
+        entries.delete(key);
+        return null;
+      }
+      return entry.value;
+    },
+    set(key, value) {
+      entries.set(key, { at: now(), value });
+      while (entries.size > max) {
+        const oldest = entries.keys().next().value;
+        entries.delete(oldest);
+      }
+    },
+    get size() {
+      return entries.size;
+    },
+  };
 }

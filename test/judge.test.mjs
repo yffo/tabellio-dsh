@@ -6,7 +6,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { openStore, remember } from 'tabellio';
-import { buildJudgePrompt, filterByJudge, judgeNotes, parseJudgeReply } from '../src/judge.js';
+import { buildJudgePrompt, createJudgeCache, filterByJudge, judgeCacheKey, judgeNotes, parseJudgeReply } from '../src/judge.js';
 
 const streamOf = (parts) => ({
   stream() {
@@ -127,4 +127,16 @@ test('judge reports the raw reply for diagnostics', async () => {
   });
   assert.equal(seen, '{"keep": [1]}');
   assert.deepEqual([...kept], [0]);
+});
+
+test('a judge verdict cache expires and keys include the note set', () => {
+  let now = 1000;
+  const cache = createJudgeCache({ ttlMs: 5000, now: () => now });
+  const key = judgeCacheKey('项目代号是什么？', ['a', 'b']);
+  assert.equal(cache.get(key), null);
+  cache.set(key, { kept: ['a'] });
+  assert.deepEqual(cache.get(key), { kept: ['a'] });
+  assert.notEqual(judgeCacheKey('项目代号是什么？', ['a', 'c']), key);
+  now += 5001;
+  assert.equal(cache.get(key), null);
 });

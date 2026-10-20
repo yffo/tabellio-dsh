@@ -218,6 +218,7 @@ dsh plugin --profile desktop add tabellio-dsh
 | `judge` | `llm` | `llm` / `off` |
 | `judgeProvider` / `judgeModel` | 空 | 留空用宿主默认模型 |
 | `judgeTimeoutMs` | `4000` | 裁决超时，500–15000，超时回退词面命中 |
+| `judgeCacheMinutes` | `10` | 同一问题 + 同一批命中在多少分钟内复用裁决结果；`0` 关闭缓存 |
 
 ### 测试与评测
 

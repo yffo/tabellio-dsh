@@ -1037,3 +1037,41 @@ test('assistant capture stays off by default and ignores text without conclusion
   await runSerial(host2.handlers, 'agent/turn-stopping', { agent: who2, turn: {}, signal: null });
   assert.equal(listCandidates(openStore(dir2)).candidates.length, 0);
 });
+
+test('a fresh judge verdict is reused for the same question and recall set', async (t) => {
+  const dir = temp(t);
+  const store = openStore(dir);
+  assert.equal(remember(store, { content: '项目代号是青鸟计划。' }, { writtenBy: 'test' }).ok, true);
+  let calls = 0;
+  const llm = {
+    stream() {
+      calls += 1;
+      return (async function* () {
+        yield { type: 'text-delta', text: '{"keep":[1]}' };
+        yield { type: 'finish' };
+      })();
+    },
+  };
+  const handlers = new Map();
+  const ctx = {
+    get(name) {
+      if (name === 'llm') return llm;
+      if (name === 'agentDefaultModel') return { currentSelection: () => ({ provider: 'p', model: 'm' }) };
+      return undefined;
+    },
+    tools: { register() {} },
+    on(event, handler) {
+      if (!handlers.has(event)) handlers.set(event, []);
+      handlers.get(event).push(handler);
+    },
+    logger: { warn() {} },
+  };
+  apply(ctx, { storePath: dir, judge: 'llm', judgeCacheMinutes: 10, autoRecall: true, shadow: false, capture: 'off' });
+  const who = agent();
+  const first = await runPre(handlers, who, [human('m1', '项目代号是什么？')]);
+  const second = await runPre(handlers, who, [human('m2', '项目代号是什么？')]);
+  assert.equal(calls, 1, 'the second identical recall must reuse the verdict');
+  assert.equal(first.messages.length, 2);
+  // The notice delivery dedupes an unchanged recall set: same notes, no second copy.
+  assert.equal(second.messages.length, 1);
+});

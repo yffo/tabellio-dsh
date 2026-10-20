@@ -1,3 +1,8 @@
+## 0.32.0
+
+- 裁决短缓存：同一问题、同一批命中在 `judgeCacheMinutes`（默认 10 分钟）内复用上次裁决，不再重复调模型；命中集合变化或超时会重新裁决。面板「上次召回」会显示 `cache` 阶段，抽查日志里也记 `verdict: cache`。
+- 新增配置 `judgeCacheMinutes`（0–1440，0 关闭）；README/README.en 配置表同步；174 测试。
+
 ## 0.31.0
 
 - Claude Code 契约检查：新增 `tools/cross-host-claude.mjs`（`npm run check:claude-hooks`），在临时 HOME/临时库里验证 hook 安装写出的 settings 形状、SessionEnd 只把显式线索写成候选、SessionStart 只读提示、以及 MCP `initialize`/`tools/list`/`tools/call` 的 stdio 往返（stdout 仅 JSON-RPC）。CI 与 release 流水线都会跑；不需要模型、不联网、不碰真实配置。

@@ -15,7 +15,7 @@ import { addCandidate, listCandidates, openStore, read as readNote, recallQuery,
 import { normalizeConfig } from './src/config.js';
 import { delegationDepth, isHumanMessage, isChitchat, latestHuman, textOf, trimQuery, intentGateAllows } from './src/messages.js';
 import { extractAssistantConclusion, extractCandidates, hasSecretHint, looksLikeCredentialLeak } from './src/capture.js';
-import { filterByJudge } from './src/judge.js';
+import { createJudgeCache, filterByJudge, judgeCacheKey } from './src/judge.js';
 import { appendJudgeEvent } from './src/judge-log.js';
 import { appendUsage } from './src/usage.js';
 import { readFeedback, aggregateFeedback, rankByFeedback } from './src/feedback.js';
@@ -97,6 +97,7 @@ export function apply(ctx, config = {}) {
   // the outside (2026-10-19: status reported judge off because the handler
   // was created without this getter).
   const judgeState = { mode: settings.judge, host: 'none', selection: null, last: null };
+  const judgeCache = settings.judgeCacheMinutes > 0 ? createJudgeCache({ ttlMs: settings.judgeCacheMinutes * 60 * 1000 }) : null;
   const worthState = { mode: settings.writeJudge, last: null };
   const reflectState = { mode: settings.reflect, last: null };
   // Auto-discovery bookkeeping for the semantic layer (see startSemanticIndexer).
@@ -938,29 +939,42 @@ export function apply(ctx, config = {}) {
       const beforeJudge = Array.isArray(result.items) ? result.items.slice() : [];
       if (runtime) {
         const judgeStartedAt = Date.now();
+        const cacheKey = judgeCache ? judgeCacheKey(query, beforeJudge.map((item) => item.id)) : '';
+        const cached = judgeCache ? judgeCache.get(cacheKey) : null;
+        let filtered;
         let judgeReply = '';
-        const filtered = await filterByJudge({
-          ...runtime,
-          query,
-          items: result.items,
-          maxNotes: settings.recallMaxNotes,
-          store: currentStore(),
-          timeoutMs: settings.judgeTimeoutMs,
-          signal: payload?.signal,
-          onReply: (text) => { judgeReply = text; },
-        });
+        if (cached) {
+          // Same question, same recall set, still fresh: reuse the verdict.
+          const keptIds = new Set(cached.kept);
+          filtered = { judged: true, cached: true, items: beforeJudge.filter((item) => keptIds.has(item.id)) };
+          judgeState.last = { at: Date.now(), stage: 'cache', kept: filtered.items.length, elapsedMs: Date.now() - judgeStartedAt };
+        } else {
+          filtered = await filterByJudge({
+            ...runtime,
+            query,
+            items: result.items,
+            maxNotes: settings.recallMaxNotes,
+            store: currentStore(),
+            timeoutMs: settings.judgeTimeoutMs,
+            signal: payload?.signal,
+            onReply: (text) => { judgeReply = text; },
+          });
+          judgeState.last = filtered.judged
+            ? { at: Date.now(), stage: 'verdict', kept: filtered.items.length, elapsedMs: Date.now() - judgeStartedAt }
+            : {
+              at: Date.now(),
+              stage: 'no_verdict',
+              notes: result.items.length,
+              elapsedMs: Date.now() - judgeStartedAt,
+              // Keep the raw reply preview: a silent fail-open must be explainable.
+              preview: judgeReply.slice(0, 200),
+              chars: judgeReply.length,
+            };
+          if (filtered.judged && judgeCache) {
+            judgeCache.set(cacheKey, { kept: filtered.items.map((item) => item.id) });
+          }
+        }
         judged = filtered.judged;
-        judgeState.last = filtered.judged
-          ? { at: Date.now(), stage: 'verdict', kept: filtered.items.length, elapsedMs: Date.now() - judgeStartedAt }
-          : {
-            at: Date.now(),
-            stage: 'no_verdict',
-            notes: result.items.length,
-            elapsedMs: Date.now() - judgeStartedAt,
-            // Keep the raw reply preview: a silent fail-open must be explainable.
-            preview: judgeReply.slice(0, 200),
-            chars: judgeReply.length,
-          };
         if (filtered.judged && filtered.items.length === 0) {
           lastRecall = recordRecall({
             at: Date.now(),
@@ -983,7 +997,7 @@ export function apply(ctx, config = {}) {
             query,
             kept: keptItems.map((item) => ({ id: item.id, title: item.title })),
             dropped: filtered.judged ? beforeJudge.filter((item) => !keptIds.has(item.id)) : [],
-            verdict: filtered.judged ? 'verdict' : 'no_verdict',
+            verdict: cached ? 'cache' : filtered.judged ? 'verdict' : 'no_verdict',
           });
         } catch {
           // the sampling log is diagnostics; never let it break a turn
