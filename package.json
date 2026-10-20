@@ -1,6 +1,6 @@
 {
   "name": "tabellio-dsh",
-  "version": "0.19.0",
+  "version": "0.19.1",
   "description": "DeepSeek Harness native adapter for tabellio: budgeted auto-recall, native memory tools, and explicit-clue candidates. The memory core stays in tabellio.",
   "keywords": [
     "dsh",
@@ -64,7 +64,8 @@
     "eval:memory": "node tools/memory-eval.mjs",
     "eval:memory:strict": "node tools/memory-eval.mjs --strict",
     "acceptance": "node tests/acceptance.mjs",
-    "check:cross-host": "node tools/cross-host-check.mjs"
+    "check:cross-host": "node tools/cross-host-check.mjs",
+    "eval:outcome": "node tools/outcome-eval.mjs"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org",

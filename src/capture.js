@@ -28,7 +28,7 @@ const CUE_PATTERNS = [
 ];
 
 /** Corrections are memory too: they settle what the old answer got wrong. */
-export const CORRECTION_PATTERNS = [
+const CORRECTION_PATTERNS = [
   /不对[，,、]?\s*(?:应该|要|是|得|用|按)/,
   /(?:说|写|搞|弄|记)错(?:了)?/,
   /不是[^。！？!?]{1,40}而是/,

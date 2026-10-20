@@ -7,7 +7,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { read as readNote } from 'tabellio';
-import { CORRECTION_PATTERNS } from './capture.js';
 import { tokensOf } from './conflicts.js';
 
 export const OUTCOME_FILE = 'outcome.jsonl';
@@ -15,7 +14,10 @@ export const OUTCOME_WINDOW_MS = 10 * 60 * 1000;
 const MAX_ENTRIES = 5000;
 
 const pathFor = (store) => path.join(store?.store ?? '', OUTCOME_FILE);
-const correctionRe = new RegExp(CORRECTION_PATTERNS.map((re) => re.source).join('|'));
+// A correction cue broad enough for attribution: the overlap requirement, not
+// the wording, is what keeps unrelated complaints from blaming a note.
+const CORRECTION_CUE = /(不对|错了|放错|写错|说错|记错|弄错|搞错|改错|算错|不是|改成|改为|纠正|更正|应该是|其实是)/;
+const correctionRe = CORRECTION_CUE;
 
 export function hasCorrectionCue(text) {
   return correctionRe.test(String(text ?? ''));
@@ -101,11 +103,21 @@ export function maybeRecordCorrection({ store, state, text, now = Date.now() } =
     if (!got?.ok) continue;
     overlap = Math.max(overlap, sharedTokenCount(text, String(got.title ?? '') + '\n' + String(got.body ?? '')));
   }
-  if (overlap < 2) return null;
+  // Two shared bigrams are enough for "same topic, different aspect" mistakes
+  // (for example a meeting change inside a project whose codename was recalled),
+  // so a correction needs three before it can demote a note.
+  if (overlap < 3) return null;
   const saved = appendOutcome(store, { noteIds, query: state.injectedQuery, excerpt: text, overlap, at: now });
   if (!saved.ok) return null;
   state.injectedIds = [];
   return { noteIds, overlap };
+}
+
+export function outcomeSummary(store, { days = 30, now = Date.now() } = {}) {
+  const penalties = outcomePenalties(store, { days, now });
+  let corrected = 0;
+  for (const count of penalties.values()) corrected += count;
+  return { corrected, notes: penalties.size };
 }
 
 /** Demote notes that were corrected before; stable, bounded, never removes. */

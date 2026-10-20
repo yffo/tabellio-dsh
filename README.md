@@ -153,6 +153,8 @@ dsh plugin --profile desktop add tabellio-dsh
 不改写、不越过相关性闸门；超过 10 分钟或不相关的「不对」不会被算到记忆头上。
 关掉：`outcomeFeedback: false`。
 
+归因在 36 条合成对抗样本上实测：precision 0.923、recall 1.0（1 条误归因是「同一主题、不同方面」；见 `node tools/outcome-eval.mjs`）。这是合成集，真实会话的准确率还要再量。
+
 ## 隐私
 
 - 全部本地读写；网络只到 `127.0.0.1`（本地向量服务），以及宿主默认模型的一次裁决调用（可关）。

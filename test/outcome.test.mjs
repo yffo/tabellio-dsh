@@ -50,7 +50,7 @@ test('correction attribution requires a cue and visible overlap', () => {
   const hit = maybeRecordCorrection({ store, state, text: '不对，项目代号不是青鸟，是白鹭。' });
   assert.ok(hit);
   assert.equal(hit.noteIds.length, 1);
-  assert.ok(hit.overlap >= 2);
+  assert.ok(hit.overlap >= 3);
   assert.equal(readOutcomes(store).length, 1);
   assert.ok(fs.existsSync(path.join(dir, OUTCOME_FILE)));
   fs.rmSync(dir, { recursive: true, force: true });

@@ -971,5 +971,5 @@ test('a correction after an injected recall is recorded as an outcome', async (t
     .map((line) => JSON.parse(line));
   assert.equal(outcomes.length, 1);
   assert.equal(outcomes[0].signal, 'corrected');
-  assert.ok(outcomes[0].overlap >= 2);
+  assert.ok(outcomes[0].overlap >= 3);
 });

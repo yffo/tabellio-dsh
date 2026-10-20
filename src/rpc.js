@@ -8,6 +8,7 @@ import { findConflicts } from './conflicts.js';
 import { readLastRun } from './consolidate.js';
 import { auditCounts, readAudit, readAuditSince, summarizeAudit } from './audit.js';
 import { appendFeedback, feedbackCounts, readFeedback } from './feedback.js';
+import { outcomeSummary } from './outcome.js';
 
 export const RPC_CHANNEL = '/tabellio-dsh';
 export const MAX_REVIEW_IDS = 50;
@@ -65,6 +66,7 @@ function statusView(settings, store, lastRecall, judgeState, semanticState, wort
   const result = status(store);
   return {
     feedback: feedbackCounts(readFeedback(store, { max: 2000 })),
+    outcome: outcomeSummary(store),
     store: store.store,
     exists: Boolean(store.exists()),
     notes: Number(result.notes) || 0,
