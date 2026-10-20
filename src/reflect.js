@@ -23,8 +23,8 @@ export function buildReflectPrompt(notes) {
   return [
     'You compress a personal memory store into at most two "current state" summaries.',
     'Use only the numbered notes below; do not invent facts, names, numbers or dates.',
-    'Each summary must merge several notes into one durable statement (project state,',
-    'standing rules, or decisions), not repeat a single note.',
+    'Each summary must stay on ONE topic and merge several notes into one durable',
+    'statement (project state, standing rules, or decisions); never mix unrelated themes.',
     'Answer with JSON only:',
     '[{"title":"short title","body":"40-400 character summary","sources":["note-id", "..."]}]',
     'Use an empty array when the notes do not support a summary.',
@@ -61,7 +61,9 @@ export function parseReflectReply(reply, allowedIds) {
   for (const item of parsed.slice(0, 2)) {
     const title = clampText(item?.title, MAX_TITLE);
     const body = clampText(item?.body, MAX_BODY);
-    const sources = Array.isArray(item?.sources) ? item.sources.map(String).filter((id) => allowed.has(id)) : [];
+    const sources = Array.isArray(item?.sources)
+      ? [...new Set(item.sources.map(String).filter((id) => allowed.has(id)))]
+      : [];
     if (title.length < MIN_TITLE || body.length < MIN_BODY || sources.length === 0) continue;
     out.push({ title, body, sources });
   }
