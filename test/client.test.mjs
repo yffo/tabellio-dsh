@@ -132,7 +132,7 @@ test('panel renders the sectioned layout with a populated status', async () => {
     { items: [], total: 0, loading: false },
     { kind: '', days: 0 },
     null,
-    { open: false, step: 0, smart: true, mode: 'local', endpoint: '', model: '', apiKey: '', note: '', error: '', busy: false },
+    { open: true, step: 0, smart: true, mode: 'local', endpoint: '', model: '', apiKey: '', note: '', error: '', busy: false },
     '', false, '', '', null, false,
     { semantic: { mode: 'local', endpoint: 'http://x', model: 'm' }, judge: { mode: 'llm', model: '' }, consolidate: { mode: 'daily' } },
     { semantic: 'local', semanticEndpoint: 'http://x', semanticModel: 'm', judge: 'llm', judgeModel: '', judgeProvider: '', consolidate: 'daily' },
@@ -162,7 +162,7 @@ test('panel renders the sectioned layout with a populated status', async () => {
   };
   walk(tree);
   const flat = texts.join('|');
-  for (const key of ['zh:tabOverview', 'zh:tabPending', 'zh:tabLibrary', 'zh:tabSettings', 'zh:lastRecallLabel', 'zh:notes', 'zh:index']) {
+  for (const key of ['zh:tabOverview', 'zh:tabPending', 'zh:tabLibrary', 'zh:tabSettings', 'zh:lastRecallLabel', 'zh:notes', 'zh:index', 'zh:wizardStep1Title', 'zh:wizardOnTitle', 'zh:wizardNext']) {
     assert.ok(flat.includes(key), 'missing ' + key);
   }
   assert.ok(flat.includes('795'), 'notes metric missing');
