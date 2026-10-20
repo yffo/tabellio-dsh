@@ -200,6 +200,8 @@ window.__ModuleLoader__.load({
       provTags: '标签',
       auditLabel: '最近召回记录',
       reasonNoIntent: '这句不像在问记忆，没带线索词',
+      reasonLowInfo: '这句太短、没有具体对象，先不花模型调用',
+      reasonAlreadyInjected: '这几条记忆本轮已经给过',
       reasonConfident: '高置信直通（没线索但相关度很高）',
       reasonLowScore: '命中太弱，低于相关度门槛',
       reasonLowCoverage: '问句太长或太泛，命中词覆盖不够',
@@ -493,6 +495,8 @@ window.__ModuleLoader__.load({
       provTags: 'Tags',
       auditLabel: 'Recent recalls',
       reasonNoIntent: 'No memory cue in the message',
+      reasonLowInfo: 'Too short and vague to spend a model call on',
+      reasonAlreadyInjected: 'These notes were already injected this turn',
       reasonConfident: 'Confident match without a cue',
       reasonLowScore: 'Match too weak (below relevance gate)',
       reasonLowCoverage: 'Question too broad (coverage gate)',
@@ -1521,6 +1525,8 @@ window.__ModuleLoader__.load({
           cooccurrence_required_pair_missing: 'reasonCooccurrence',
           llm_judge_kept_none: 'reasonJudgeNone',
           same_notes_as_last_time: 'reasonSameNotes',
+          low_information_query: 'reasonLowInfo',
+          already_injected: 'reasonAlreadyInjected',
         };
         return map[reason] ? t(map[reason]) : String(reason);
       };

@@ -19,6 +19,9 @@ export const DEFAULTS = Object.freeze({
   injectMaxChars: 1400,
   injectFullNotes: 2,
   injectRepeat: 'session',
+  // Queries shorter than this (after stripping punctuation) with no number,
+  // latin word or quoted text skip the ~2s judge call.
+  judgeMinChars: 6,
   // Recall gates, in tabellio's own units (see tabellio `recall` docs).
   // The plugin default is tuned for auto-injection into ordinary conversation,
   // not for short CLI queries: a 796-note store answered 1/12 realistic
@@ -156,6 +159,7 @@ export function normalizeConfig(config = {}) {
     recallMaxNotes: int(raw.recallMaxNotes, DEFAULTS.recallMaxNotes, 1, 20),
     injectMaxChars: int(raw.injectMaxChars, DEFAULTS.injectMaxChars, 400, 6000),
     injectFullNotes: int(raw.injectFullNotes, DEFAULTS.injectFullNotes, 0, 10),
+    judgeMinChars: int(raw.judgeMinChars, DEFAULTS.judgeMinChars, 0, 40),
     injectRepeat: raw.injectRepeat === 'off' || raw.injectRepeat === 'turn' ? raw.injectRepeat : 'session',
     recallMinRelevance: ratio(raw.recallMinRelevance, DEFAULTS.recallMinRelevance),
     recallMinScore: ratio(raw.recallMinScore, DEFAULTS.recallMinScore),

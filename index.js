@@ -13,7 +13,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { addCandidate, listCandidates, openStore, read as readNote, recallQuery, remember, status as storeStatus } from 'tabellio';
 import { normalizeConfig } from './src/config.js';
-import { delegationDepth, isHumanMessage, isChitchat, latestHuman, textOf, trimQuery, intentGateAllows } from './src/messages.js';
+import { delegationDepth, isHumanMessage, isChitchat, isLowInformationQuery, latestHuman, textOf, trimQuery, intentGateAllows } from './src/messages.js';
 import { extractAssistantConclusion, extractCandidates, hasSecretHint, looksLikeCredentialLeak } from './src/capture.js';
 import { createJudgeCache, filterByJudge, judgeCacheKey } from './src/judge.js';
 import { appendJudgeEvent } from './src/judge-log.js';
@@ -935,13 +935,33 @@ export function apply(ctx, config = {}) {
         return decision;
       }
 
+      // A short, vague phrase ("上次召回") buys ~2s of judge latency and often
+      // injects loosely related notes. Unless the lexical match is already
+      // confident, suppress it; a confident short hit skips the model call.
+      const lowInfo = settings.judge === 'llm' && isLowInformationQuery(query, settings.judgeMinChars);
+      if (lowInfo && Number(result.items[0]?.relevance ?? 0) < settings.recallConfidentRelevance) {
+        lastRecall = recordRecall({
+          at: Date.now(),
+          query,
+          mode: 'suppressed',
+          refused: false,
+          count: result.items.length,
+          reason: 'low_information_query',
+          titles: recallTitles(result),
+          elapsedMs: Date.now() - recallStartedAt,
+          receiptPath: result.receiptPath ?? null,
+        });
+        ctx.logger?.debug?.('tabellio-dsh: recall suppressed (low-information query): ' + query.slice(0, 60));
+        return decision;
+      }
+
       // Optional LLM judge: lexical matches that merely share words with the
       // question are dropped before they cost trust. A failed judge keeps the
       // original hits (the model call must never remove memory by breaking).
       let judged = false;
       const runtime = judgeRuntime();
       const beforeJudge = Array.isArray(result.items) ? result.items.slice() : [];
-      if (runtime) {
+      if (runtime && !lowInfo) {
         const judgeStartedAt = Date.now();
         const cacheKey = judgeCache ? judgeCacheKey(query, beforeJudge.map((item) => item.id)) : '';
         const cached = judgeCache ? judgeCache.get(cacheKey) : null;

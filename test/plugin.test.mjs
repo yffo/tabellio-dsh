@@ -1130,3 +1130,36 @@ test('a fresh judge verdict is reused for the same question and recall set', asy
   // The notice delivery dedupes an unchanged recall set: same notes, no second copy.
   assert.equal(second.messages.length, 1);
 });
+
+test('a short vague question skips the judge and is not injected', async (t) => {
+  const dir = temp(t);
+  const store = openStore(dir);
+  assert.equal(remember(store, { content: '上次召回阈值是 0.4，先跑意图闸。' }, { writtenBy: 'test' }).ok, true);
+
+  let calls = 0;
+  const host = (() => {
+    const handlers = new Map();
+    const ctx = {
+      get(name) {
+        if (name === 'llm') {
+          calls += 1;
+          return { stream() { throw new Error('the model must not be called'); } };
+        }
+        if (name === 'agentDefaultModel') return { currentSelection: () => ({ provider: 'p', model: 'm' }) };
+        return undefined;
+      },
+      tools: { register() {} },
+      on(event, handler) {
+        if (!handlers.has(event)) handlers.set(event, []);
+        handlers.get(event).push(handler);
+      },
+      logger: { warn() {} },
+    };
+    return { ctx, handlers };
+  })();
+
+  apply(host.ctx, { storePath: dir, judge: 'llm', autoRecall: true, shadow: false, capture: 'off' });
+  const result = await runPre(host.handlers, agent(), [human('m1', '上次召回')]);
+  assert.equal(result.messages.length, 1, 'low-information recall must stay out of the conversation');
+  assert.equal(calls, 0, 'judge must not run for a vague short question');
+});

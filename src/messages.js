@@ -71,3 +71,20 @@ export function trimQuery(raw, maxChars = 400) {
 export function delegationDepth(agent) {
   return Math.max(Number(agent?.session?.header?.delegationDepth) || 0, Number(agent?.options?.subagentDepth) || 0);
 }
+
+/**
+ * Short, vague phrases ("上次召回", "继续") are not worth a model call: the
+ * judge costs ~1.5-2s and these queries carry no concrete subject. Numbers,
+ * latin words and quoted text count as specific even in a short sentence.
+ */
+export function isLowInformationQuery(text, minChars = 8) {
+  const limit = Math.max(0, Math.min(40, Number(minChars) || 0));
+  if (!limit) return false;
+  const raw = String(text ?? '').trim();
+  if (!raw) return true;
+  const stripped = raw.replace(/[\s，。！？、,.!?;；:："'「」『』《》()（）\[\]]/g, '');
+  if ([...stripped].length >= limit) return false;
+  if (/[0-9A-Za-z]/.test(raw)) return false;
+  if (/["「『《].+["」』》]/.test(raw)) return false;
+  return true;
+}
