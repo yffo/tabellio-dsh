@@ -351,6 +351,7 @@ export function apply(ctx, config = {}) {
         injectedIds: [],
         injectedAt: 0,
         injectedQuery: '',
+        sessionInjected: new Set(),
       };
       states.set(key, state);
     }
@@ -1007,7 +1008,41 @@ export function apply(ctx, config = {}) {
         }
       }
 
-      const text = formatRecall(result);
+      // Repeat suppression: notes already delivered in this session are not
+      // worth a second block — they are still in the conversation. `turn`
+      // only suppresses an immediate repeat; `off` disables the filter.
+      if (settings.injectRepeat !== 'off') {
+        const remember = (ids) => {
+          for (const id of ids) state.sessionInjected.add(id);
+          while (state.sessionInjected.size > 200) {
+            state.sessionInjected.delete(state.sessionInjected.values().next().value);
+          }
+        };
+        const fresh = settings.injectRepeat === 'session'
+          ? result.items.filter((item) => !state.sessionInjected.has(item.id))
+          : result.items;
+        if (fresh.length === 0) {
+          lastRecall = recordRecall({
+            at: Date.now(),
+            query,
+            mode: 'deduped',
+            refused: false,
+            count: result.items.length,
+            reason: 'already_injected',
+            titles: recallTitles(result),
+            elapsedMs: Date.now() - recallStartedAt,
+            receiptPath: result.receiptPath ?? null,
+          });
+          return decision;
+        }
+        result = { ...result, items: fresh };
+        remember(fresh.map((item) => item.id));
+      }
+
+      const text = formatRecall(result, {
+        maxChars: settings.injectMaxChars,
+        fullNotes: settings.injectFullNotes,
+      });
       if (!text) return decision;
       const key = result.items.map((item) => item.id).join('\u0000');
 
@@ -1038,6 +1073,7 @@ export function apply(ctx, config = {}) {
           reason: judged ? 'llm_judge' : null,
           judged,
           titles: recallTitles(result),
+          chars: text.length,
           elapsedMs: Date.now() - recallStartedAt,
           receiptPath: result.receiptPath ?? null,
         });

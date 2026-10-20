@@ -1465,7 +1465,9 @@ window.__ModuleLoader__.load({
           String(last.mode || '');
         const text = String(last.query || '');
         const query = [...text].length > 24 ? [...text].slice(0, 24).join('') + '…' : text;
-        const hits = mode + ' · ' + t('lrHits').replace('{n}', String(last.count ?? 0)) + (last.elapsedMs ? ' · ' + last.elapsedMs + 'ms' : '');
+        const hits = mode + ' · ' + t('lrHits').replace('{n}', String(last.count ?? 0))
+          + (last.chars ? ' · ≈' + Math.round(Number(last.chars) / 3) + ' tok' : '')
+          + (last.elapsedMs ? ' · ' + last.elapsedMs + 'ms' : '');
         return time + ' · 「' + query + '」 · ' + hits + (last.judged ? ' · ' + t('judgedTag') : '');
       };
       const sourceLabel = (source) => {

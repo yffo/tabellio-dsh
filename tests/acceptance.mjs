@@ -744,6 +744,7 @@ testCase('rpc-01-status', 'RPC status and inbox.list envelopes, counts and lastR
     reason: null,
     titles: [],
     elapsedMs: 0,
+    chars: 0,
     receiptPath: '42',
   });
 

@@ -194,6 +194,9 @@ dsh plugin --profile desktop add tabellio-dsh
 | `delivery` | `notice` | `notice` 可见通知；`context` 静默上下文 |
 | `recallBudgetTokens` | `500` | 召回预算，100–4000 |
 | `recallMaxNotes` | `6` | 最多几条，1–20 |
+| `injectMaxChars` | `1400` | 一轮注入的字符上限（约合 450 token），超出时只保留前几条全文 |
+| `injectFullNotes` | `2` | 前几条给全文；后续条目只给标题 + 120 字摘要，全文用 `tabellio_read` 取 |
+| `injectRepeat` | `session` | 同一会话里已经注入过的笔记不重复注入；`turn` 只压住紧挨着的一轮，`off` 关闭 |
 | `recallIntentGate` | `true` | 没有记忆意图的问句不注入 |
 | `recallConfidentRelevance` | `0.9` | 首条相关度到这条线时，即使没有意图词也放行 |
 | `feedbackRanking` | `true` | 用「有用 / 不对」反馈给召回结果做小幅重排（不增删笔记；事件存核心的 `<store>/runs/feedback.jsonl`） |

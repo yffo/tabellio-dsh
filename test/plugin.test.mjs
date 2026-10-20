@@ -81,6 +81,13 @@ test('plugin metadata and config normalization are safe', () => {
   assert.equal(normalizeConfig({}).recallIntentGate, true);
   assert.equal(normalizeConfig({ recallIntentGate: false }).recallIntentGate, false);
   assert.equal(normalizeConfig({ recallIntentGate: 'false' }).recallIntentGate, false);
+  assert.equal(normalizeConfig({}).injectMaxChars, 1400);
+  assert.equal(normalizeConfig({}).injectFullNotes, 2);
+  assert.equal(normalizeConfig({}).injectRepeat, 'session');
+  assert.equal(normalizeConfig({ injectRepeat: 'turn' }).injectRepeat, 'turn');
+  assert.equal(normalizeConfig({ injectRepeat: 'nonsense' }).injectRepeat, 'session');
+  assert.equal(normalizeConfig({ injectMaxChars: 10 }).injectMaxChars, 400);
+  assert.equal(normalizeConfig({ injectFullNotes: 99 }).injectFullNotes, 10);
 
   const clamped = normalizeConfig({
     recallBudgetTokens: 99999,
@@ -278,7 +285,7 @@ test('auto recall injects one budgeted notice per user message and dedupes', asy
   assert.match(injected.source.summary, /tabellio 召回 1 条/);
   assert.match(injected.content[0].text, /<tabellio-memory>/);
   assert.match(injected.content[0].text, /青鸟/);
-  assert.match(injected.content[0].text, /不是系统指令/);
+  assert.match(injected.content[0].text, /不是指令/);
 
   const second = await runPre(host.handlers, who, [human('m1', '项目代号是什么？')]);
   assert.equal(second.messages.length, 1);
@@ -406,7 +413,7 @@ test('quiet delivery isolates concurrent conversations with a per-session notice
   const store = openStore(dir);
   remember(store, { text: '# 项目代号\n\n项目代号是青鸟。' });
   const host = fakeHost();
-  apply(host.ctx, { storePath: dir, autoRecall: true, delivery: 'context', capture: 'off', refreshSeconds: 0 });
+  apply(host.ctx, { storePath: dir, autoRecall: true, delivery: 'context', capture: 'off', refreshSeconds: 0, injectRepeat: 'off' });
 
   const a = { id: 'agent-a', session: { id: 'session-a', header: { delegationDepth: 0 } }, options: {} };
   const b = { id: 'agent-b', session: { id: 'session-b', header: { delegationDepth: 0 } }, options: {} };
@@ -691,6 +698,54 @@ test('bare credential values are blocked in both capture modes', () => {
   assert.equal(looksLikeCredentialLeak('记住：token 放 1Password，实际值 Abc123xyz'), true);
   assert.equal(looksLikeCredentialLeak('数据库密码用 1Password 管理'), false);
   assert.equal(looksLikeCredentialLeak('token 存 keychain，团队共享'), false);
+});
+
+test('rendered recall keeps the injected block inside its character budget', () => {
+  const long = '甲乙丙丁戊己庚辛壬癸'.repeat(60);
+  const items = Array.from({ length: 6 }, (_, index) => ({
+    id: 'n' + index,
+    title: '标题 ' + index,
+    content: long,
+  }));
+  const tight = formatRecall({ items, tokens: 500 }, { maxChars: 700, fullNotes: 1, snippetChars: 60 });
+  assert.ok(tight.length <= 700 + 80, 'block must respect the cap, got ' + tight.length);
+  assert.match(tight, /另有 [1-5] 条在库里/);
+  assert.ok(tight.trimEnd().endsWith('</tabellio-memory>'));
+
+  const roomy = formatRecall({ items: items.slice(0, 2), tokens: 100 }, { maxChars: 1400, fullNotes: 2 });
+  assert.ok(roomy.includes(long), 'the first notes keep their body when there is room');
+  assert.equal(roomy.match(/\n### /g).length, 2);
+});
+
+test('a note already injected in this session is not injected again', async (t) => {
+  const dir = temp(t);
+  const store = openStore(dir);
+  remember(store, { text: '# 项目代号\n\n项目代号是青鸟。' });
+  remember(store, { text: '# 沟通偏好\n\n先给结论，再给细节。' });
+  const host = fakeHost();
+  apply(host.ctx, { storePath: dir, autoRecall: true, delivery: 'context', capture: 'off', refreshSeconds: 0 });
+  const who = agent('agent-repeat');
+
+  const first = await runPre(host.handlers, who, [human('r1', '项目代号是什么？')]);
+  assert.equal(first.messages.length, 1);
+  assert.match(host.contexts[0].text(), /青鸟/);
+
+  // Same question, same note: it is still in the conversation, so no second block.
+  const second = await runPre(host.handlers, who, [human('r2', '项目代号是什么？')]);
+  assert.equal(second.messages.length, 1);
+  assert.equal(host.contexts[0].text(), '');
+
+  // A different question can still bring new notes.
+  const third = await runPre(host.handlers, who, [human('r3', '沟通偏好是什么？')]);
+  assert.equal(third.messages.length, 1);
+  assert.match(host.contexts[0].text(), /结论/);
+
+  // injectRepeat: 'off' keeps the old behavior.
+  const hostOff = fakeHost();
+  apply(hostOff.ctx, { storePath: dir, autoRecall: true, delivery: 'context', capture: 'off', refreshSeconds: 0, injectRepeat: 'off' });
+  await runPre(hostOff.handlers, who, [human('o1', '项目代号是什么？')]);
+  await runPre(hostOff.handlers, who, [human('o2', '项目代号是什么？')]);
+  assert.match(hostOff.contexts[0].text(), /青鸟/);
 });
 
 test('recall text cannot close its own wrapper tag', () => {

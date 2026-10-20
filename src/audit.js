@@ -40,6 +40,7 @@ export function toAuditEntry(input = {}) {
     reason: source.reason === null || source.reason === undefined ? null : clip(source.reason, MAX_REASON_CHARS),
     judged: Boolean(source.judged),
     elapsedMs: Math.max(0, Number(source.elapsedMs) || 0),
+    chars: Math.max(0, Number(source.chars) || 0),
     titles: (Array.isArray(source.titles) ? source.titles : [])
       .slice(0, MAX_TITLES)
       .map((title) => clip(title, MAX_TITLE_CHARS)),
