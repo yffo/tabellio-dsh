@@ -8,6 +8,7 @@ import { openStore, remember } from 'tabellio';
 import { normalizeConfig } from '../src/config.js';
 import {
   cosine,
+  readNotes,
   detectEmbedding,
   embedTexts,
   listEmbeddingModels,
@@ -61,6 +62,43 @@ test('mergeSemanticResult appends only unseen hits and trims to the note cap', (
   assert.equal(merged.refused, false);
   assert.ok(merged.tokens > 0);
   assert.deepEqual(mergeSemanticResult(result, { hits: [], readNote }), result);
+});
+
+
+test('semantic merge never resurrects archived, superseded or untrusted notes', () => {
+  const readNote = (id) => ({
+    ok: true,
+    id,
+    title: 'note ' + id,
+    body: 'body',
+    note: {
+      status: id === 'archived' ? 'archived' : 'active',
+      superseded_by: id === 'superseded' ? 'newer#1' : null,
+      valid_to: null,
+      trust: id === 'reference' ? 'external' : 'user_stated',
+    },
+  });
+  const result = { items: [], tokens: 0, refused: true };
+  const merged = mergeSemanticResult(result, {
+    hits: [1, 2, 3, 4].map((index) => ({ id: ['archived', 'superseded', 'reference', 'good'][index - 1], similarity: 0.8 })),
+    readNote,
+    maxNotes: 6,
+    allowedTrusts: ['user_stated', 'system_derived'],
+  });
+  assert.deepEqual(merged.items.map((item) => item.id), ['good']);
+});
+
+test('readNotes skips archived notes when building the index', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tabellio-semantic-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const store = openStore(dir);
+  const written = remember(store, { content: '语义索引测试：归档的笔记不该进索引。' });
+  const active = readNotes(store).map((note) => note.id);
+  assert.ok(active.includes(written.id));
+  const file = path.join(dir, 'notes', written.id.split('#')[0] + '.md');
+  const text = fs.readFileSync(file, 'utf8');
+  fs.writeFileSync(file, text.replace('trust: user_stated', 'trust: user_stated\nstatus: archived'));
+  assert.equal(readNotes(store).some((note) => note.id === written.id), false);
 });
 
 test('refreshIndex embeds notes and semanticTop ranks a paraphrase first', async (t) => {

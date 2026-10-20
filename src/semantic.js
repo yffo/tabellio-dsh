@@ -88,9 +88,29 @@ export async function embedTexts({ endpoint = DEFAULT_ENDPOINT, model = DEFAULT_
   }
 }
 
+function splitFrontmatter(text) {
+  const match = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  if (!match) return { meta: {}, body: text };
+  const meta = {};
+  for (const line of match[1].split('\n')) {
+    const at = line.indexOf(':');
+    if (at < 0) continue;
+    meta[line.slice(0, at).trim()] = line.slice(at + 1).trim().replace(/^['"]|['"]$/g, '');
+  }
+  return { meta, body: match[2] };
+}
+
 function noteBody(text) {
-  const match = text.match(/^---\n[\s\S]*?\n---\n?([\s\S]*)$/);
-  return (match ? match[1] : text).trim().slice(0, MAX_NOTE_CHARS);
+  return splitFrontmatter(text).body.trim().slice(0, MAX_NOTE_CHARS);
+}
+
+/** Only notes that automatic recall may surface belong in the semantic index. */
+function indexable(text) {
+  const { meta } = splitFrontmatter(text);
+  if (meta.status === 'archived' || meta.status === 'draft') return false;
+  const superseded = meta.superseded_by && meta.superseded_by !== 'null';
+  const expired = meta.valid_to && meta.valid_to !== 'null';
+  return !superseded && !expired;
 }
 
 export function readNotes(store) {
@@ -105,7 +125,9 @@ export function readNotes(store) {
   for (const file of files) {
     try {
       const id = file.replace(/\.md$/, '');
-      const body = noteBody(readFileSync(join(dir, file), 'utf8'));
+      const text = readFileSync(join(dir, file), 'utf8');
+      if (!indexable(text)) continue;
+      const body = noteBody(text);
       if (!body) continue;
       notes.push({ id, text: body, hash: sha1(body) });
     } catch {
@@ -182,7 +204,7 @@ export async function semanticTop({ index, query, endpoint = DEFAULT_ENDPOINT, m
 
 // Pure merge step, separated from the network path so it is easy to test:
 // keep the lexical order, append semantic-only hits, then trim to the note cap.
-export function mergeSemanticResult(result, { hits = [], readNote, maxNotes = 6 } = {}) {
+export function mergeSemanticResult(result, { hits = [], readNote, maxNotes = 6, allowedTrusts = null } = {}) {
   const items = Array.isArray(result?.items) ? result.items : [];
   if (!Array.isArray(hits) || hits.length === 0 || typeof readNote !== 'function') return result;
   const known = new Set(items.map((item) => item.id));
@@ -196,6 +218,11 @@ export function mergeSemanticResult(result, { hits = [], readNote, maxNotes = 6 
       continue;
     }
     if (!note || note.ok === false) continue;
+    const meta = note.note && typeof note.note === 'object' ? note.note : {};
+    if (meta.status === 'archived' || meta.status === 'draft') continue;
+    if (meta.superseded_by && meta.superseded_by !== 'null') continue;
+    if (meta.valid_to && meta.valid_to !== 'null') continue;
+    if (Array.isArray(allowedTrusts) && allowedTrusts.length && meta.trust && !allowedTrusts.includes(meta.trust)) continue;
     known.add(hit.id);
     added.push({
       id: hit.id,

@@ -681,6 +681,7 @@ export function apply(ctx, config = {}) {
       return mergeSemanticResult(result, {
         hits,
         maxNotes: settings.recallMaxNotes,
+        allowedTrusts: settings.recallTrusts,
         readNote: (id) => readNote(currentStore(), id),
       });
     } catch (error) {
