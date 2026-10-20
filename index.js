@@ -16,6 +16,7 @@ import { normalizeConfig } from './src/config.js';
 import { delegationDepth, isHumanMessage, isChitchat, latestHuman, textOf, trimQuery, intentGateAllows } from './src/messages.js';
 import { extractCandidates, hasSecretHint, looksLikeCredentialLeak } from './src/capture.js';
 import { filterByJudge } from './src/judge.js';
+import { readFeedback, aggregateFeedback, rankByFeedback } from './src/feedback.js';
 import { filterCandidatesByWorth } from './src/worth.js';
 import { formatRecall } from './src/render.js';
 import { createRpcHandler } from './src/rpc.js';
@@ -812,6 +813,16 @@ export function apply(ctx, config = {}) {
           return decision;
         }
         result.items = filtered.items;
+      }
+
+      // Usage feedback only reorders; it never adds, drops or rewrites a note.
+      if (settings.feedbackRanking && result.items.length > 1) {
+        try {
+          const aggregates = aggregateFeedback(readFeedback(currentStore(), { max: 2000 }));
+          result.items = rankByFeedback(result.items, aggregates);
+        } catch (error) {
+          ctx.logger?.debug?.('tabellio-dsh: feedback ranking skipped: ' + (error?.message ?? error));
+        }
       }
 
       const text = formatRecall(result);

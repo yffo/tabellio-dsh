@@ -7,6 +7,7 @@ import { buildNotesPage, buildReport } from './report.js';
 import { findConflicts } from './conflicts.js';
 import { readLastRun } from './consolidate.js';
 import { auditCounts, readAudit, readAuditSince, summarizeAudit } from './audit.js';
+import { appendFeedback, feedbackCounts, readFeedback } from './feedback.js';
 
 export const RPC_CHANNEL = '/tabellio-dsh';
 export const MAX_REVIEW_IDS = 50;
@@ -63,6 +64,7 @@ function judgeView(state) {
 function statusView(settings, store, lastRecall, judgeState, semanticState, worthState, reflectState) {
   const result = status(store);
   return {
+    feedback: feedbackCounts(readFeedback(store, { max: 2000 })),
     store: store.store,
     exists: Boolean(store.exists()),
     notes: Number(result.notes) || 0,
@@ -181,6 +183,14 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
               signals: pair.signals,
             })),
           });
+        }
+        case 'feedback.add': {
+          const id = String(payload?.id ?? '').trim();
+          const signal = String(payload?.signal ?? '').trim();
+          if (!id) return fail('bad-request', 'id must be a non-empty string');
+          const written = appendFeedback(store, { id, signal, query: String(payload?.query ?? ''), source: 'dsh:panel' });
+          if (!written.ok) return fail('bad-request', written.reason ?? 'write_failed');
+          return ok(written);
         }
         case 'audit.summary': {
           const days = Math.max(1, Math.min(31, Number(payload?.days) || 7));

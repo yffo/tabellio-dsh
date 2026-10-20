@@ -26,6 +26,7 @@ export const DEFAULTS = Object.freeze({
   // put ordinary work questions at relevance 0.93-0.98 while every off-topic
   // question in the same set stayed at or below 0.911.
   recallConfidentRelevance: 0.9,
+  feedbackRanking: true,
   // Imported reference documents carry trust 'external'. They stay searchable
   // from the panel and the tools, but auto-recall only injects what the user
   // stated or the system derived — otherwise 600+ docs drown ordinary chat.
@@ -141,6 +142,7 @@ export function normalizeConfig(config = {}) {
     refreshSeconds: int(raw.refreshSeconds, DEFAULTS.refreshSeconds, 0, 3600),
     recallIntentGate: raw.recallIntentGate === undefined ? DEFAULTS.recallIntentGate : raw.recallIntentGate === true,
     recallConfidentRelevance: ratio(raw.recallConfidentRelevance, DEFAULTS.recallConfidentRelevance),
+    feedbackRanking: raw.feedbackRanking === undefined ? DEFAULTS.feedbackRanking : raw.feedbackRanking === true,
     recallTrusts: trusts(raw.recallTrusts),
     capture,
     delivery: raw.delivery === 'context' ? 'context' : 'notice',

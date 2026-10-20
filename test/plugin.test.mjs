@@ -177,14 +177,14 @@ test('explicit-clue extraction is conservative', () => {
   assert.equal(hasSecretHint('token 以后都放 1Password'), true);
 });
 
-test('native tools expose nine read/write projections with strict output schemas', () => {
+test('native tools expose ten read/write projections with strict output schemas', () => {
   const dir = temp({ after() {} });
   const store = openStore(dir);
   const host = fakeHost();
   registerTools(host.ctx, { settings: normalizeConfig({ storePath: dir }), getStore: () => store });
 
   const names = host.tools.map((tool) => tool.name).sort();
-  assert.deepEqual(names, ['tabellio_capture', 'tabellio_conflicts', 'tabellio_inbox', 'tabellio_merge', 'tabellio_read', 'tabellio_recall', 'tabellio_report', 'tabellio_search', 'tabellio_status']);
+  assert.deepEqual(names, ['tabellio_capture', 'tabellio_conflicts', 'tabellio_feedback', 'tabellio_inbox', 'tabellio_merge', 'tabellio_read', 'tabellio_recall', 'tabellio_report', 'tabellio_search', 'tabellio_status']);
   for (const tool of host.tools) {
     assert.equal(tool.parameters.type, 'object');
     assert.equal(tool.parameters.additionalProperties, false);
@@ -711,7 +711,7 @@ test('a host whose ctx.get throws does not lose the plugin', (t) => {
     logger: { warn() {} },
   };
   apply(ctx, { storePath: dir, autoRecall: true, delivery: 'context' });
-  assert.equal(tools.length, 9);
+  assert.equal(tools.length, 10);
   assert.equal(handlers.has('agent/pre-step'), true);
 });
 

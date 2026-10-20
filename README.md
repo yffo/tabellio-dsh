@@ -163,7 +163,7 @@ dsh plugin --profile desktop add tabellio-dsh
 
 ### 工具
 
-`tabellio_recall` / `tabellio_search` / `tabellio_read` / `tabellio_status` / `tabellio_capture` / `tabellio_inbox` / `tabellio_report`（周报）/ `tabellio_conflicts`（只读：列出可能过时的笔记对）/ `tabellio_merge`（人批准后合并新旧说法，旧笔记标记被取代）。`tabellio_recall` 与 `tabellio_search` 支持 `as_of` 按某个时间点查询。工具与 CLI、MCP 共用同一套预算、拒答和写入闸门。
+`tabellio_recall` / `tabellio_search` / `tabellio_read` / `tabellio_status` / `tabellio_capture` / `tabellio_inbox` / `tabellio_report`（周报）/ `tabellio_conflicts`（只读：列出可能过时的笔记对）/ `tabellio_merge`（人批准后合并新旧说法，旧笔记标记被取代）/ `tabellio_feedback`（记录「这条有用 / 不对」，只调整后续排序，不改笔记）。`tabellio_recall` 与 `tabellio_search` 支持 `as_of` 按某个时间点查询。工具与 CLI、MCP 共用同一套预算、拒答和写入闸门。
 
 ### 配置全表
 
@@ -178,6 +178,7 @@ dsh plugin --profile desktop add tabellio-dsh
 | `recallMaxNotes` | `6` | 最多几条，1–20 |
 | `recallIntentGate` | `true` | 没有记忆意图的问句不注入 |
 | `recallConfidentRelevance` | `0.9` | 首条相关度到这条线时，即使没有意图词也放行 |
+| `feedbackRanking` | `true` | 用「有用 / 不对」反馈给召回结果做小幅重排（不增删笔记） |
 | `recallTrusts` | `user_stated`、`system_derived` | 自动召回信任哪些来源；导入的文档（`external`）默认只参与搜索/面板，不自动注入 |
 | `recallMinCoverage` | `0.33` | 覆盖率闸；长问句会被稀释，默认按对话场景调松 |
 | `recallMinScore` | `0.1` | 最低分 |

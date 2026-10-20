@@ -170,6 +170,10 @@ window.__ModuleLoader__.load({
       filter30: '最近 30 天',
       filter90: '最近 90 天',
       closeNote: '收起',
+    feedbackAsk: '这条记忆准吗？',
+    feedbackUseful: '有用',
+    feedbackWrong: '不对 / 过时',
+    feedbackRecorded: '已记录，后续排序会参考；不会改动笔记本身。',
       addLabel: '直接存一条记忆',
       addPlaceholder: '比如：以后发版都用 tag 加 CI，不走手动上传。',
       addButton: '存为记忆',
@@ -388,6 +392,10 @@ window.__ModuleLoader__.load({
       filter30: 'Last 30 days',
       filter90: 'Last 90 days',
       closeNote: 'Close',
+    feedbackAsk: 'Was this memory accurate?',
+    feedbackUseful: 'Helpful',
+    feedbackWrong: 'Wrong / stale',
+    feedbackRecorded: 'Feedback recorded; it nudges ranking only and never edits the note.',
       addLabel: 'Save a memory',
       addPlaceholder: 'e.g. Releases always go through tags and CI, never manual uploads.',
       addButton: 'Save',
@@ -923,6 +931,7 @@ window.__ModuleLoader__.load({
       },
       overlayTitle: { margin: 0, fontSize: 14.5, fontWeight: 620, overflowWrap: 'anywhere' },
       overlayMeta: { color: COLORS.dim, fontSize: 11.5, marginTop: 2 },
+      actionRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '14px 0 2px', borderTop: '1px solid ' + COLORS.border, marginTop: 14, flexWrap: 'wrap' },
       overlayBody: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 18px 20px' },
       noteBody: { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 13, lineHeight: 1.75, margin: 0 },
       code: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11.5 },
@@ -1747,7 +1756,34 @@ window.__ModuleLoader__.load({
                 h('button', { type: 'button', style: ui.iconButton, onClick: () => setNote(null), 'aria-label': t('closeNote') }, icon('x', 16)),
               ),
               h('div', { style: ui.overlayBody },
-                note.loading ? h('p', { style: ui.muted }, t('loading')) : note.error ? h('p', { style: ui.errorLine }, String(note.error)) : h('pre', { style: ui.noteBody }, String(note.body || ''))),
+                note.loading ? h('p', { style: ui.muted }, t('loading')) : note.error ? h('p', { style: ui.errorLine }, String(note.error)) : h('pre', { style: ui.noteBody }, String(note.body || '')),
+                note.loading || note.error ? null : h('div', { style: ui.actionRow },
+                  h('span', { style: ui.muted }, t('feedbackAsk')),
+                  h('button', {
+                    type: 'button',
+                    style: ui.buttonGhost,
+                    onClick: async () => {
+                      try {
+                        await rpcCall('feedback.add', { id: note.id, signal: 'useful' });
+                        setState((prev) => ({ ...prev, notice: t('feedbackRecorded') }));
+                      } catch (error) {
+                        setState((prev) => ({ ...prev, error: error?.message ?? String(error) }));
+                      }
+                    },
+                  }, icon('check', 14), h('span', null, t('feedbackUseful'))),
+                  h('button', {
+                    type: 'button',
+                    style: ui.buttonGhost,
+                    onClick: async () => {
+                      try {
+                        await rpcCall('feedback.add', { id: note.id, signal: 'wrong' });
+                        setState((prev) => ({ ...prev, notice: t('feedbackRecorded') }));
+                      } catch (error) {
+                        setState((prev) => ({ ...prev, error: error?.message ?? String(error) }));
+                      }
+                    },
+                  }, icon('x', 14), h('span', null, t('feedbackWrong'))),
+                )),
             ))
         : null;
 

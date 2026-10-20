@@ -44,6 +44,22 @@ test('status reports counts and the current delivery mode', async (t) => {
   assert.equal(result.value.consolidate.lastRun, 0);
 });
 
+test('feedback.add records a signal and status reports the counts', async (t) => {
+  const { dir, store } = await tempStore(t);
+  const handler = handlerFor(dir, store);
+  const before = await handler('status', {});
+  assert.deepEqual(before.value.feedback, { total: 0, useful: 0, wrong: 0, stale: 0 });
+
+  const written = await handler('feedback.add', { id: '01ABC', signal: 'useful' });
+  assert.equal(written.ok, true);
+  const bad = await handler('feedback.add', { id: '01ABC', signal: 'maybe' });
+  assert.equal(bad.ok, false);
+
+  const after = await handler('status', {});
+  assert.equal(after.value.feedback.total, 1);
+  assert.equal(after.value.feedback.useful, 1);
+});
+
 test('conflicts.list surfaces a rewording pair over the panel channel', async (t) => {
   const { dir, store } = await tempStore(t);
   remember(store, { content: '发布流程：手动 npm publish，发布前跑 npm test。' });

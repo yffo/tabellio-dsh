@@ -1,6 +1,6 @@
 {
   "name": "tabellio-dsh",
-  "version": "0.15.1",
+  "version": "0.16.0",
   "description": "DeepSeek Harness native adapter for tabellio: budgeted auto-recall, native memory tools, and explicit-clue candidates. The memory core stays in tabellio.",
   "keywords": [
     "dsh",

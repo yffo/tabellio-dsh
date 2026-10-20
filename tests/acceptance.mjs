@@ -533,7 +533,7 @@ testCase('meta-01', 'plugin metadata, nine tools and lifecycle handlers register
 
   assert.deepEqual(
     host.tools.map((tool) => tool.name).sort(),
-    ['tabellio_capture', 'tabellio_conflicts', 'tabellio_inbox', 'tabellio_merge', 'tabellio_read', 'tabellio_recall', 'tabellio_report', 'tabellio_search', 'tabellio_status'],
+    ['tabellio_capture', 'tabellio_conflicts', 'tabellio_feedback', 'tabellio_inbox', 'tabellio_merge', 'tabellio_read', 'tabellio_recall', 'tabellio_report', 'tabellio_search', 'tabellio_status'],
   );
   for (const event of ['agent/pre-step', 'agent/turn-stopping', 'agent/disposed']) {
     assert.ok((host.handlers.get(event) ?? []).length >= 1, `missing handler for ${event}`);
@@ -557,13 +557,14 @@ const TOOL_CONTRACT = {
   tabellio_report: { params: ['days', 'limit'], required: null, optional: [] },
   tabellio_conflicts: { params: ['days', 'limit', 'min_overlap'], required: null, optional: [] },
   tabellio_merge: { params: ['ids', 'confirm'], required: ['ids'], optional: ['confirm'] },
+  tabellio_feedback: { params: ['id', 'signal', 'query'], required: ['id', 'signal'], optional: ['query'] },
 };
 
-testCase('tools-01-schema', 'nine tool schemas: required, additionalProperties:false, output schema and render', async () => {
+testCase('tools-01-schema', 'ten tool schemas: required, additionalProperties:false, output schema and render', async () => {
   const dir = tempStore('tools-schema');
   const host = createHost();
   apply(host.ctx, { storePath: dir, autoRecall: false, capture: 'off', refreshSeconds: 0 });
-  assert.equal(host.tools.length, 9);
+  assert.equal(host.tools.length, 10);
   const observations = [];
   for (const [name, expected] of Object.entries(TOOL_CONTRACT)) {
     const tool = findTool(host, name);

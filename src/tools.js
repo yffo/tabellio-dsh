@@ -3,6 +3,7 @@ import { findConflicts } from './conflicts.js';
 import { formatRecallTool } from './render.js';
 import { buildReport, renderReport } from './report.js';
 import { looksLikeCredentialLeak } from './capture.js';
+import { appendFeedback, feedbackCounts, readFeedback, SIGNALS } from './feedback.js';
 
 const jsonText = (_args, value) => [{ type: 'text', text: JSON.stringify(value) }];
 const plainText = (text) => [{ type: 'text', text }];
@@ -771,6 +772,64 @@ export function createToolDefinitions({ settings, getStore, getLastRecall = () =
         } catch (error) {
           return { ok: false, applied: false, reason: 'merge_failed', target_id: '', target_title: '', target_chars: 0, source_ids: ids, warnings: [], message: '合并失败：' + (error?.message ?? error) };
         }
+      },
+    },
+    {
+      name: 'tabellio_feedback',
+      description:
+        'Record whether a recall helped: signal="useful" when the human confirmed a remembered fact was right, ' +
+        'signal="wrong" or "stale" when they said the memory was wrong or outdated. This only nudges future ranking; ' +
+        'it never edits or deletes a note. Use it right after the human comments on a memory, not proactively.',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string', description: 'Note id returned by tabellio_recall/search/read.' },
+          signal: { type: 'string', enum: [...SIGNALS] },
+          query: { type: 'string', description: 'Optional query that triggered the recall.' },
+        },
+        required: ['id', 'signal'],
+      },
+      output: {
+        schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          ok: { type: 'boolean' },
+          id: { type: 'string' },
+          signal: { type: 'string' },
+          reason: { type: 'string' },
+          counts: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              total: { type: 'integer' },
+              useful: { type: 'integer' },
+              wrong: { type: 'integer' },
+              stale: { type: 'integer' },
+            },
+            required: ['total', 'useful', 'wrong', 'stale'],
+          },
+          message: { type: 'string' },
+        },
+        required: ['ok', 'id', 'signal', 'reason', 'counts', 'message'],
+        },
+        render: (args, value) => plainText(String(value.message)),
+      },
+      execute: async ({ id, signal, query }) => {
+        const written = appendFeedback(getStore(), { id, signal, query, source: 'dsh:tool' });
+        const counts = feedbackCounts(readFeedback(getStore()));
+        const label = { useful: '有用', wrong: '不对', stale: '过时' }[String(signal)] ?? String(signal);
+        return {
+          ok: Boolean(written.ok),
+          id: String(id ?? ''),
+          signal: String(signal ?? ''),
+          reason: written.ok ? '' : String(written.reason ?? 'write_failed'),
+          counts,
+          message: written.ok
+            ? '已记录「' + label + '」（累计 ' + counts.total + ' 条反馈），只影响排序，不改笔记。'
+            : '反馈未记录：' + (written.reason ?? 'unknown') + '。',
+        };
       },
     },
   ];
