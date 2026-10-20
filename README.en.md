@@ -205,6 +205,12 @@ The four independent pre-release test reports are archived under `~/yffto/archiv
 
 </details>
 
+## Docs
+
+- [Three-minute quickstart](docs/QUICKSTART.en.md)
+- [Backup and migration](docs/BACKUP.md)
+- [Cross-host setup](docs/CROSS-HOST.en.md)
+
 ## License
 
 MIT

@@ -2,6 +2,17 @@
 
 > TL;DR — the DSH plugin, the `tabellio` CLI and the `tabellio-mcp` server all read and write the same Markdown directory, through the same write gate and the same recall engine. No sync layer, no server, no copies.
 
+## Verification status
+
+| Host | Status | What was verified |
+| --- | --- | --- |
+| DSH plugin | **running** | panel, recall, capture, judge, consolidation exercised in real sessions |
+| CLI | **real** | write/search/candidates/approve/doctor covered by tests |
+| MCP | **real** | `tools/list`, `tools/call`, read-only/write boundary, JSON-only stdout |
+| Claude Code | **contract-level** | hook install shape, SessionEnd capture, SessionStart read-only, MCP round-trip; a real session needs local Anthropic login |
+| Cursor / Codex | **documented** | read-only MCP snippets and command spelling validated, not run in the real host |
+| Zed / VS Code / Windsurf / Cline / Continue | not done | no adapter, no promise |
+
 ## One directory
 
 The default store is `~/memory/tabellio` (the plugin's `storePath` can change it). It is just files:

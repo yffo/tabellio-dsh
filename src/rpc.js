@@ -62,6 +62,7 @@ function judgeView(state) {
         elapsedMs: state.last.elapsedMs === undefined ? null : Number(state.last.elapsedMs),
         chars: state.last.chars === undefined ? null : Number(state.last.chars),
         preview: String(state.last.preview ?? ''),
+        error: state.last.error ? String(state.last.error) : null,
       }
       : null,
   };

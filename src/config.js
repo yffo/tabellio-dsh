@@ -62,7 +62,7 @@ export const DEFAULTS = Object.freeze({
   judge: 'llm',
   judgeProvider: '',
   judgeModel: '',
-  judgeTimeoutMs: 4000,
+  judgeTimeoutMs: 6000,
   judgeCacheMinutes: 10,
   writeJudge: 'off',
   writeJudgeTimeoutMs: 2500,

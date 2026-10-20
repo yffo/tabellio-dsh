@@ -140,3 +140,48 @@ test('a judge verdict cache expires and keys include the note set', () => {
   now += 5001;
   assert.equal(cache.get(key), null);
 });
+
+test('a judge timeout is reported instead of failing silently', async () => {
+  const hang = {
+    stream(options) {
+      const signal = options?.signal;
+      return {
+        [Symbol.asyncIterator]: () => ({
+          next: () => new Promise((resolve, reject) => {
+            if (signal?.aborted) return reject(new Error('aborted'));
+            signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+          }),
+        }),
+      };
+    },
+  };
+  let reason = '';
+  const kept = await judgeNotes({
+    llm: hang,
+    selection,
+    query: '项目代号是什么',
+    notes: [{ title: '项目代号', body: '项目代号是青鸟计划。' }],
+    timeoutMs: 60,
+    onError: (value) => { reason = value; },
+  });
+  assert.equal(kept, null);
+  assert.equal(reason, 'timeout');
+});
+
+test('an empty judge reply is reported as empty, not as "keep nothing"', async () => {
+  let reason = '';
+  const kept = await judgeNotes({
+    llm: streamOf([]),
+    selection,
+    query: '项目代号是什么',
+    notes: [{ title: '项目代号', body: '项目代号是青鸟计划。' }],
+    onError: (value) => { reason = value; },
+  });
+  assert.equal(kept, null);
+  assert.equal(reason, 'empty');
+});
+
+test('the default judge timeout leaves room for a reasoning model', async () => {
+  const { normalizeConfig } = await import('../src/config.js');
+  assert.equal(normalizeConfig({}).judgeTimeoutMs, 6000);
+});

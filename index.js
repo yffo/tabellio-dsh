@@ -967,6 +967,7 @@ export function apply(ctx, config = {}) {
         const cached = judgeCache ? judgeCache.get(cacheKey) : null;
         let filtered;
         let judgeReply = '';
+        let judgeError = '';
         if (cached) {
           // Same question, same recall set, still fresh: reuse the verdict.
           const keptIds = new Set(cached.kept);
@@ -982,6 +983,7 @@ export function apply(ctx, config = {}) {
             timeoutMs: settings.judgeTimeoutMs,
             signal: payload?.signal,
             onReply: (text) => { judgeReply = text; },
+            onError: (reason) => { judgeError = reason; },
           });
           judgeState.last = filtered.judged
             ? { at: Date.now(), stage: 'verdict', kept: filtered.items.length, elapsedMs: Date.now() - judgeStartedAt }
@@ -993,6 +995,7 @@ export function apply(ctx, config = {}) {
               // Keep the raw reply preview: a silent fail-open must be explainable.
               preview: judgeReply.slice(0, 200),
               chars: judgeReply.length,
+              error: judgeError || undefined,
             };
           if (filtered.judged && judgeCache) {
             judgeCache.set(cacheKey, { kept: filtered.items.map((item) => item.id) });

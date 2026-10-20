@@ -9,9 +9,9 @@
 import { createHash } from 'node:crypto';
 import { read } from 'tabellio';
 
-export const JUDGE_TIMEOUT_MS = 4000;
+export const JUDGE_TIMEOUT_MS = 6000;
 export const JUDGE_MAX_NOTES = 4;
-const SNIPPET_CHARS = 240;
+const SNIPPET_CHARS = 200;
 
 /** The prompt is intentionally tiny: a yes/no list beats free-form reasoning. */
 export function buildJudgePrompt(query, notes) {
@@ -87,7 +87,7 @@ export function parseJudgeReply(reply, count) {
  * Returns a Set of kept indices, or null when the judge is unavailable or
  * failed (caller keeps everything).
  */
-export async function judgeNotes({ llm, selection, query, notes, timeoutMs = JUDGE_TIMEOUT_MS, signal, onReply }) {
+export async function judgeNotes({ llm, selection, query, notes, timeoutMs = JUDGE_TIMEOUT_MS, signal, onReply, onError }) {
   if (!llm || typeof llm.stream !== 'function') return null;
   if (!selection?.provider || !selection?.model) return null;
   if (!Array.isArray(notes) || notes.length === 0) return null;
@@ -120,8 +120,15 @@ export async function judgeNotes({ llm, selection, query, notes, timeoutMs = JUD
     } catch {
       // Diagnostics must never affect the turn.
     }
-    return parseJudgeReply(reply, notes.length);
+    const parsed = parseJudgeReply(reply, notes.length);
+    if (!parsed && !reply.trim()) {
+      // An empty reply is almost always a reasoning-budget or timeout symptom;
+      // surface it so a silent fail-open can be told apart from a real "keep none".
+      try { onError?.('empty'); } catch { /* diagnostics only */ }
+    }
+    return parsed;
   } catch {
+    try { onError?.(controller.signal.aborted ? 'timeout' : 'error'); } catch { /* diagnostics only */ }
     return null;
   } finally {
     clearTimeout(timer);

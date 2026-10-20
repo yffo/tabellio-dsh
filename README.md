@@ -247,6 +247,12 @@ node tools/judge-eval.mjs <带 gold 的查询集.json>  # 真实模型裁判抽�
 
 </details>
 
+## 相关文档
+
+- [三分钟上手](docs/QUICKSTART.md)
+- [备份与迁移](docs/BACKUP.md)
+- [跨宿主：CLI / MCP / Claude Code / Cursor / Codex](docs/CROSS-HOST.md)
+
 ## License
 
 MIT

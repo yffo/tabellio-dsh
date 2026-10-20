@@ -1,3 +1,9 @@
+## 0.38.2
+
+- **judge 超时诊断与放宽**：默认超时 4000→6000ms；送去裁决的笔记摘要 240→200 字；失败时区分 `timeout` / `empty` / `error` 写进 `judgeState.last.error`，面板状态里的 `judge.last` 也能看到。live 抓到一次 2.9s 超时导致 `no_verdict`（fail-open、静默）——现在至少能解释。
+- **文档**：新增 [三分钟上手](docs/QUICKSTART.md) / [English](docs/QUICKSTART.en.md) 与 [备份与迁移](docs/BACKUP.md)；`CROSS-HOST` 两份加「验证状态」表（DSH 运行中 / CLI·MCP 真实 / Claude Code 契约级 / Cursor·Codex 文档级 / 其余未做）；README 双语加文档入口。
+- 182 测试 + 30 验收。
+
 ## 0.38.1
 
 - **面板真实浏览器 E2E 修复**（用本地 React harness 渲染真实 DOM 逐项点过）：

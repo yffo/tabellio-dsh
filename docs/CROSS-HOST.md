@@ -2,6 +2,17 @@
 
 > TL;DR — the DSH plugin, the `tabellio` CLI and the `tabellio-mcp` server all read and write the same Markdown directory, through the same write gate and the same recall engine. No sync layer, no server, no copies.
 
+## 验证状态
+
+| 宿主 | 状态 | 验过什么 |
+| --- | --- | --- |
+| DSH 插件 | **运行中** | 面板、召回、捕获、judge、巩固都在真实会话里跑过 |
+| CLI | **真实可用** | 写入/检索/候选/批准/体检，测试与验收覆盖 |
+| MCP | **真实可用** | `tools/list`、`tools/call`、只读/可写边界、stdout 纯 JSON |
+| Claude Code | **契约级** | 钩子安装形状、SessionEnd 捕获、SessionStart 只读、MCP 往返；真实会话需本机 Anthropic 登录 |
+| Cursor / Codex | **文档级** | 只读 MCP 配置片段与命令拼写已校验，未在真实宿主里跑 |
+| Zed / VS Code / Windsurf / Cline / Continue | 未做 | 没有适配器，也没有文档承诺 |
+
 ## 同一个目录
 
 默认库目录是 `~/memory/tabellio`（插件配置 `storePath` 可改）。里面就是普通文件：
