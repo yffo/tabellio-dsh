@@ -341,6 +341,17 @@ test('provenance reports where a note came from and where it was used', async (t
   assert.equal((await handler('provenance', { id: 'DOES-NOT-EXIST' })).ok, false);
 });
 
+test('timeline returns the note story and 404s for unknown ids', async (t) => {
+  const { dir, store } = await tempStore(t);
+  const written = remember(store, { content: '面板时间线测试：发版由 CI 完成。' }, { writtenBy: 'test:timeline' });
+  const handler = handlerFor(dir, store);
+  const view = await handler('timeline', { id: written.id });
+  assert.equal(view.ok, true);
+  assert.ok(Array.isArray(view.value.events));
+  assert.equal((await handler('timeline', {})).ok, false);
+  assert.equal((await handler('timeline', { id: 'DOES-NOT-EXIST' })).ok, false);
+});
+
 test('remember writes from the panel and rejects empty, short or oversized content', async (t) => {
   const { dir, store } = await tempStore(t);
   const handler = handlerFor(dir, store);

@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { openStore, remember } from 'tabellio';
-import { noteProvenance, provenanceView, recallUsage } from '../src/provenance.js';
+import { noteProvenance, noteTimeline, provenanceView, recallUsage } from '../src/provenance.js';
+import { appendFeedback } from '../src/feedback.js';
+import { appendOutcome } from '../src/outcome.js';
 
 const temp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'tabellio-provenance-'));
 
@@ -48,4 +50,23 @@ test('a superseded note still reports its successor', () => {
   if (meta) {
     assert.equal(meta.supersededBy, 'newer#1');
   }
+});
+
+test('timeline merges creation, recalls, corrections and feedback', () => {
+  const dir = temp();
+  const store = openStore(dir);
+  const written = remember(store, { content: '时间线测试：以后发版都走 tag 加 CI。' }, { writtenBy: 'test:timeline' });
+  const id = written.id;
+  const runs = path.join(dir, 'runs');
+  fs.mkdirSync(runs, { recursive: true });
+  fs.writeFileSync(path.join(runs, 'rcp_00000001.json'), JSON.stringify({ items: [{ id }], query: '发版怎么走？', createdAt: '2026-10-19T06:00:00+08:00' }));
+  appendFeedback(store, { id, signal: 'useful' });
+  appendOutcome(store, { noteIds: [id], query: '发版方式', at: Date.now() });
+
+  const events = noteTimeline(store, id);
+  assert.ok(events.some((event) => event.kind === 'created'));
+  assert.ok(events.some((event) => event.kind === 'recall' && event.text.includes('发版怎么走')));
+  assert.ok(events.some((event) => event.kind === 'feedback'));
+  assert.ok(events.some((event) => event.kind === 'correction'));
+  assert.deepEqual(noteTimeline(store, 'missing#1'), []);
 });

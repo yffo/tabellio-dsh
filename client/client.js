@@ -157,6 +157,8 @@ window.__ModuleLoader__.load({
       audUnknown: '其它',
       qualityLabel: '召回质量（近 7 天）',
       provTitle: '来源与使用',
+      provTimeline: '时间线',
+      provTimelineEmpty: '还没有使用记录',
       provFrom: '写入来源',
       provTrust: '信任级别',
       provStatus: '状态',
@@ -410,6 +412,8 @@ window.__ModuleLoader__.load({
       audUnknown: 'other',
       qualityLabel: 'Recall quality (7 days)',
       provTitle: 'Origin and usage',
+      provTimeline: 'Timeline',
+      provTimelineEmpty: 'No usage recorded yet',
       provFrom: 'Written by',
       provTrust: 'Trust',
       provStatus: 'Status',
@@ -863,6 +867,10 @@ window.__ModuleLoader__.load({
       auditHead: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 },
       auditQuery: { fontSize: 12.5, color: COLORS.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
       auditMeta: { fontSize: 11.5, color: COLORS.dim, lineHeight: 1.5 },
+      timeline: { display: 'flex', flexDirection: 'column', gap: 2 },
+      timelineRow: { display: 'flex', gap: 10, fontSize: 11.5, lineHeight: 1.6 },
+      timelineAt: { color: COLORS.dim, minWidth: 118, flexShrink: 0, fontVariantNumeric: 'tabular-nums' },
+      timelineText: { color: COLORS.text, minWidth: 0 },
       provBox: { marginTop: 14, paddingTop: 12, borderTop: '1px solid ' + COLORS.border, display: 'flex', flexDirection: 'column', gap: 6 },
       provTitle: { fontSize: 12, fontWeight: 650, color: COLORS.dim, letterSpacing: '.02em' },
       provRow: { display: 'flex', gap: 10, fontSize: 12, lineHeight: 1.6 },
@@ -1187,11 +1195,12 @@ window.__ModuleLoader__.load({
           if (!id) return;
           setNote({ id, loading: true });
           try {
-            const [result, provenance] = await Promise.all([
+            const [result, provenance, timeline] = await Promise.all([
               rpcCall('read', { id }),
               rpcCall('provenance', { id }).catch(() => null),
+              rpcCall('timeline', { id }).catch(() => null),
             ]);
-            setNote({ ...result, provenance, loading: false });
+            setNote({ ...result, provenance, timeline, loading: false });
           } catch (error) {
             setNote({ id, loading: false, error: error?.message ?? String(error) });
           }
@@ -1904,6 +1913,14 @@ window.__ModuleLoader__.load({
                       Array.isArray(note.provenance.tags) && note.provenance.tags.length
                         ? h('div', { style: ui.provRow }, h('span', { style: ui.provLabel }, t('provTags')), h('span', null, note.provenance.tags.join(' · ')))
                         : null,
+                      h('div', { style: ui.provTitle, marginTop: 8 }, t('provTimeline')),
+                      h('div', { style: ui.timeline },
+                        Array.isArray(note.timeline?.events) && note.timeline.events.length
+                          ? note.timeline.events.map((event, index) => h('div', { key: index, style: ui.timelineRow },
+                              h('span', { style: ui.timelineAt }, new Date(event.at).toLocaleString()),
+                              h('span', { style: ui.timelineText }, String(event.text || ''))))
+                          : h('p', { style: ui.muted }, t('provTimelineEmpty'))
+                      ),
                     ),
                 note.loading || note.error ? null : h('div', { style: ui.actionRow },
                   h('span', { style: ui.muted }, t('feedbackAsk')),
