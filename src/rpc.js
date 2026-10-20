@@ -12,6 +12,7 @@ import { noteTimeline, provenanceView } from './provenance.js';
 import { editNote } from './edit.js';
 import { appendJudgeReview, judgeQuality, readJudgeLog, readJudgeReviews } from './judge-log.js';
 import { usageSummary } from './usage.js';
+import { buildWeekly } from './weekly.js';
 
 export const RPC_CHANNEL = '/tabellio-dsh';
 export const MAX_REVIEW_IDS = 50;
@@ -238,6 +239,10 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
           const entries = readAuditSince(store, since, { max: 2000 });
           const summary = summarizeAudit(entries);
           return ok({ days, since, ...summary });
+        }
+        case 'weekly.report': {
+          const days = Math.max(1, Math.min(31, Number(payload?.days) || 7));
+          return ok(buildWeekly(store, { days }));
         }
         case 'settings.get':
           return ok(typeof getSettingsView === 'function' ? getSettingsView() : {});

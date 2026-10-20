@@ -528,3 +528,16 @@ test('usage.summary reports the memory layer overhead', async (t) => {
   assert.equal(result.value.chars, 90);
   assert.equal(result.value.judgeCalls, 1);
 });
+
+test('weekly.report returns the aggregate the panel renders', async (t) => {
+  const { dir, store } = await tempStore(t);
+  remember(store, { text: '# 项目代号\n\n项目代号是青鸟。' });
+  const handler = handlerFor(dir, store);
+  const result = await handler('weekly.report', { days: 7 });
+  assert.equal(result.ok, true);
+  assert.equal(result.value.days, 7);
+  assert.equal(result.value.notes.total, 1);
+  assert.equal(typeof result.value.recall.runs, 'number');
+  assert.equal(typeof result.value.context.tokensEst, 'number');
+  assert.equal(typeof result.value.judge.calls, 'number');
+});

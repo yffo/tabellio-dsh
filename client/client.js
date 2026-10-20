@@ -156,6 +156,15 @@ window.__ModuleLoader__.load({
       audError: '出错',
       audUnknown: '其它',
       qualityLabel: '召回质量（近 7 天）',
+      weekReviewTitle: '最近 7 天',
+      weekRecall: '召回',
+      weekInjected: '注入',
+      weekCost: '注入成本',
+      weekKept: '保留',
+      weekReviewed: '复核',
+      weekNotes: '记忆',
+      weekAdded: '新增',
+      weekTotal: '共',
       forgetButton: '忘掉这条',
       forgetConfirm: '确认忘掉这条记忆？自动召回将不再使用它；文件会保留，仍可审计。',
       forgetDone: '已忘掉，自动召回不再使用它。',
@@ -440,6 +449,15 @@ window.__ModuleLoader__.load({
       audError: 'error',
       audUnknown: 'other',
       qualityLabel: 'Recall quality (7 days)',
+      weekReviewTitle: 'Last 7 days',
+      weekRecall: 'Recall',
+      weekInjected: 'injected',
+      weekCost: 'Injected cost',
+      weekKept: 'kept',
+      weekReviewed: 'reviewed',
+      weekNotes: 'Memories',
+      weekAdded: 'added',
+      weekTotal: 'total',
       forgetButton: 'Forget this',
       forgetConfirm: 'Forget this memory? Automatic recall will stop using it; the file stays for audit.',
       forgetDone: 'Forgotten; automatic recall will not use it.',
@@ -1187,6 +1205,7 @@ window.__ModuleLoader__.load({
   const [conflictPreview, setConflictPreview] = useState(null);
   const [judgeSample, setJudgeSample] = useState(null);
   const [usageInfo, setUsageInfo] = useState(null);
+  const [weeklyInfo, setWeeklyInfo] = useState(null);
 
       const load = useCallback(async () => {
         setState((prev) => ({ ...prev, loading: true, error: null }));
@@ -1273,6 +1292,12 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         rpcCall('usage.summary', { days: 7 })
           .then((result) => setUsageInfo(result))
+          .catch(() => {});
+      }, [rpcCall]);
+
+      useEffect(() => {
+        rpcCall('weekly.report', { days: 7 })
+          .then((result) => setWeeklyInfo(result))
           .catch(() => {});
       }, [rpcCall]);
 
@@ -1619,7 +1644,20 @@ window.__ModuleLoader__.load({
                 : null,
             )
           : h('p', { style: ui.muted }, t('lastRecallNone'))),
-        quality && quality.total > 0
+        weeklyInfo
+          ? card(t('weekReviewTitle'), h(React.Fragment, null,
+              h('div', { style: ui.kvList },
+                h('div', { style: ui.kvRow }, h('span', { style: ui.kvKey }, t('weekRecall')),
+                  h('span', { style: ui.kvValue }, String(weeklyInfo.recall.runs) + ' 次 · ' + t('weekInjected') + ' ' + String((weeklyInfo.recall.byMode?.context || 0) + (weeklyInfo.recall.byMode?.notice || 0)) + ' 次')),
+                h('div', { style: ui.kvRow }, h('span', { style: ui.kvKey }, t('weekCost')),
+                  h('span', { style: ui.kvValue }, '≈' + String(weeklyInfo.context.tokensEst) + ' tok · ' + String(weeklyInfo.context.chars) + ' 字')),
+                h('div', { style: ui.kvRow }, h('span', { style: ui.kvKey }, t('judgeLabel')),
+                  h('span', { style: ui.kvValue }, t('weekKept') + ' ' + String(weeklyInfo.recall.judge?.kept || 0) + ' · ' + t('judgeDropped') + ' ' + String(weeklyInfo.recall.judge?.dropped || 0) + ' · ' + t('weekReviewed') + ' ' + String(weeklyInfo.judge.reviewed) + '/' + String(weeklyInfo.judge.calls))),
+                h('div', { style: ui.kvRow }, h('span', { style: ui.kvKey }, t('weekNotes')),
+                  h('span', { style: ui.kvValue }, t('weekAdded') + ' ' + String(weeklyInfo.notes.added) + ' · ' + t('weekTotal') + ' ' + String(weeklyInfo.notes.total))),
+              )))
+          : null,
+        !weeklyInfo && quality && quality.total > 0
           ? card(t('qualityLabel'), h(React.Fragment, null,
               h('div', { style: ui.metricRow },
                 h('div', { style: ui.metric },
@@ -1699,7 +1737,7 @@ window.__ModuleLoader__.load({
                 ))),
             ))
           : null,
-        usageInfo
+        !weeklyInfo && usageInfo
           ? card(t('usageTitle'), h(React.Fragment, null,
               h('p', { style: ui.muted }, t('usageHint')),
               usageInfo.recalls > 0
