@@ -7,12 +7,9 @@ import path from 'node:path';
 import { openStore, remember } from 'tabellio';
 import { normalizeConfig } from '../src/config.js';
 import {
-  cosine,
-  readNotes,
   detectEmbedding,
   embedTexts,
   listEmbeddingModels,
-  loadIndex,
   mergeSemanticResult,
   refreshIndex,
   semanticTop,
@@ -88,19 +85,6 @@ test('semantic merge never resurrects archived, superseded or untrusted notes', 
   assert.deepEqual(merged.items.map((item) => item.id), ['good']);
 });
 
-test('readNotes skips archived notes when building the index', (t) => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tabellio-semantic-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const store = openStore(dir);
-  const written = remember(store, { content: '语义索引测试：归档的笔记不该进索引。' });
-  const active = readNotes(store).map((note) => note.id);
-  assert.ok(active.includes(written.id));
-  const file = path.join(dir, 'notes', written.id.split('#')[0] + '.md');
-  const text = fs.readFileSync(file, 'utf8');
-  fs.writeFileSync(file, text.replace('trust: user_stated', 'trust: user_stated\nstatus: archived'));
-  assert.equal(readNotes(store).some((note) => note.id === written.id), false);
-});
-
 test('refreshIndex embeds notes and semanticTop ranks a paraphrase first', async (t) => {
   const { store } = await tempStore(t);
   const ctx = openStore(store.store);
@@ -112,7 +96,6 @@ test('refreshIndex embeds notes and semanticTop ranks a paraphrase first', async
   const built = await refreshIndex({ store, endpoint, model: 'fake-model' });
   assert.equal(built.size, 3);
   assert.equal(built.changed, 3);
-  assert.equal(loadIndex(store, 'fake-model').size, 3);
 
   const hits = await semanticTop({ index: built.index, query: 'hook 为什么 403 了', endpoint, model: 'fake-model', top: 2, minSimilarity: 0 });
   assert.equal(hits.length, 2);
@@ -175,11 +158,6 @@ test('semantic config defaults to auto and keeps explicit modes', () => {
   assert.equal(local.semanticTop, 20);
   assert.equal(local.semanticMinSimilarity, 1);
   assert.equal(normalizeConfig({ semantic: 'bogus' }).semantic, 'auto');
-});
-
-test('cosine is scale invariant and zero for orthogonal vectors', () => {
-  assert.equal(cosine([1, 0], [2, 0]), 1);
-  assert.equal(cosine([1, 0], [0, 1]), 0);
 });
 
 test('auto-discovery asks /v1/models and falls back to candidate names', async (t) => {

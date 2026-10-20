@@ -1,64 +1,20 @@
-// Optional local embedding layer.
+// Optional embedding layer — the provider side.
 //
-// BM25 cannot match a paraphrase: "Jenkins 那个 hook 为什么 403" only finds the
-// note if the words overlap. A small local embedding model closes that gap, but
-// it must stay optional and cheap:
-//   - off by default (`semantic: 'off'`);
-//   - the index is built in the background, never on the recall path;
-//   - a recall only adds the semantic hits BM25 already missed;
-//   - any failure (server down, timeout, bad response) keeps the BM25 result.
+// The index format, the eligibility rules, cosine ranking and the merge back
+// into lexical results all live in the core (`tabellio`): one implementation
+// shared by the DSH plugin, the CLI and MCP. This file only knows how to talk
+// to an embedding server and how to schedule refreshes in the background:
+//   - `embedTexts` speaks the OpenAI-compatible /v1/embeddings shape;
+//   - `startIndexer` refreshes the core index off the recall path;
+//   - any failure keeps the lexical result untouched (callers fail open).
 
-import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { indexSemantic, mergeSemanticItems, rankSemantic } from 'tabellio';
 
 export const DEFAULT_MODEL = 'qwen3-embedding-0.6b';
 export const DEFAULT_ENDPOINT = 'http://127.0.0.1:8080/v1/embeddings';
 
 const EMBED_TIMEOUT_MS = 10000;
 const BATCH = 8;
-const MAX_NOTE_CHARS = 900;
-
-const sha1 = (text) => createHash('sha1').update(text).digest('hex');
-const dot = (left, right) => {
-  let sum = 0;
-  for (let index = 0; index < left.length; index += 1) sum += left[index] * right[index];
-  return sum;
-};
-const norm = (vector) => Math.sqrt(dot(vector, vector));
-
-export function cosine(left, right) {
-  const denom = norm(left) * norm(right);
-  return denom ? dot(left, right) / denom : 0;
-}
-
-export function indexPath(store) {
-  return join(store.store, 'runs', 'semantic-index.json');
-}
-
-export function loadIndex(store, model) {
-  try {
-    const raw = JSON.parse(readFileSync(indexPath(store), 'utf8'));
-    if (raw?.model !== model || !Array.isArray(raw.notes)) return new Map();
-    return new Map(raw.notes.map((note) => [note.id, { hash: note.hash, vector: note.vector }]));
-  } catch {
-    return new Map();
-  }
-}
-
-export function saveIndex(store, model, index) {
-  try {
-    mkdirSync(join(store.store, 'runs'), { recursive: true });
-    writeFileSync(indexPath(store), JSON.stringify({
-      model,
-      builtAt: Date.now(),
-      notes: [...index.entries()].map(([id, entry]) => ({ id, hash: entry.hash, vector: entry.vector })),
-    }));
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 function authHeaders(apiKey) {
   return apiKey ? { authorization: 'Bearer ' + apiKey } : {};
@@ -88,74 +44,14 @@ export async function embedTexts({ endpoint = DEFAULT_ENDPOINT, model = DEFAULT_
   }
 }
 
-function splitFrontmatter(text) {
-  const match = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  if (!match) return { meta: {}, body: text };
-  const meta = {};
-  for (const line of match[1].split('\n')) {
-    const at = line.indexOf(':');
-    if (at < 0) continue;
-    meta[line.slice(0, at).trim()] = line.slice(at + 1).trim().replace(/^['"]|['"]$/g, '');
-  }
-  return { meta, body: match[2] };
-}
-
-function noteBody(text) {
-  return splitFrontmatter(text).body.trim().slice(0, MAX_NOTE_CHARS);
-}
-
-/** Only notes that automatic recall may surface belong in the semantic index. */
-function indexable(text) {
-  const { meta } = splitFrontmatter(text);
-  if (meta.status === 'archived' || meta.status === 'draft') return false;
-  const superseded = meta.superseded_by && meta.superseded_by !== 'null';
-  const expired = meta.valid_to && meta.valid_to !== 'null';
-  return !superseded && !expired;
-}
-
-export function readNotes(store) {
-  const dir = join(store.store, 'notes');
-  const notes = [];
-  let files = [];
-  try {
-    files = readdirSync(dir).filter((file) => file.endsWith('.md'));
-  } catch {
-    return notes;
-  }
-  for (const file of files) {
-    try {
-      const id = file.replace(/\.md$/, '');
-      const text = readFileSync(join(dir, file), 'utf8');
-      if (!indexable(text)) continue;
-      const body = noteBody(text);
-      if (!body) continue;
-      notes.push({ id, text: body, hash: sha1(body) });
-    } catch {
-      // unreadable note: skip, keep the rest of the index usable
-    }
-  }
-  return notes;
-}
-
+/** Build/refresh the core index with this endpoint. Throws when the service fails. */
 export async function refreshIndex({ store, endpoint = DEFAULT_ENDPOINT, model = DEFAULT_MODEL, apiKey = '', onProgress } = {}) {
-  const index = loadIndex(store, model);
-  const entries = readNotes(store);
-  const alive = new Set(entries.map((entry) => entry.id));
-  for (const id of [...index.keys()]) if (!alive.has(id)) index.delete(id);
-
-  let changed = 0;
-  for (let offset = 0; offset < entries.length; offset += BATCH) {
-    const chunk = entries
-      .slice(offset, offset + BATCH)
-      .filter((entry) => index.get(entry.id)?.hash !== entry.hash);
-    if (chunk.length === 0) continue;
-    const vectors = await embedTexts({ endpoint, model, apiKey, inputs: chunk.map((entry) => entry.text) });
-    chunk.forEach((entry, position) => index.set(entry.id, { hash: entry.hash, vector: vectors[position] }));
-    changed += chunk.length;
-    onProgress?.({ done: Math.min(entries.length, offset + BATCH), total: entries.length });
-  }
-  if (changed > 0) saveIndex(store, model, index);
-  return { index, size: index.size, changed };
+  return indexSemantic(store, {
+    model,
+    batch: BATCH,
+    embed: (texts) => embedTexts({ endpoint, model, apiKey, inputs: texts }),
+    onProgress,
+  });
 }
 
 /**
@@ -205,59 +101,17 @@ export function startIndexer({ store, endpoint = DEFAULT_ENDPOINT, model = DEFAU
 }
 
 /**
- * Top semantic hits, ignoring cheap noise. Cosine similarity is model-specific:
- * qwen3-embedding puts relevant pairs around 0.6–0.85 and unrelated text below
- * 0.55 on this corpus, so the caller's threshold does the filtering.
+ * Top semantic hits for one query. The in-memory index (built by startIndexer)
+ * is passed in so a recall never re-reads the index file.
  */
 export async function semanticTop({ index, query, endpoint = DEFAULT_ENDPOINT, model = DEFAULT_MODEL, apiKey = '', top = 8, minSimilarity = 0, timeoutMs = 2500 }) {
   if (!index || index.size === 0) return [];
   const [queryVector] = await embedTexts({ endpoint, model, apiKey, inputs: [query], timeoutMs });
-  const scored = [];
-  for (const [id, entry] of index) {
-    const similarity = cosine(queryVector, entry.vector);
-    if (similarity >= minSimilarity) scored.push({ id, similarity });
-  }
-  scored.sort((left, right) => right.similarity - left.similarity);
-  return scored.slice(0, Math.max(1, top));
+  return rankSemantic(index, queryVector, { top, minSimilarity });
 }
 
-// Pure merge step, separated from the network path so it is easy to test:
-// keep the lexical order, append semantic-only hits, then trim to the note cap.
-export function mergeSemanticResult(result, { hits = [], readNote, maxNotes = 6, allowedTrusts = null } = {}) {
-  const items = Array.isArray(result?.items) ? result.items : [];
-  if (!Array.isArray(hits) || hits.length === 0 || typeof readNote !== 'function') return result;
-  const known = new Set(items.map((item) => item.id));
-  const added = [];
-  for (const hit of hits) {
-    if (!hit || known.has(hit.id)) continue;
-    let note;
-    try {
-      note = readNote(hit.id);
-    } catch {
-      continue;
-    }
-    if (!note || note.ok === false) continue;
-    const meta = note.note && typeof note.note === 'object' ? note.note : {};
-    if (meta.status === 'archived' || meta.status === 'draft') continue;
-    if (meta.superseded_by && meta.superseded_by !== 'null') continue;
-    if (meta.valid_to && meta.valid_to !== 'null') continue;
-    if (Array.isArray(allowedTrusts) && allowedTrusts.length && meta.trust && !allowedTrusts.includes(meta.trust)) continue;
-    known.add(hit.id);
-    added.push({
-      id: hit.id,
-      title: note.title ?? hit.id,
-      content: String(note.body ?? '').trim(),
-      relevance: Number(Number(hit.similarity).toFixed(4)),
-      score: Number(hit.similarity),
-      semantic: true,
-    });
-    if (added.length >= Math.max(1, maxNotes)) break;
-  }
-  if (added.length === 0) return result;
-  const merged = [...items, ...added].slice(0, Math.max(1, maxNotes));
-  const chars = merged.reduce((sum, item) => sum + String(item.title ?? '').length + String(item.content ?? '').length, 0);
-  return { ...result, refused: false, reason: null, items: merged, tokens: Math.round(chars / 4) };
-}
+/** Merge semantic hits back into a lexical result (pure core function). */
+export const mergeSemanticResult = mergeSemanticItems;
 
 /**
  * One-shot connectivity check used by the panel's "test" button. Returns the
@@ -316,7 +170,7 @@ export async function detectEmbedding({ endpoint, model, apiKey = '', timeoutMs 
     const names = [...new Set([model, ...discovered, ...candidate.models].filter(Boolean))];
     for (const name of names) {
       try {
-        const probe = await probeEmbedding({ endpoint: candidate.endpoint, model: name, timeoutMs });
+        const probe = await probeEmbedding({ endpoint: candidate.endpoint, model: name, apiKey, timeoutMs });
         return { endpoint: candidate.endpoint, model: name, dims: probe.dims };
       } catch {
         // try the next model name

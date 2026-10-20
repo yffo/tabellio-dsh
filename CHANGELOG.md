@@ -1,3 +1,12 @@
+## 0.33.1
+
+语义层改吃核心：索引格式、可索引条件、余弦排序与合并全部来自 `tabellio@^0.1.8`，插件只保留 embedding 服务适配与后台调度。
+
+- `src/semantic.js` 删除本地索引读写、正文抽取、cosine、合并实现；`refreshIndex` 调核心 `indexSemantic`（注入 `embed`），`semanticTop` 调核心 `rankSemantic`，`mergeSemanticResult` 直接复用核心 `mergeSemanticItems`。
+- 语义索引文件仍是 `<store>/runs/semantic-index.json`，但格式由核心定义（换模型自动失效）；首次升级会重建一次（正文哈希口径变了）。
+- 测试：插件 170 / 验收 30；核心侧另有 `test/semantic.test.mjs` 覆盖增量、生命周期过滤、合并与落盘。
+- 依赖：`tabellio` 升到 `^0.1.8`。
+
 ## 0.33.0
 
 把「反馈排序」和「遗忘衰减」交还给核心：插件不再自己存 `panel-feedback.jsonl` / `outcome.jsonl`，也不再自己算排序权重。
