@@ -9,6 +9,9 @@ export const DEFAULTS = Object.freeze({
   // Turn a later correction into a ranking signal for the notes that were
   // injected right before it (local only; never deletes nor outvotes gates).
   outcomeFeedback: true,
+  // Summarize the assistant's own conclusions into candidates (opt-in: a wrong
+  // summary costs review time, so the default keeps the user in charge).
+  captureAssistant: false,
   recallBudgetTokens: 500,
   recallMaxNotes: 6,
   // Recall gates, in tabellio's own units (see tabellio `recall` docs).
@@ -139,6 +142,7 @@ export function normalizeConfig(config = {}) {
     autoRecall: raw.autoRecall !== false,
     shadow: raw.shadow === true,
     outcomeFeedback: raw.outcomeFeedback !== false,
+    captureAssistant: raw.captureAssistant === true,
     recallBudgetTokens: int(raw.recallBudgetTokens, DEFAULTS.recallBudgetTokens, 100, 4000),
     recallMaxNotes: int(raw.recallMaxNotes, DEFAULTS.recallMaxNotes, 1, 20),
     recallMinRelevance: ratio(raw.recallMinRelevance, DEFAULTS.recallMinRelevance),

@@ -14,7 +14,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { addCandidate, listCandidates, openStore, read as readNote, recallQuery, remember, status as storeStatus } from 'tabellio';
 import { normalizeConfig } from './src/config.js';
 import { delegationDepth, isHumanMessage, isChitchat, latestHuman, textOf, trimQuery, intentGateAllows } from './src/messages.js';
-import { extractCandidates, hasSecretHint, looksLikeCredentialLeak } from './src/capture.js';
+import { extractAssistantConclusion, extractCandidates, hasSecretHint, looksLikeCredentialLeak } from './src/capture.js';
 import { filterByJudge } from './src/judge.js';
 import { readFeedback, aggregateFeedback, rankByFeedback } from './src/feedback.js';
 import { maybeRecordCorrection, outcomePenalties, rankByOutcome } from './src/outcome.js';
@@ -301,6 +301,12 @@ export function apply(ctx, config = {}) {
   };
   if (settings.autoRecall && settings.delivery === 'context') mountQuietContext();
 
+  // Assistant conclusions are collected per session and written once at the
+  // next boundary, so the candidate reflects a finished turn rather than
+  // half-streamed text.
+  const assistantBySession = new Map();
+  const sessionKey = (session) => String(session?.id ?? session?.sessionId ?? 'unknown');
+
   /** Per-agent state: dedupe is per conversation, not global. */
   const states = new Map();
   const anonymousKeys = new WeakMap();
@@ -560,17 +566,29 @@ export function apply(ctx, config = {}) {
 
   const captureFrom = async (agent, where) => {
     if (settings.capture === 'off') return 0;
+    let assistantWritten = 0;
+    if (settings.captureAssistant) {
+      const sid = sessionKey(agent?.session);
+      const draft = assistantBySession.get(sid);
+      assistantBySession.delete(sid);
+      const conclusion = extractAssistantConclusion(draft);
+      if (conclusion) {
+        const got = writeCandidates([conclusion], sessionRef(agent), where + ':assistant');
+        assistantWritten = got.written;
+      }
+    }
     // Delegated agents get prompts like "you are a read-only scout"; capturing
     // those as user preferences is noise. Only the main conversation qualifies.
     if (delegationDepth(agent) > 0) return 0;
     const state = states.get(keyFor(agent));
-    if (!state) return 0;
+    if (!state) return assistantWritten;
 
     const source = sessionRef(agent);
     let written = 0;
 
     // A previous boundary may have written some candidates and failed on others.
     // Retry only the failed ones, so a success is never duplicated.
+    written += assistantWritten;
     if (Array.isArray(state.pendingCandidates) && state.pendingCandidates.length > 0) {
       const retry = writeCandidates(state.pendingCandidates, state.pendingSource || source, where + ':retry');
       written += retry.written;
@@ -1073,6 +1091,21 @@ export function apply(ctx, config = {}) {
 
   // Disposal catches aborted turns that never reached turn-stopping. It also
   // releases the per-agent state so long-lived hosts do not grow forever.
+  // Observe completed assistant messages: the text is kept per session and
+  // summarized at the turn boundary only when `captureAssistant` is on.
+  ctx.on('session/event', (session, event) => {
+    if (!settings.captureAssistant) return;
+    if (event?.type !== 'assistant/message') return;
+    const message = event?.data?.message;
+    if (!message || message.role !== 'assistant' || !Array.isArray(message.content)) return;
+    const text = message.content
+      .filter((part) => part?.type === 'text' && typeof part.text === 'string')
+      .map((part) => part.text)
+      .join('\n')
+      .trim();
+    if (text) assistantBySession.set(sessionKey(session), text);
+  });
+
   ctx.on('agent/disposed', async (payload) => {
     try {
       await captureFrom(payload?.agent, 'disposed');

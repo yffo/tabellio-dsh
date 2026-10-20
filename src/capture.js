@@ -309,3 +309,22 @@ export function extractCandidates(text, { max = 2, maxChars = 240, mode = 'expli
     return { sentence, title, body: `# ${title}\n\n${sentence}` };
   });
 }
+
+const ASSISTANT_CUE = /(结论|决定|方案|以后|统一|建议|因此|所以|最后|定下来|采用|注意|规则|流程)/;
+
+/** Turn the assistant's closing text into at most one reviewable candidate. */
+export function extractAssistantConclusion(text) {
+  const flat = String(text ?? '').replace(/\s+/g, ' ').trim();
+  // Short Chinese conclusions are common; the cue below is the real filter.
+  if (flat.length < 24 || hasSecretHint(flat)) return null;
+  if (!ASSISTANT_CUE.test(flat)) return null;
+  // Candidates above 400 chars could never be approved; keep room for the
+  // title line and markdown when clipping the excerpt.
+  const excerpt = flat.length > 320 ? flat.slice(0, 320) + '…' : flat;
+  const title = '会话结论：' + excerpt.slice(0, 24);
+  return {
+    title,
+    sentence: title,
+    body: '# ' + title + '\n\n' + excerpt,
+  };
+}

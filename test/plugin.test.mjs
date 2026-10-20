@@ -973,3 +973,48 @@ test('a correction after an injected recall is recorded as an outcome', async (t
   assert.equal(outcomes[0].signal, 'corrected');
   assert.ok(outcomes[0].overlap >= 3);
 });
+
+const emitSession = (handlers, session, event) => {
+  for (const handler of handlers.get('session/event') ?? []) handler(session, event);
+};
+const assistantEvent = (text) => ({
+  type: 'assistant/message',
+  data: { turn: 1, step: 1, message: { role: 'assistant', content: [{ type: 'text', text }] } },
+});
+
+test('assistant conclusions become one candidate when enabled', async (t) => {
+  const dir = temp(t);
+  const host = fakeHost();
+  apply(host.ctx, { storePath: dir, autoRecall: false, capture: 'explicit', captureAssistant: true });
+  const who = agent();
+  await runPre(host.handlers, who, [human('m1', '随便聊聊')]);
+  emitSession(host.handlers, who.session, assistantEvent('经过比较，结论是以后都用 pnpm，统一走 CI 发布，不再手动上传。'));
+  await runSerial(host.handlers, 'agent/turn-stopping', { agent: who, turn: {}, signal: null });
+  const candidates = listCandidates(openStore(dir)).candidates;
+  assert.equal(candidates.length, 1);
+  assert.ok(String(candidates[0].title).startsWith('会话结论'));
+  // The same text cannot be written twice at the next boundary.
+  await runSerial(host.handlers, 'agent/turn-stopping', { agent: who, turn: {}, signal: null });
+  assert.equal(listCandidates(openStore(dir)).candidates.length, 1);
+});
+
+test('assistant capture stays off by default and ignores text without conclusions', async (t) => {
+  const dir = temp(t);
+  const host = fakeHost();
+  apply(host.ctx, { storePath: dir, autoRecall: false, capture: 'explicit' });
+  const who = agent();
+  await runPre(host.handlers, who, [human('m1', '随便聊聊')]);
+  emitSession(host.handlers, who.session, assistantEvent('结论是以后都用 pnpm，统一走 CI 发布。'));
+  await runSerial(host.handlers, 'agent/turn-stopping', { agent: who, turn: {}, signal: null });
+  assert.equal(listCandidates(openStore(dir)).candidates.length, 0);
+  fs.rmSync(dir, { recursive: true, force: true });
+
+  const dir2 = temp(t);
+  const host2 = fakeHost();
+  apply(host2.ctx, { storePath: dir2, autoRecall: false, capture: 'explicit', captureAssistant: true });
+  const who2 = agent();
+  await runPre(host2.handlers, who2, [human('m1', '随便聊聊')]);
+  emitSession(host2.handlers, who2.session, assistantEvent('我先看了一下文件，然后跑了一遍测试，输出有一点长。'));
+  await runSerial(host2.handlers, 'agent/turn-stopping', { agent: who2, turn: {}, signal: null });
+  assert.equal(listCandidates(openStore(dir2)).candidates.length, 0);
+});
