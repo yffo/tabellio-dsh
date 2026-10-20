@@ -149,7 +149,7 @@ Ordinary users never touch a config file: the panel asks one question — is **S
 
 ### Tools
 
-`tabellio_recall` / `tabellio_search` / `tabellio_read` / `tabellio_status` / `tabellio_capture` / `tabellio_inbox` / `tabellio_report`. The tools share the same budget, refusal rules and write gate as the CLI and MCP server.
+`tabellio_recall` / `tabellio_search` / `tabellio_read` / `tabellio_status` / `tabellio_capture` / `tabellio_inbox` / `tabellio_report` / `tabellio_conflicts` (read-only: probable stale pairs) / `tabellio_merge` (human-approved merge that retires the old notes). `tabellio_recall` and `tabellio_search` accept `as_of` for point-in-time queries.. The tools share the same budget, refusal rules and write gate as the CLI and MCP server.
 
 ### Full configuration table
 

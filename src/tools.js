@@ -1,4 +1,5 @@
-import { addCandidate, listCandidates, read, recallQuery, reviewCandidates, search, status } from 'tabellio';
+import { addCandidate, applyContentConsolidation, listCandidates, proposeConsolidation, read, recallQuery, reviewCandidates, search, status } from 'tabellio';
+import { findConflicts } from './conflicts.js';
 import { formatRecallTool } from './render.js';
 import { buildReport, renderReport } from './report.js';
 import { looksLikeCredentialLeak } from './capture.js';
@@ -42,6 +43,14 @@ const normalizeCandidateText = (content) => {
 // tabellio's write gate caps one note at 400 chars; a longer candidate can
 // never be approved (the gate answers too_long), so refuse it at capture time.
 const MAX_CANDIDATE_CHARS = 400;
+// tabellio@0.1.5 only understands `asOfMs`; accept human date strings and parse
+// them here so the tool contract can stay `as_of: string`.
+const asOfMs = (value) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  const at = Date.parse(raw);
+  return Number.isFinite(at) ? at : NaN;
+};
 
 
 /**
@@ -77,6 +86,7 @@ export function createToolDefinitions({ settings, getStore, getLastRecall = () =
           query: { type: 'string', description: 'What you are trying to remember, in the user language.' },
           budgetTokens: { type: 'integer', description: 'Optional token budget (default from config, capped 4000).' },
           maxNotes: { type: 'integer', description: 'Optional maximum notes (1-20).' },
+          as_of: { type: 'string', description: 'Optional ISO date/time: answer as the store stood then (expired and future notes drop out).' },
         },
         required: ['query'],
         additionalProperties: false,
@@ -126,6 +136,7 @@ export function createToolDefinitions({ settings, getStore, getLastRecall = () =
             budgetTokens: Math.max(100, Math.min(Number(args?.budgetTokens) || settings.recallBudgetTokens, 4000)),
             maxNotes: Math.max(1, Math.min(Number(args?.maxNotes) || settings.recallMaxNotes, 20)),
             includeCore: settings.includeCore,
+            ...(asOfMs(args?.as_of) !== null ? { asOfMs: asOfMs(args.as_of) } : {}),
           });
           return {
             store: storePath,
@@ -161,6 +172,7 @@ export function createToolDefinitions({ settings, getStore, getLastRecall = () =
         properties: {
           query: { type: 'string', description: 'Keywords in the user language.' },
           limit: { type: 'integer', description: 'Maximum hits (default 8, max 30).' },
+          as_of: { type: 'string', description: 'Optional ISO date/time: search as of that moment.' },
         },
         required: ['query'],
         additionalProperties: false,
@@ -202,7 +214,10 @@ export function createToolDefinitions({ settings, getStore, getLastRecall = () =
         const store = getStore();
         if (!query) return { store: store.store, hits: [], tokens: 0, refused: true, reason: 'empty_query', note: 'query 不能为空' };
         try {
-          const result = search(store, query, { maxNotes: Math.max(1, Math.min(Number(args?.limit) || 8, 30)) });
+          const result = search(store, query, {
+            maxNotes: Math.max(1, Math.min(Number(args?.limit) || 8, 30)),
+            ...(asOfMs(args?.as_of) !== null ? { asOfMs: asOfMs(args.as_of) } : {}),
+          });
           return {
             store: store.store,
             hits: (result.hits ?? []).map((hit) => ({ id: String(hit.id), title: String(hit.title ?? ''), score: Number(hit.score) || 0 })),
@@ -590,6 +605,171 @@ export function createToolDefinitions({ settings, getStore, getLastRecall = () =
         } catch (error) {
           const report = { days, since: '', notes_total: 0, notes_added: 0, candidates: 0, proposals: 0, added: [], truncated: 0 };
           return { ok: false, ...report, plain: '周报读取失败：' + (error?.message ?? error) };
+        }
+      },
+    },
+    {
+      name: 'tabellio_conflicts',
+      description:
+        '列出「可能已经过时」的笔记对：同一主题、内容高度重叠，但较新的一条出现替换措辞/不同数值/相反极性。只读、不写、不调模型。' +
+        '用户问「有没有互相矛盾/过时的记忆」时可先跑它，再把结果交给人判断。',
+      parameters: {
+        type: 'object',
+        properties: {
+          days: { type: 'integer', minimum: 1, maximum: 365, description: '只看最近 N 天内新增/更新的笔记作为「新」候选，默认 30。' },
+          limit: { type: 'integer', minimum: 1, maximum: 50, description: '最多返回几对，默认 10。' },
+          min_overlap: { type: 'number', minimum: 0.1, maximum: 0.95, description: '词面重叠下限，默认 0.35。' },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            ok: { type: 'boolean' },
+            scanned: { type: 'integer' },
+            pairs: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  older_id: { type: 'string' },
+                  older_title: { type: 'string' },
+                  older_at: { type: 'integer' },
+                  older_snippet: { type: 'string' },
+                  newer_id: { type: 'string' },
+                  newer_title: { type: 'string' },
+                  newer_at: { type: 'integer' },
+                  newer_snippet: { type: 'string' },
+                  overlap: { type: 'number' },
+                  signals: { type: 'array', items: { type: 'string' } },
+                },
+                required: ['older_id', 'older_title', 'older_at', 'older_snippet', 'newer_id', 'newer_title', 'newer_at', 'newer_snippet', 'overlap', 'signals'],
+                additionalProperties: false,
+              },
+            },
+            message: { type: 'string' },
+          },
+          required: ['ok', 'scanned', 'pairs', 'message'],
+          additionalProperties: false,
+        },
+        render: (_args, value) => plainText(
+          value.pairs.length
+            ? value.pairs.map((pair, index) =>
+                (index + 1) + '. [' + pair.newer_id + '] ' + pair.newer_title + '（新）\n' +
+                '   vs [' + pair.older_id + '] ' + pair.older_title + '（旧）· 重叠 ' + Math.round(pair.overlap * 100) + '% · ' + pair.signals.join('/')).join('\n') +
+              '\n确认要替换时用 tabellio_merge（先 dry-run，再经用户同意 confirm）。'
+            : '没有发现明显冲突：' + value.message,
+        ),
+      },
+      async execute(args) {
+        try {
+          const store = getStore();
+          const found = findConflicts(store.scan(), {
+            days: Math.min(365, Math.max(1, Math.trunc(Number(args?.days) || 30))),
+            limit: Math.min(50, Math.max(1, Math.trunc(Number(args?.limit) || 10))),
+            minOverlap: Math.min(0.95, Math.max(0.1, Number(args?.min_overlap) || 0.35)),
+          });
+          return {
+            ok: true,
+            scanned: found.scanned,
+            pairs: found.pairs.map((pair) => ({
+              older_id: pair.older.id,
+              older_title: pair.older.title,
+              older_at: pair.older.at,
+              older_snippet: pair.older.snippet,
+              newer_id: pair.newer.id,
+              newer_title: pair.newer.title,
+              newer_at: pair.newer.at,
+              newer_snippet: pair.newer.snippet,
+              overlap: pair.overlap,
+              signals: pair.signals,
+            })),
+            message: found.pairs.length ? '按重叠度排序；请人确认哪条已过时。' : '库里没有同时满足重叠与替换信号的笔记对（共检查 ' + found.scanned + ' 条）。',
+          };
+        } catch (error) {
+          return { ok: false, scanned: 0, pairs: [], message: '冲突检查失败：' + (error?.message ?? error) };
+        }
+      },
+    },
+    {
+      name: 'tabellio_merge',
+      description:
+        '把两条以上「同一主题、新旧说法」的笔记合并成一条，并把旧笔记标成已被取代（valid_to + superseded_by）。默认只 dry-run；' +
+        '只有用户明确同意替换/合并时，才用 confirm: true 落盘。执行前会重算提案，源笔记正文在此后被改过就会拒绝。',
+      parameters: {
+        type: 'object',
+        properties: {
+          ids: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 8, description: '要合并的笔记 id（2–8 条，含新旧两条）。' },
+          confirm: { type: 'boolean', description: '默认 false=只预览。用户明确同意后才传 true。' },
+        },
+        required: ['ids'],
+        additionalProperties: false,
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            ok: { type: 'boolean' },
+            applied: { type: 'boolean' },
+            reason: { type: 'string' },
+            target_id: { type: 'string' },
+            target_title: { type: 'string' },
+            target_chars: { type: 'integer' },
+            source_ids: { type: 'array', items: { type: 'string' } },
+            warnings: { type: 'array', items: { type: 'string' } },
+            message: { type: 'string' },
+          },
+          required: ['ok', 'applied', 'reason', 'target_id', 'target_title', 'target_chars', 'source_ids', 'warnings', 'message'],
+          additionalProperties: false,
+        },
+        render: (_args, value) => plainText(value.message),
+      },
+      async execute(args) {
+        const ids = [...new Set((Array.isArray(args?.ids) ? args.ids : []).map(String).filter(Boolean))].slice(0, 8);
+        if (ids.length < 2) {
+          return { ok: false, applied: false, reason: 'need_two_ids', target_id: '', target_title: '', target_chars: 0, source_ids: ids, warnings: [], message: '至少给两条笔记 id。' };
+        }
+        const confirm = args?.confirm === true;
+        try {
+          if (!confirm) {
+            const plan = proposeConsolidation(getStore(), { mode: 'merge', ids });
+            if (!plan.ok) {
+              return { ok: false, applied: false, reason: String(plan.reason ?? 'plan_failed'), target_id: '', target_title: '', target_chars: 0, source_ids: ids, warnings: [], message: '不能合并：' + (plan.reason ?? 'unknown') + '。' };
+            }
+            const body = String(plan.target?.body ?? '');
+            return {
+              ok: true,
+              applied: false,
+              reason: '',
+              target_id: String(plan.target_id ?? plan.target?.id ?? ''),
+              target_title: body.split('\n')[0].replace(/^#\s*/, '').slice(0, 80),
+              target_chars: [...body].length,
+              source_ids: (plan.source_ids ?? ids).map(String),
+              warnings: (plan.warnings ?? []).map((item) => String(item.message ?? item.code ?? '')),
+              message: '预览：合并 ' + ids.length + ' 条 → 「' + body.split('\n')[0].replace(/^#\s*/, '').slice(0, 40) + '…」；确认无误后由用户同意再 confirm。',
+            };
+          }
+          // The core's 5% change-ratio fuse is meant for automatic sweeps; this
+          // merge is a human-approved action over at most 8 explicit ids.
+          const result = applyContentConsolidation(getStore(), { mode: 'merge', ids, apply: true, maxChangeRatio: 1 });
+          if (!result.ok) {
+            return { ok: false, applied: false, reason: String(result.reason ?? 'apply_failed'), target_id: '', target_title: '', target_chars: 0, source_ids: ids, warnings: [], message: '合并未执行：' + (result.reason ?? 'unknown') + '。' };
+          }
+          return {
+            ok: true,
+            applied: true,
+            reason: '',
+            target_id: String(result.target_id ?? result.target?.id ?? ''),
+            target_title: String(result.target?.title ?? result.target?.body?.split('\n')[0]?.replace(/^#\s*/, '') ?? '').slice(0, 80),
+            target_chars: Number(result.target?.chars) || 0,
+            source_ids: ids,
+            warnings: (result.warnings ?? []).map((item) => String(item.message ?? item.code ?? '')),
+            message: '已合并为 [' + String(result.target_id ?? result.target?.id ?? '') + ']，' + ids.length + ' 条旧笔记已标记被取代（可用核心 undo 回滚）。',
+          };
+        } catch (error) {
+          return { ok: false, applied: false, reason: 'merge_failed', target_id: '', target_title: '', target_chars: 0, source_ids: ids, warnings: [], message: '合并失败：' + (error?.message ?? error) };
         }
       },
     },
