@@ -2,7 +2,7 @@
 // reject, and search the store. Every endpoint is a thin projection of the
 // tabellio API — the panel never writes memory directly, it only exercises the
 // same approval gate the `tabellio inbox` CLI uses.
-import { listCandidates, listProposals, read, remember, reviewCandidates, reviewProposals, search, status } from 'tabellio';
+import { applyContentConsolidation, listCandidates, listProposals, proposeConsolidation, read, remember, reviewCandidates, reviewProposals, search, status } from 'tabellio';
 import { buildNotesPage, buildReport } from './report.js';
 import { findConflicts } from './conflicts.js';
 import { readLastRun } from './consolidate.js';
@@ -182,6 +182,31 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
               overlap: pair.overlap,
               signals: pair.signals,
             })),
+          });
+        }
+        case 'conflicts.preview': {
+          const ids = (payload?.ids ?? []).map((id) => String(id)).filter(Boolean);
+          if (ids.length < 2 || ids.length > 8) return fail('bad-request', 'ids must contain 2 to 8 note ids');
+          const plan = proposeConsolidation(store, { mode: 'merge', ids });
+          return ok({
+            ok: Boolean(plan.ok),
+            reason: String(plan.reason ?? ''),
+            title: String(plan.target?.title ?? '').slice(0, 120),
+            body: String(plan.target?.body ?? '').slice(0, MAX_NOTE_CHARS),
+            source_ids: ids,
+            warnings: (plan.warnings ?? []).map((item) => String(item.message ?? item.code ?? '')),
+          });
+        }
+        case 'conflicts.merge': {
+          const ids = (payload?.ids ?? []).map((id) => String(id)).filter(Boolean);
+          if (ids.length < 2 || ids.length > 8) return fail('bad-request', 'ids must contain 2 to 8 note ids');
+          if (payload?.confirm !== true) return fail('bad-request', 'merging supersedes notes; pass confirm:true after a human approved the preview');
+          const result = applyContentConsolidation(store, { mode: 'merge', ids, apply: true, maxChangeRatio: 1 });
+          if (!result.ok) return fail('conflict', String(result.reason ?? 'merge_failed'));
+          return ok({
+            target_id: String(result.target_id ?? result.target?.id ?? ''),
+            source_ids: ids,
+            warnings: (result.warnings ?? []).map((item) => String(item.message ?? item.code ?? '')),
           });
         }
         case 'feedback.add': {

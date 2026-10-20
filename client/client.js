@@ -170,10 +170,19 @@ window.__ModuleLoader__.load({
       filter30: '最近 30 天',
       filter90: '最近 90 天',
       closeNote: '收起',
-    feedbackAsk: '这条记忆准吗？',
-    feedbackUseful: '有用',
-    feedbackWrong: '不对 / 过时',
-    feedbackRecorded: '已记录，后续排序会参考；不会改动笔记本身。',
+    conflictsTitle: '可能过时的记忆',
+    conflictsHint: '同一主题、说法变了的笔记对。合并是人工动作：先预览，确认后旧笔记会被标记为「已被取代」，可回滚。',
+    conflictsMerge: '预览并合并',
+    conflictsPreviewTitle: '合并预览',
+    conflictsPreviewHint: '确认后生成一条新笔记，旧的两条标记为已被取代；不对会污染检索。',
+    conflictsConfirm: '确认合并',
+    conflictsCancel: '取消',
+    conflictsMerged: '已合并为 ',
+    conflictsPreviewFailed: '这两条现在不能合并',
+      feedbackAsk: '这条记忆准吗？',
+      feedbackUseful: '有用',
+      feedbackWrong: '不对 / 过时',
+      feedbackRecorded: '已记录，后续排序会参考；不会改动笔记本身。',
       addLabel: '直接存一条记忆',
       addPlaceholder: '比如：以后发版都用 tag 加 CI，不走手动上传。',
       addButton: '存为记忆',
@@ -392,6 +401,15 @@ window.__ModuleLoader__.load({
       filter30: 'Last 30 days',
       filter90: 'Last 90 days',
       closeNote: 'Close',
+    conflictsTitle: 'Probably outdated memories',
+    conflictsHint: 'Pairs on the same topic that started to say different things. Merging is human-gated: preview first; on confirm the old notes are retired and can be rolled back.',
+    conflictsMerge: 'Preview & merge',
+    conflictsPreviewTitle: 'Merge preview',
+    conflictsPreviewHint: 'On confirm a new note is written and the old pair is marked superseded.',
+    conflictsConfirm: 'Confirm merge',
+    conflictsCancel: 'Cancel',
+    conflictsMerged: 'Merged into ',
+    conflictsPreviewFailed: 'These two notes cannot be merged right now',
     feedbackAsk: 'Was this memory accurate?',
     feedbackUseful: 'Helpful',
     feedbackWrong: 'Wrong / stale',
@@ -1006,6 +1024,8 @@ window.__ModuleLoader__.load({
       const [settingsSaving, setSettingsSaving] = useState(false);
       const [semanticTest, setSemanticTest] = useState(null);
       const [models, setModels] = useState({ loading: false, list: [], error: '' });
+  const [conflicts, setConflicts] = useState(null);
+  const [conflictPreview, setConflictPreview] = useState(null);
 
       const load = useCallback(async () => {
         setState((prev) => ({ ...prev, loading: true, error: null }));
@@ -1068,6 +1088,12 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         load();
       }, [load]);
+
+      useEffect(() => {
+        rpcCall('conflicts.list', { days: 30, limit: 6 })
+          .then((result) => setConflicts(result))
+          .catch(() => {});
+      }, [rpcCall]);
 
       const find = useCallback(async () => {
         const text = query.trim();
@@ -1421,6 +1447,30 @@ window.__ModuleLoader__.load({
               Array.isArray(weekly.items) && weekly.items.length
                 ? h('div', { style: ui.list }, weekly.items.map((note) => noteRow(note, 'week-' + note.id)))
                 : null,
+            ))
+          : null,
+        conflicts && Array.isArray(conflicts.pairs) && conflicts.pairs.length
+          ? card(t('conflictsTitle'), h(React.Fragment, null,
+              h('p', { style: ui.muted }, t('conflictsHint')),
+              h('div', { style: ui.list }, conflicts.pairs.slice(0, 5).map((pair, index) =>
+                h('div', { key: 'conflict-' + index, style: ui.noteRow },
+                  h('div', { style: ui.noteMain },
+                    h('span', { style: ui.noteTitle }, String(pair.newer_title || pair.newer_id || '')),
+                    h('span', { style: ui.noteMeta }, 'vs ' + String(pair.older_title || pair.older_id || '') + ' · ' + Math.round((pair.overlap || 0) * 100) + '%'),
+                  ),
+                  h('button', {
+                    type: 'button',
+                    style: ui.buttonGhost,
+                    onClick: async () => {
+                      try {
+                        const preview = await rpcCall('conflicts.preview', { ids: [pair.older_id, pair.newer_id] });
+                        setConflictPreview({ ...preview, ids: [pair.older_id, pair.newer_id], busy: false });
+                      } catch (error) {
+                        setState((prev) => ({ ...prev, error: error?.message ?? String(error) }));
+                      }
+                    },
+                  }, t('conflictsMerge')),
+                ))),
             ))
           : null,
       ] : [];
@@ -1784,6 +1834,48 @@ window.__ModuleLoader__.load({
                     },
                   }, icon('x', 14), h('span', null, t('feedbackWrong'))),
                 )),
+            ))
+        : null;
+
+      const conflictOverlay = conflictPreview
+        ? h('div', { style: ui.overlayInline },
+            h('div', { style: ui.overlayPanelInline, role: 'region', 'aria-label': t('conflictsPreviewTitle') },
+              h('div', { style: ui.overlayHead },
+                h('div', null,
+                  h('div', { style: ui.overlayTitle }, t('conflictsPreviewTitle')),
+                  h('div', { style: ui.overlayMeta }, t('conflictsPreviewHint')),
+                ),
+                h('button', { type: 'button', style: ui.iconButton, onClick: () => setConflictPreview(null), 'aria-label': t('conflictsCancel') }, icon('x', 16)),
+              ),
+              h('div', { style: ui.overlayBody },
+                conflictPreview.ok === false
+                  ? h('p', { style: ui.errorLine }, t('conflictsPreviewFailed') + (conflictPreview.reason ? '：' + String(conflictPreview.reason) : ''))
+                  : h('pre', { style: ui.noteBody }, String(conflictPreview.body || '')),
+                (conflictPreview.warnings || []).length
+                  ? h('p', { style: ui.rowHint }, conflictPreview.warnings.join('；'))
+                  : null,
+                h('div', { style: ui.actionRow },
+                  h('button', {
+                    type: 'button',
+                    style: ui.buttonPrimary,
+                    disabled: conflictPreview.busy || conflictPreview.ok === false,
+                    onClick: async () => {
+                      setConflictPreview((prev) => ({ ...prev, busy: true }));
+                      try {
+                        const result = await rpcCall('conflicts.merge', { ids: conflictPreview.ids, confirm: true });
+                        setConflictPreview(null);
+                        setState((prev) => ({ ...prev, notice: t('conflictsMerged') + String(result.target_id || '') }));
+                        load();
+                        setConflicts(null);
+                      } catch (error) {
+                        setConflictPreview((prev) => ({ ...prev, busy: false }));
+                        setState((prev) => ({ ...prev, error: error?.message ?? String(error) }));
+                      }
+                    },
+                  }, conflictPreview.busy ? t('loading') : t('conflictsConfirm')),
+                  h('button', { type: 'button', style: ui.buttonGhost, onClick: () => setConflictPreview(null) }, t('conflictsCancel')),
+                ),
+              ),
             ))
         : null;
 

@@ -44,6 +44,26 @@ test('status reports counts and the current delivery mode', async (t) => {
   assert.equal(result.value.consolidate.lastRun, 0);
 });
 
+test('conflicts.preview shows the merged body and merge requires confirm', async (t) => {
+  const { dir, store } = await tempStore(t);
+  remember(store, { content: '发布流程：手动 npm publish，发布前跑 npm test。' });
+  remember(store, { content: '发布流程改成推送 tag，自动 npm publish；不再手动发布。' });
+  const handler = handlerFor(dir, store);
+  const ids = store.scan().notes.map((note) => note.id);
+
+  const preview = await handler('conflicts.preview', { ids });
+  assert.equal(preview.ok, true);
+  assert.equal(preview.value.ok, true);
+  assert.match(preview.value.body, /tag/);
+
+  const unconfirmed = await handler('conflicts.merge', { ids });
+  assert.equal(unconfirmed.ok, false);
+
+  const merged = await handler('conflicts.merge', { ids, confirm: true });
+  assert.equal(merged.ok, true);
+  assert.ok(merged.value.target_id.length > 0);
+});
+
 test('feedback.add records a signal and status reports the counts', async (t) => {
   const { dir, store } = await tempStore(t);
   const handler = handlerFor(dir, store);
