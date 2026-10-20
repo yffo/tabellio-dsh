@@ -10,6 +10,7 @@ import { join } from 'node:path';
 export const JUDGE_LOG_FILE = 'judge-log.jsonl';
 export const JUDGE_REVIEW_FILE = 'judge-review.jsonl';
 export const JUDGE_LOG_MAX = 300;
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const TITLE_MAX = 80;
 const QUERY_MAX = 120;
 
@@ -100,4 +101,45 @@ export function judgeQuality(store, { days = 7, now = Date.now() } = {}) {
     if (reviews.get(event.at)) agreed += 1;
   }
   return { total: events.length, reviewed, agreed };
+}
+
+/**
+ * Per-week judge activity for the panel: how often the model was asked, how
+ * often a human reviewed its verdict, and how often that review agreed.
+ * Weeks are aligned to "now", oldest first.
+ */
+export function judgeTrend(store, { weeks = 4, now = Date.now() } = {}) {
+  const count = Math.max(1, Math.min(12, Math.floor(Number(weeks) || 4)));
+  const events = readJudgeLog(store, { limit: JUDGE_LOG_MAX });
+  const reviews = readJudgeReviews(store);
+  const buckets = [];
+  for (let index = count - 1; index >= 0; index -= 1) {
+    const start = now - (index + 1) * WEEK_MS;
+    const end = now - index * WEEK_MS;
+    let total = 0;
+    let reviewed = 0;
+    let agreed = 0;
+    let kept = 0;
+    let dropped = 0;
+    for (const event of events) {
+      if (event.at < start || event.at >= end) continue;
+      total += 1;
+      kept += event.kept.length;
+      dropped += event.dropped.length;
+      if (!reviews.has(event.at)) continue;
+      reviewed += 1;
+      if (reviews.get(event.at)) agreed += 1;
+    }
+    buckets.push({
+      start: new Date(start).toISOString(),
+      end: new Date(end).toISOString(),
+      total,
+      kept,
+      dropped,
+      reviewed,
+      agreed,
+      agreement: reviewed ? agreed / reviewed : null,
+    });
+  }
+  return buckets;
 }

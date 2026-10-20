@@ -540,4 +540,6 @@ test('weekly.report returns the aggregate the panel renders', async (t) => {
   assert.equal(typeof result.value.recall.runs, 'number');
   assert.equal(typeof result.value.context.tokensEst, 'number');
   assert.equal(typeof result.value.judge.calls, 'number');
+  assert.equal(Array.isArray(result.value.judgeTrend), true);
+  assert.equal(result.value.judgeTrend.length, 4);
 });

@@ -46,6 +46,7 @@ test('weekly report aggregates recall, cost, judge and notes in one window', (t)
   assert.equal(weekly.judge.calls, 1);
   assert.equal(weekly.judge.reviewed, 1);
   assert.equal(weekly.judge.agreed, 1);
+  assert.equal(weekly.judgeTrend.length, 4);
   assert.equal(weekly.notes.total, 1);
   assert.equal(weekly.notes.added, 1);
 

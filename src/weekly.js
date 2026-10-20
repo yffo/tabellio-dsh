@@ -4,7 +4,7 @@
  */
 import { readAuditSince, summarizeAudit } from './audit.js';
 import { usageSummary } from './usage.js';
-import { judgeQuality } from './judge-log.js';
+import { judgeQuality, judgeTrend } from './judge-log.js';
 import { buildReport } from './report.js';
 import { readConflictState } from './conflicts.js';
 import { feedbackSummary } from 'tabellio';
@@ -32,6 +32,7 @@ export function buildWeekly(store, { days = 7, now = Date.now() } = {}) {
       chars: usage.chars,
       tokensEst: usage.tokensEst,
     },
+    judgeTrend: judgeTrend(store, { weeks: 4, now }),
     judge: {
       calls: judge.total,
       reviewed: judge.reviewed,
