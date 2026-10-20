@@ -493,3 +493,26 @@ test('settings.set accepts an api key but never echoes it back', async (t) => {
   const huge = await handler('settings.set', { semanticApiKey: 'x'.repeat(600) });
   assert.equal(huge.ok, false);
 });
+
+test('judge sampling endpoints expose decisions and accept reviews', async (t) => {
+  const { dir, store } = await tempStore(t);
+  const { appendJudgeEvent } = await import('../src/judge-log.js');
+  const handler = handlerFor(dir, store);
+  const at = Date.now() - 1000;
+  appendJudgeEvent(store, { at, query: '发布流程', kept: [{ id: 'a', title: '推 tag' }], dropped: [{ id: 'b', title: '别的' }] });
+
+  const recent = await handler('judge.recent', { limit: 5 });
+  assert.equal(recent.ok, true);
+  assert.equal(recent.value.events.length, 1);
+  assert.equal(recent.value.events[0].reviewed, null);
+  assert.deepEqual(recent.value.quality, { total: 1, reviewed: 0, agreed: 0 });
+
+  assert.equal((await handler('judge.review', { at: 0, ok: true })).ok, false);
+  assert.equal((await handler('judge.review', { at, ok: 'yes' })).ok, false);
+  assert.equal((await handler('judge.review', { at: at - 1, ok: true })).ok, false);
+  const saved = await handler('judge.review', { at, ok: true });
+  assert.equal(saved.ok, true);
+  const after = await handler('judge.recent', { limit: 5 });
+  assert.equal(after.value.events[0].reviewed, true);
+  assert.deepEqual(after.value.quality, { total: 1, reviewed: 1, agreed: 1 });
+});

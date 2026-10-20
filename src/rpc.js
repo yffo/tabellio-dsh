@@ -11,6 +11,7 @@ import { appendFeedback, feedbackCounts, readFeedback } from './feedback.js';
 import { outcomeSummary } from './outcome.js';
 import { noteTimeline, provenanceView } from './provenance.js';
 import { editNote } from './edit.js';
+import { appendJudgeReview, judgeQuality, readJudgeLog, readJudgeReviews } from './judge-log.js';
 
 export const RPC_CHANNEL = '/tabellio-dsh';
 export const MAX_REVIEW_IDS = 50;
@@ -400,6 +401,29 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
           const result = consolidate(store, { archive: [payload.id.trim()], apply: true });
           if (!result.ok) return fail('forget-failed', String(result.reason ?? 'archive failed'));
           return ok({ ok: true, id: payload.id.trim(), archived: true, already: false, message: '已忘掉，不再自动召回。' });
+        }
+        case 'judge.recent': {
+          const limit = Math.min(30, Math.max(1, Number(payload?.limit) || 10));
+          const reviews = readJudgeReviews(getStore());
+          const events = readJudgeLog(getStore(), { limit }).map((event) => ({
+            at: event.at,
+            query: event.query,
+            kept: event.kept,
+            dropped: event.dropped,
+            verdict: event.verdict,
+            reviewed: reviews.has(event.at) ? reviews.get(event.at) : null,
+          }));
+          return ok({ events, quality: judgeQuality(getStore()) });
+        }
+        case 'judge.review': {
+          const at = Number(payload?.at);
+          if (!Number.isFinite(at) || at <= 0) return fail('bad-request', 'at must be a positive timestamp');
+          if (typeof payload?.ok !== 'boolean') return fail('bad-request', 'ok must be a boolean');
+          const known = readJudgeLog(getStore(), { limit: 300 }).some((event) => event.at === at);
+          if (!known) return fail('not-found', 'judge event not found');
+          const saved = appendJudgeReview(getStore(), { at, ok: payload.ok });
+          if (!saved) return fail('review-failed', 'could not record the review');
+          return ok({ at, ok: payload.ok });
         }
         case 'edit': {
           const id = typeof payload?.id === 'string' ? payload.id.trim() : '';

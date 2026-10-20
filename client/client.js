@@ -887,6 +887,14 @@ window.__ModuleLoader__.load({
         display: 'inline-block', padding: '1px 7px', borderRadius: 999, fontSize: 11,
         border: '1px solid ' + COLORS.border, color: COLORS.dim,
       },
+      goodBadge: {
+        display: 'inline-block', padding: '1px 7px', borderRadius: 999, fontSize: 11,
+        border: '1px solid ' + COLORS.good, color: COLORS.good,
+      },
+      badBadge: {
+        display: 'inline-block', padding: '1px 7px', borderRadius: 999, fontSize: 11,
+        border: '1px solid ' + COLORS.bad, color: COLORS.bad,
+      },
       recallReason: { marginTop: 4, fontSize: 12, color: COLORS.dim, lineHeight: 1.5 },
       auditList: { display: 'flex', flexDirection: 'column' },
       auditRow: { display: 'flex', flexDirection: 'column', gap: 3, padding: '8px 0', borderBottom: '1px solid ' + COLORS.border },
@@ -1117,6 +1125,7 @@ window.__ModuleLoader__.load({
       const [models, setModels] = useState({ loading: false, list: [], error: '' });
   const [conflicts, setConflicts] = useState(null);
   const [conflictPreview, setConflictPreview] = useState(null);
+  const [judgeSample, setJudgeSample] = useState(null);
 
       const load = useCallback(async () => {
         setState((prev) => ({ ...prev, loading: true, error: null }));
@@ -1182,11 +1191,23 @@ window.__ModuleLoader__.load({
         load();
       }, [load]);
 
+      const loadJudgeSample = useCallback(async () => {
+        try {
+          setJudgeSample(await rpcCall('judge.recent', { limit: 8 }));
+        } catch {
+          // older host: no sampling endpoints yet
+        }
+      }, [rpcCall]);
+
       useEffect(() => {
         rpcCall('conflicts.list', { days: 30, limit: 6 })
           .then((result) => setConflicts(result))
           .catch(() => {});
       }, [rpcCall]);
+
+      useEffect(() => {
+        loadJudgeSample();
+      }, [loadJudgeSample]);
 
       const find = useCallback(async () => {
         const text = query.trim();
@@ -1564,6 +1585,49 @@ window.__ModuleLoader__.load({
               Array.isArray(weekly.items) && weekly.items.length
                 ? h('div', { style: ui.list }, weekly.items.map((note) => noteRow(note, 'week-' + note.id)))
                 : null,
+            ))
+          : null,
+        judgeSample && Array.isArray(judgeSample.events) && judgeSample.events.length
+          ? card(t('judgeReviewTitle'), h(React.Fragment, null,
+              h('p', { style: ui.muted }, judgeSample.quality
+                ? t('judgeReviewSummary').replace('{n}', String(judgeSample.quality.total)).replace('{m}', String(judgeSample.quality.reviewed)).replace('{k}', String(judgeSample.quality.agreed))
+                : t('judgeReviewHint')),
+              h('div', { style: ui.list }, judgeSample.events.slice(0, 5).map((event) =>
+                h('div', { key: 'judge-' + event.at, style: ui.noteRow },
+                  h('div', { style: ui.noteMain },
+                    h('span', { style: ui.noteTitle }, event.query || '—'),
+                    h('span', { style: ui.noteMeta }, t('judgeReviewMeta').replace('{kept}', String((event.kept || []).length)).replace('{dropped}', String((event.dropped || []).length))
+                      + ((event.dropped || []).length ? ' · ' + event.dropped.slice(0, 2).join(' / ') : ''))),
+                  event.reviewed === null
+                    ? h('div', { style: ui.actionRow },
+                        h('button', {
+                          type: 'button',
+                          style: ui.buttonGhost,
+                          onClick: async () => {
+                            try {
+                              await rpcCall('judge.review', { at: event.at, ok: true });
+                              setState((prev) => ({ ...prev, notice: t('judgeReviewSaved') }));
+                              loadJudgeSample();
+                            } catch (error) {
+                              setState((prev) => ({ ...prev, error: error?.message ?? String(error) }));
+                            }
+                          },
+                        }, t('judgeReviewRight')),
+                        h('button', {
+                          type: 'button',
+                          style: Object.assign({}, ui.buttonGhost, { color: TONES.bad }),
+                          onClick: async () => {
+                            try {
+                              await rpcCall('judge.review', { at: event.at, ok: false });
+                              setState((prev) => ({ ...prev, notice: t('judgeReviewSaved') }));
+                              loadJudgeSample();
+                            } catch (error) {
+                              setState((prev) => ({ ...prev, error: error?.message ?? String(error) }));
+                            }
+                          },
+                        }, t('judgeReviewWrong')))
+                    : h('span', { style: event.reviewed ? ui.goodBadge : ui.badBadge }, event.reviewed ? t('judgeReviewedRight') : t('judgeReviewedWrong')),
+                ))),
             ))
           : null,
         conflicts && Array.isArray(conflicts.pairs)

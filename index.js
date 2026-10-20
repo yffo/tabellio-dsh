@@ -16,6 +16,7 @@ import { normalizeConfig } from './src/config.js';
 import { delegationDepth, isHumanMessage, isChitchat, latestHuman, textOf, trimQuery, intentGateAllows } from './src/messages.js';
 import { extractAssistantConclusion, extractCandidates, hasSecretHint, looksLikeCredentialLeak } from './src/capture.js';
 import { filterByJudge } from './src/judge.js';
+import { appendJudgeEvent } from './src/judge-log.js';
 import { readFeedback, aggregateFeedback, rankByFeedback } from './src/feedback.js';
 import { maybeRecordCorrection, outcomePenalties, rankByOutcome } from './src/outcome.js';
 import { filterCandidatesByWorth } from './src/worth.js';
@@ -926,6 +927,7 @@ export function apply(ctx, config = {}) {
       // original hits (the model call must never remove memory by breaking).
       let judged = false;
       const runtime = judgeRuntime();
+      const beforeJudge = Array.isArray(result.items) ? result.items.slice() : [];
       if (runtime) {
         const judgeStartedAt = Date.now();
         let judgeReply = '';
@@ -965,6 +967,19 @@ export function apply(ctx, config = {}) {
           return decision;
         }
         result.items = filtered.items;
+        try {
+          const keptItems = filtered.judged ? filtered.items : beforeJudge;
+          const keptIds = new Set(keptItems.map((item) => item.id));
+          appendJudgeEvent(currentStore(), {
+            at: Date.now(),
+            query,
+            kept: keptItems.map((item) => ({ id: item.id, title: item.title })),
+            dropped: filtered.judged ? beforeJudge.filter((item) => !keptIds.has(item.id)) : [],
+            verdict: filtered.judged ? 'verdict' : 'no_verdict',
+          });
+        } catch {
+          // the sampling log is diagnostics; never let it break a turn
+        }
       }
 
       // Usage feedback only reorders; it never adds, drops or rewrites a note.
