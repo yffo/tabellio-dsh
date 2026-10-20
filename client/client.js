@@ -156,6 +156,9 @@ window.__ModuleLoader__.load({
       audError: '出错',
       audUnknown: '其它',
       qualityLabel: '召回质量（近 7 天）',
+      forgetButton: '忘掉这条',
+      forgetConfirm: '确认忘掉这条记忆？自动召回将不再使用它；文件会保留，仍可审计。',
+      forgetDone: '已忘掉，自动召回不再使用它。',
       provTitle: '来源与使用',
       provTimeline: '时间线',
       provTimelineEmpty: '还没有使用记录',
@@ -411,6 +414,9 @@ window.__ModuleLoader__.load({
       audError: 'error',
       audUnknown: 'other',
       qualityLabel: 'Recall quality (7 days)',
+      forgetButton: 'Forget this',
+      forgetConfirm: 'Forget this memory? Automatic recall will stop using it; the file stays for audit.',
+      forgetDone: 'Forgotten; automatic recall will not use it.',
       provTitle: 'Origin and usage',
       provTimeline: 'Timeline',
       provTimelineEmpty: 'No usage recorded yet',
@@ -689,6 +695,7 @@ window.__ModuleLoader__.load({
       clock: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M12 7v5l3 2'],
       book: ['M4 19.5A2.5 2.5 0 0 1 6.5 17H20', 'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'],
       spark: ['M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z'],
+      trash: ['M3 6h18', 'M8 6V4h8v2', 'M6 6l1 14h10l1-14', 'M10 11v5', 'M14 11v5'],
       eye: ['M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'],
       arrow: ['M5 12h14', 'M13 6l6 6-6 6'],
     };
@@ -1948,6 +1955,21 @@ window.__ModuleLoader__.load({
                       }
                     },
                   }, icon('x', 14), h('span', null, t('feedbackWrong'))),
+                  h('button', {
+                    type: 'button',
+                    style: Object.assign({}, ui.buttonGhost, { color: TONES.bad }),
+                    onClick: async () => {
+                      if (typeof window !== 'undefined' && typeof window.confirm === 'function' && !window.confirm(t('forgetConfirm'))) return;
+                      try {
+                        await rpcCall('forget', { id: note.id });
+                        setNote(null);
+                        setState((prev) => ({ ...prev, notice: t('forgetDone'), error: null }));
+                        await load();
+                      } catch (error) {
+                        setState((prev) => ({ ...prev, error: error?.message ?? String(error) }));
+                      }
+                    },
+                  }, icon('trash', 14), h('span', null, t('forgetButton'))),
                 )),
             ))
         : null;

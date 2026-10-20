@@ -9,7 +9,7 @@ import { isHumanMessage, latestHuman, isChitchat, trimQuery, delegationDepth, in
 import { extractCandidates, containsSecret, hasSecretHint, looksLikeCredentialLeak } from '../src/capture.js';
 import { createToolDefinitions, registerTools } from '../src/tools.js';
 import { formatRecall } from '../src/render.js';
-import { addCandidate, listCandidates, openStore, recallQuery, remember, reviewCandidates, status } from 'tabellio';
+import { addCandidate, listCandidates, openStore, read, recallQuery, remember, reviewCandidates, status } from 'tabellio';
 
 const temp = (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tabellio-dsh-test-'));
@@ -184,7 +184,7 @@ test('native tools expose ten read/write projections with strict output schemas'
   registerTools(host.ctx, { settings: normalizeConfig({ storePath: dir }), getStore: () => store });
 
   const names = host.tools.map((tool) => tool.name).sort();
-  assert.deepEqual(names, ['tabellio_capture', 'tabellio_conflicts', 'tabellio_feedback', 'tabellio_inbox', 'tabellio_merge', 'tabellio_read', 'tabellio_recall', 'tabellio_report', 'tabellio_search', 'tabellio_status']);
+  assert.deepEqual(names, ['tabellio_capture', 'tabellio_conflicts', 'tabellio_feedback', 'tabellio_forget', 'tabellio_inbox', 'tabellio_merge', 'tabellio_read', 'tabellio_recall', 'tabellio_report', 'tabellio_search', 'tabellio_status']);
   for (const tool of host.tools) {
     assert.equal(tool.parameters.type, 'object');
     assert.equal(tool.parameters.additionalProperties, false);
@@ -585,6 +585,25 @@ test('disposal flushes a pending turn and releases per-agent state', async (t) =
   assert.equal(status(openStore(dir)).candidates, 1);
 });
 
+
+test('the forget tool previews by default and archives only with confirm', async (t) => {
+  const dir = temp(t);
+  const store = openStore(dir);
+  const written = remember(store, { content: '工具遗忘测试：这条之后不再自动召回。' }, { writtenBy: 'test:forget-tool' });
+  const defs = createToolDefinitions({ settings: normalizeConfig({ storePath: dir }), getStore: () => store });
+  const forget = defs.find((tool) => tool.name === 'tabellio_forget');
+
+  const preview = await forget.execute({ id: written.id });
+  assert.equal(preview.ok, false);
+  assert.equal(preview.reason, 'needs_confirmation');
+  assert.equal(read(store, written.id).note.status, 'active');
+
+  const applied = await forget.execute({ id: written.id, confirm: true });
+  assert.equal(applied.ok, true);
+  assert.equal(applied.archived, true);
+  assert.equal(read(store, written.id).note.status, 'archived');
+});
+
 test('tool definitions come from the same store as auto recall', async () => {
   const dir = temp({ after() {} });
   const store = openStore(dir);
@@ -751,7 +770,7 @@ test('a host whose ctx.get throws does not lose the plugin', (t) => {
     logger: { warn() {} },
   };
   apply(ctx, { storePath: dir, autoRecall: true, delivery: 'context' });
-  assert.equal(tools.length, 10);
+  assert.equal(tools.length, 11);
   assert.equal(handlers.has('agent/pre-step'), true);
 });
 

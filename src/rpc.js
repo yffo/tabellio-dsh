@@ -2,7 +2,7 @@
 // reject, and search the store. Every endpoint is a thin projection of the
 // tabellio API — the panel never writes memory directly, it only exercises the
 // same approval gate the `tabellio inbox` CLI uses.
-import { applyContentConsolidation, listCandidates, listProposals, proposeConsolidation, read, remember, reviewCandidates, reviewProposals, search, status } from 'tabellio';
+import { applyContentConsolidation, consolidate, listCandidates, listProposals, proposeConsolidation, read, remember, reviewCandidates, reviewProposals, search, status } from 'tabellio';
 import { buildNotesPage, buildReport } from './report.js';
 import { findConflicts } from './conflicts.js';
 import { readLastRun } from './consolidate.js';
@@ -385,6 +385,16 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
           const view = provenanceView(getStore(), payload.id);
           if (!view) return fail('not-found', 'note not found');
           return ok(view);
+        }
+        case 'forget': {
+          if (typeof payload?.id !== 'string' || !payload.id.trim()) return fail('bad-request', 'id is required');
+          const store = getStore();
+          const current = read(store, payload.id.trim());
+          if (!current.ok) return fail('not-found', 'note not found');
+          if (current.note?.status === 'archived') return ok({ ok: true, id: payload.id.trim(), archived: true, already: true, message: '这条记忆已经归档。' });
+          const result = consolidate(store, { archive: [payload.id.trim()], apply: true });
+          if (!result.ok) return fail('forget-failed', String(result.reason ?? 'archive failed'));
+          return ok({ ok: true, id: payload.id.trim(), archived: true, already: false, message: '已忘掉，不再自动召回。' });
         }
         case 'timeline': {
           if (typeof payload?.id !== 'string' || !payload.id.trim()) return fail('bad-request', 'id is required');

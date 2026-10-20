@@ -1,3 +1,8 @@
+## 0.25.0
+
+- 「忘掉这条」：笔记阅读页新增按钮（确认后归档），新增 `forget` RPC 端点与 `tabellio_forget` 工具（默认只预览，`confirm:true` 才归档）。归档走核心 `consolidate` 的 archive 通道，只改元数据、不删文件，自动召回立即不再返回。
+- 155 个测试 + 30 条验收。
+
 ## 0.24.0
 
 - 笔记阅读页新增「时间线」：把写入（含 `written_by`）、每次被召回（时间 + 当时的问句，扫 `runs/` 回执）、参与过的纠正（`outcome.jsonl`）、面板标记（`panel-feedback.jsonl`）和取代关系合成一条按时间倒序的故事；新增 `timeline` RPC 端点。

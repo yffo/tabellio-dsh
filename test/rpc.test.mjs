@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { addCandidate, openStore, remember } from 'tabellio';
+import { addCandidate, openStore, read, remember } from 'tabellio';
 import { normalizeConfig } from '../src/config.js';
 import { createRpcHandler, RPC_CHANNEL } from '../src/rpc.js';
 
@@ -325,6 +325,24 @@ test('read returns note content for the panel viewer and rejects bad ids', async
   assert.equal((await handler('read', {})).ok, false);
   assert.equal((await handler('read', { id: 'x'.repeat(80) })).ok, false);
   assert.equal((await handler('read', { id: 'DOES-NOT-EXIST' })).ok, false);
+});
+
+test('forget archives a note so automatic recall stops returning it', async (t) => {
+  const { dir, store } = await tempStore(t);
+  const written = remember(store, { content: '遗忘测试：这条以后不该再被自动召回。' }, { writtenBy: 'test:forget' });
+  const handler = handlerFor(dir, store);
+
+  const done = await handler('forget', { id: written.id });
+  assert.equal(done.ok, true);
+  assert.equal(done.value.archived, true);
+  const after = read(store, written.id);
+  assert.equal(after.note.status, 'archived');
+
+  const again = await handler('forget', { id: written.id });
+  assert.equal(again.ok, true);
+  assert.equal(again.value.already, true);
+  assert.equal((await handler('forget', {})).ok, false);
+  assert.equal((await handler('forget', { id: 'DOES-NOT-EXIST' })).ok, false);
 });
 
 test('provenance reports where a note came from and where it was used', async (t) => {

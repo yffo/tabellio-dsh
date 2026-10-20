@@ -1,4 +1,4 @@
-import { addCandidate, applyContentConsolidation, listCandidates, proposeConsolidation, read, recallQuery, reviewCandidates, search, status } from 'tabellio';
+import { addCandidate, applyContentConsolidation, consolidate, listCandidates, proposeConsolidation, read, recallQuery, reviewCandidates, search, status } from 'tabellio';
 import { findConflicts } from './conflicts.js';
 import { formatRecallTool } from './render.js';
 import { buildReport, renderReport } from './report.js';
@@ -830,6 +830,54 @@ export function createToolDefinitions({ settings, getStore, getLastRecall = () =
             ? '已记录「' + label + '」（累计 ' + counts.total + ' 条反馈），只影响排序，不改笔记。'
             : '反馈未记录：' + (written.reason ?? 'unknown') + '。',
         };
+      },
+    },
+    {
+      name: 'tabellio_forget',
+      description:
+        'Forget a note: archive it so automatic recall stops returning it, without deleting the file (the audit trail keeps it). ' +
+        'Requires explicit human intent; pass confirm=true only after the human asked to forget it.',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string', description: 'Note id from tabellio_recall/search/read.' },
+          confirm: { type: 'boolean', description: 'true = actually archive; false/omitted = preview only.' },
+        },
+        required: ['id'],
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            ok: { type: 'boolean' },
+            id: { type: 'string' },
+            archived: { type: 'boolean' },
+            reason: { type: 'string' },
+            message: { type: 'string' },
+          },
+          required: ['ok', 'id', 'archived', 'reason', 'message'],
+        },
+        render: (args, value) => plainText(String(value.message)),
+      },
+      execute: async ({ id, confirm }) => {
+        const noteId = String(id ?? '').trim();
+        if (!noteId) return { ok: false, id: '', archived: false, reason: 'missing_id', message: '需要笔记 id。' };
+        const store = getStore();
+        const current = read(store, noteId);
+        if (!current.ok) return { ok: false, id: noteId, archived: false, reason: 'not_found', message: '找不到这条笔记。' };
+        if (current.note?.status === 'archived') {
+          return { ok: true, id: noteId, archived: true, reason: 'already_archived', message: '这条记忆已经归档，不会再被自动召回。' };
+        }
+        if (confirm !== true) {
+          return { ok: false, id: noteId, archived: false, reason: 'needs_confirmation', message: '确认后才会归档：请让用户明确同意，再带 confirm=true 调用。' };
+        }
+        const result = consolidate(store, { archive: [noteId], apply: true });
+        if (!result.ok) {
+          return { ok: false, id: noteId, archived: false, reason: String(result.reason ?? 'archive_failed'), message: '归档失败：' + (result.reason ?? 'unknown') + '。' };
+        }
+        return { ok: true, id: noteId, archived: true, reason: '', message: '已忘掉这条记忆，自动召回不再使用它（文件保留，可审计）。' };
       },
     },
   ];
