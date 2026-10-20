@@ -328,10 +328,51 @@ export function apply(ctx, config = {}) {
         captured: new Set(),
         lastUser: null,
         lastInjectedKey: '',
+        lastInjectionMode: '',
       };
       states.set(key, state);
     }
     return state;
+  };
+
+  // Quiet delivery registers one host-level runtime context, so a recall that
+  // one conversation produces could otherwise be assembled into another open
+  // conversation. Hosts with several sessions running at once therefore fall
+  // back to per-turn notices (which stay inside the session that produced
+  // them). Sessions are marked when their pre-step runs and released at the
+  // turn boundary; the TTL covers hosts that skip the boundary event.
+  const SESSION_ACTIVE_TTL_MS = 30 * 60 * 1000;
+  const activeSessions = new Map();
+  const sessionKeyOf = (agent) => {
+    const sessionId = agent?.session?.id;
+    if (sessionId !== undefined && sessionId !== null && String(sessionId) !== '') return 'session:' + String(sessionId);
+    if (agent?.id !== undefined && agent?.id !== null && String(agent.id) !== '') return 'agent:' + String(agent.id);
+    return '';
+  };
+  const pruneActiveSessions = () => {
+    const cutoff = Date.now() - SESSION_ACTIVE_TTL_MS;
+    for (const [key, at] of activeSessions) {
+      if (at < cutoff) activeSessions.delete(key);
+    }
+  };
+  const markSessionActive = (agent) => {
+    pruneActiveSessions();
+    const key = sessionKeyOf(agent);
+    if (key) activeSessions.set(key, Date.now());
+  };
+  const releaseSession = (agent) => {
+    pruneActiveSessions();
+    const key = sessionKeyOf(agent);
+    if (key) activeSessions.delete(key);
+    if (activeSessions.size === 0) latestRecallText = '';
+  };
+  // Only a single active session can safely use the host-level context slot.
+  // Unknown sessions are treated as unsafe so a new host cannot leak quietly.
+  const quietDeliveryAllowed = (agent) => {
+    pruneActiveSessions();
+    const key = sessionKeyOf(agent);
+    if (!key) return false;
+    return activeSessions.size <= 1;
   };
 
   // The judge is opt-in. Provider/model come from the plugin config or the
@@ -672,6 +713,9 @@ export function apply(ctx, config = {}) {
     // Recalling user memory into a scout prompt (and writing a shadow receipt for
     // it) pollutes the store and adds cost with no upside.
     if (delegationDepth(payload?.agent) > 0) return decision;
+    // Track concurrency before recall: quiet delivery needs to know whether
+    // another conversation is running at the same time.
+    markSessionActive(payload?.agent);
 
     const state = stateFor(payload?.agent);
     const raw = textOf(human);
@@ -829,11 +873,21 @@ export function apply(ctx, config = {}) {
       if (!text) return decision;
       const key = result.items.map((item) => item.id).join('\u0000');
 
-      if (settings.delivery === 'context') {
+      const quietOk = settings.delivery === 'context' && quietDeliveryAllowed(payload?.agent);
+      if (settings.delivery === 'context' && !quietOk) {
+        // Several conversations are running: a host-level context slot cannot
+        // tell them apart, so drop the shared text and deliver a notice that
+        // stays inside this session. `lastInjectionMode` keeps the dedupe key
+        // honest: a context delivery added no visible message to dedupe.
+        latestRecallText = '';
+        state.lastInjectionMode = '';
+      }
+      if (quietOk) {
         // Quiet delivery: the model sees the recall as system context; the
         // conversation keeps no visible plugin message.
         latestRecallText = text;
         state.lastInjectedKey = key;
+        state.lastInjectionMode = 'context';
         lastRecall = recordRecall({
           at: Date.now(),
           query,
@@ -849,7 +903,7 @@ export function apply(ctx, config = {}) {
         return decision;
       }
 
-      if (state.lastInjectedKey === key) {
+      if (state.lastInjectedKey === key && state.lastInjectionMode === 'notice') {
         lastRecall = recordRecall({
           at: Date.now(),
           query,
@@ -864,6 +918,7 @@ export function apply(ctx, config = {}) {
         return decision;
       }
       state.lastInjectedKey = key;
+      state.lastInjectionMode = 'notice';
       lastRecall = recordRecall({
         at: Date.now(),
         query,
@@ -917,6 +972,8 @@ export function apply(ctx, config = {}) {
       await captureFrom(payload?.agent, 'turn-stopping');
     } catch (error) {
       ctx.logger?.warn?.('tabellio-dsh: capture boundary failed: ' + (error?.message ?? error));
+    } finally {
+      releaseSession(payload?.agent);
     }
   });
 
@@ -928,6 +985,7 @@ export function apply(ctx, config = {}) {
     } catch (error) {
       ctx.logger?.warn?.('tabellio-dsh: disposal capture failed: ' + (error?.message ?? error));
     } finally {
+      releaseSession(payload?.agent);
       states.delete(keyFor(payload?.agent));
     }
   });

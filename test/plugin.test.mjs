@@ -401,6 +401,35 @@ test('quiet delivery puts the recall in runtime context, not the conversation', 
   assert.equal(host.contexts[0].text(), '');
 });
 
+test('quiet delivery isolates concurrent conversations with a per-session notice', async (t) => {
+  const dir = temp(t);
+  const store = openStore(dir);
+  remember(store, { text: '# 项目代号\n\n项目代号是青鸟。' });
+  const host = fakeHost();
+  apply(host.ctx, { storePath: dir, autoRecall: true, delivery: 'context', capture: 'off', refreshSeconds: 0 });
+
+  const a = { id: 'agent-a', session: { id: 'session-a', header: { delegationDepth: 0 } }, options: {} };
+  const b = { id: 'agent-b', session: { id: 'session-b', header: { delegationDepth: 0 } }, options: {} };
+
+  // First conversation takes the host-level context slot.
+  const first = await runPre(host.handlers, a, [human('m1', '项目代号是什么？')]);
+  assert.equal(first.messages.length, 1);
+  assert.match(host.contexts[0].text(), /青鸟/);
+
+  // A second conversation running at the same time must not see that text in
+  // its own prompt; it gets a notice inside its own session instead.
+  const second = await runPre(host.handlers, b, [human('m1', '项目代号是什么？')]);
+  assert.equal(second.messages.length, 2);
+  assert.match(second.messages[1].content[0].text, /青鸟/);
+  assert.equal(host.contexts[0].text(), '');
+
+  // Once the first conversation finishes, quiet delivery is safe again.
+  await runSerial(host.handlers, 'agent/turn-stopping', { agent: a, turn: {}, signal: null });
+  const third = await runPre(host.handlers, b, [human('m2', '项目代号是什么？')]);
+  assert.equal(third.messages.length, 1);
+  assert.match(host.contexts[0].text(), /青鸟/);
+});
+
 test('a waiting candidate is mentioned once in quiet context, not every turn', async (t) => {
   const dir = temp(t);
   const store = openStore(dir);
