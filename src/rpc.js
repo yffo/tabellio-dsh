@@ -80,9 +80,10 @@ function statusView(settings, store, lastRecall, judgeState, semanticState) {
       lastRun: readLastRun(store),
     },
     semantic: {
-      mode: settings.semantic === 'local' ? 'local' : 'off',
+      mode: settings.semantic,
       model: settings.semanticModel,
       endpoint: settings.semanticEndpoint,
+      apiKeySet: Boolean(semanticState?.apiKeySet),
       ready: Boolean(semanticState?.ready),
       size: Number(semanticState?.size) || 0,
       error: semanticState?.error ?? null,
@@ -131,7 +132,7 @@ function reviewPayload(payload) {
  * Build the channel handler. One store instance is shared with the tools and
  * auto recall, so a hot store invalidate is reflected everywhere.
  */
-export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeState, getSemanticState, getSettingsView, updateSettings, testSemantic }) {
+export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeState, getSemanticState, getSettingsView, updateSettings, testSemantic, getSemanticModels }) {
   return async function handler(endpoint, payload) {
     try {
       const store = getStore();
@@ -185,6 +186,9 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
           if (typeof patch.semanticEndpoint === 'string' && patch.semanticEndpoint.length > 200) {
             return fail('bad-request', 'semanticEndpoint is too long');
           }
+          if (patch.semanticApiKey !== undefined && (typeof patch.semanticApiKey !== 'string' || patch.semanticApiKey.length > 512)) {
+            return fail('bad-request', 'semanticApiKey must be a string of at most 512 chars');
+          }
           for (const key of ['semanticModel', 'judgeModel', 'judgeProvider']) {
             if (patch[key] !== undefined && typeof patch[key] !== 'string') return fail('bad-request', key + ' must be a string');
             if (typeof patch[key] === 'string' && patch[key].length > 120) return fail('bad-request', key + ' is too long');
@@ -194,9 +198,22 @@ export function createRpcHandler({ settings, getStore, getLastRecall, getJudgeSt
         case 'semantic.test': {
           if (typeof testSemantic !== 'function') return fail('unsupported', 'semantic test is unavailable');
           try {
-            return ok(await testSemantic());
+            return ok(await testSemantic(payload ?? {}));
           } catch (error) {
             return ok({ ok: false, error: String(error?.message ?? error) });
+          }
+        }
+        case 'semantic.models': {
+          if (typeof getSemanticModels !== 'function') return fail('unsupported', 'model discovery is unavailable');
+          const endpoint = payload?.endpoint === undefined ? undefined : String(payload.endpoint);
+          if (endpoint !== undefined && (endpoint.length > 200 || !/^https?:\/\//.test(endpoint))) {
+            return fail('bad-request', 'endpoint must be an http(s) URL');
+          }
+          try {
+            const models = await getSemanticModels(payload ?? {});
+            return ok({ models: Array.isArray(models) ? models.map(String) : [] });
+          } catch (error) {
+            return ok({ models: [], error: String(error?.message ?? error) });
           }
         }
         case 'inbox.list': {

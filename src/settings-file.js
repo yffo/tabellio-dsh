@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const SETTINGS_FILE = 'panel-settings.json';
-export const SETTING_KEYS = ['semantic', 'semanticEndpoint', 'semanticModel', 'judge', 'judgeModel', 'judgeProvider', 'consolidate', 'capture', 'delivery', 'recallMaxNotes'];
+export const SETTING_KEYS = ['semantic', 'semanticEndpoint', 'semanticModel', 'semanticApiKey', 'judge', 'judgeModel', 'judgeProvider', 'consolidate', 'capture', 'delivery', 'recallMaxNotes'];
 
 const str = (value, max) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
 
@@ -20,6 +20,7 @@ export function pickPanelSettings(raw) {
   if (raw.consolidate === 'off' || raw.consolidate === 'daily' || raw.consolidate === 'weekly') out.consolidate = raw.consolidate;
   if (typeof raw.semanticEndpoint === 'string') out.semanticEndpoint = str(raw.semanticEndpoint, 200);
   if (typeof raw.semanticModel === 'string') out.semanticModel = str(raw.semanticModel, 120);
+  if (typeof raw.semanticApiKey === 'string' && raw.semanticApiKey.trim()) out.semanticApiKey = str(raw.semanticApiKey, 512);
   if (typeof raw.judgeModel === 'string') out.judgeModel = str(raw.judgeModel, 120);
   if (typeof raw.judgeProvider === 'string') out.judgeProvider = str(raw.judgeProvider, 80);
   if (['off', 'explicit', 'implicit', 'assist'].includes(raw.capture)) out.capture = raw.capture;
@@ -48,7 +49,7 @@ export function savePanelSettings(store, patch) {
 
 export function panelSettingsView(settings) {
   return {
-    semantic: { mode: settings.semantic, endpoint: settings.semanticEndpoint, model: settings.semanticModel },
+    semantic: { mode: settings.semantic, endpoint: settings.semanticEndpoint, model: settings.semanticModel, apiKeySet: Boolean(settings.semanticApiKey) },
     judge: { mode: settings.judge === 'llm' ? 'llm' : 'off', provider: settings.judgeProvider, model: settings.judgeModel },
     consolidate: { mode: settings.consolidate },
     capture: { mode: settings.capture },

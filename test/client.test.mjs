@@ -136,6 +136,7 @@ test('panel renders the sectioned layout with a populated status', async () => {
     { semantic: 'local', semanticEndpoint: 'http://x', semanticModel: 'm', judge: 'llm', judgeModel: '', judgeProvider: '', consolidate: 'daily' },
     false,
     null,
+    { loading: false, list: [], error: '' },
   ];
   const react = {
     createElement: (type, props, ...children) => ({ type, props, children }),

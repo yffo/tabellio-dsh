@@ -128,6 +128,8 @@ The panel has four tabs, so state is never dumped all at once:
 
 Ordinary users never touch a config file: the panel asks one question — is **Smart memory** on (default yes)? When on, it probes common local embedding ports (llama-swap, Ollama, LM Studio…), uses whatever answers, and falls back to lexical matching without errors when nothing does. Endpoint, model, capture depth, delivery, notes per turn and consolidation sit under "Advanced" and save to `panel-settings.json` inside the memory folder.
 
+**Remote embeddings?** Point the endpoint at any OpenAI-style `/v1/embeddings`, click "Fetch models" to list what the server reports (or type a name), then "Test connection" to verify dimensions and latency. Remote services need an API key (stored in `panel-settings.json`, a plain local file); the safer option is the `TABELLIO_SEMANTIC_API_KEY` environment variable — the panel then shows "Set" and never echoes the key.
+
 ## Privacy
 
 - All reads and writes are local; network traffic is loopback only (local embeddings) plus one host-model judge call, which can be disabled.

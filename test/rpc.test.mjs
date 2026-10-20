@@ -308,7 +308,7 @@ test('status reports the semantic supplement state', async (t) => {
   assert.equal(status.semantic.size, 12);
   assert.equal(status.semantic.model, 'qwen3-embedding-0.6b');
   const off = createRpcHandler({ settings: normalizeConfig({ storePath: dir }), getStore: () => store });
-  assert.equal((await off('status', {})).value.semantic.mode, 'off');
+  assert.equal((await off('status', {})).value.semantic.mode, 'auto');
 });
 
 test('settings endpoints read, validate and persist panel overrides', async (t) => {
@@ -348,4 +348,38 @@ test('semantic.test returns the probe result or a soft failure', async (t) => {
   const down = (await downHandler('semantic.test', {})).value;
   assert.equal(down.ok, false);
   assert.match(down.error, /ECONNREFUSED/);
+});
+
+
+test('semantic.models returns the endpoint model list and rejects bad URLs', async (t) => {
+  const { dir } = await tempStore(t);
+  const handler = createRpcHandler({
+    settings: normalizeConfig({ storePath: dir }),
+    getStore: () => openStore(dir),
+    getSemanticModels: async () => ['text-embedding-3-small'],
+  });
+  const okResult = await handler('semantic.models', { endpoint: 'http://127.0.0.1:8080/v1/embeddings' });
+  assert.deepEqual(okResult.value.models, ['text-embedding-3-small']);
+  const bad = await handler('semantic.models', { endpoint: 'ftp://example.com' });
+  assert.equal(bad.ok, false);
+  assert.equal(bad.error.code, 'bad-request');
+});
+
+test('settings.set accepts an api key but never echoes it back', async (t) => {
+  const { dir } = await tempStore(t);
+  const settings = normalizeConfig({ storePath: dir });
+  let applied;
+  const handler = createRpcHandler({
+    settings,
+    getStore: () => openStore(dir),
+    getSettingsView: () => ({ semantic: { mode: settings.semantic, apiKeySet: Boolean(settings.semanticApiKey) } }),
+    updateSettings: (patch) => { applied = patch; Object.assign(settings, patch); return { semantic: { mode: settings.semantic, apiKeySet: Boolean(settings.semanticApiKey) } }; },
+  });
+  const saved = await handler('settings.set', { semanticApiKey: 'sk-secret' });
+  assert.equal(saved.ok, true);
+  assert.equal(applied.semanticApiKey, 'sk-secret');
+  assert.equal(saved.value.semantic.apiKeySet, true);
+  assert.ok(!JSON.stringify(saved).includes('sk-secret'));
+  const huge = await handler('settings.set', { semanticApiKey: 'x'.repeat(600) });
+  assert.equal(huge.ok, false);
 });

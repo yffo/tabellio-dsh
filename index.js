@@ -22,7 +22,7 @@ import { mountPanelRoute } from './src/web-rpc.js';
 import { registerTools } from './src/tools.js';
 import { startConsolidationTimer } from './src/consolidate.js';
 import { appendAudit } from './src/audit.js';
-import { detectEmbedding, mergeSemanticResult, probeEmbedding, semanticTop, startIndexer } from './src/semantic.js';
+import { detectEmbedding, listEmbeddingModels, mergeSemanticResult, probeEmbedding, semanticTop, startIndexer } from './src/semantic.js';
 import { loadPanelSettings, panelSettingsView, pickPanelSettings, savePanelSettings } from './src/settings-file.js';
 
 export const name = 'tabellio-dsh';
@@ -91,6 +91,9 @@ export function apply(ctx, config = {}) {
   const judgeState = { mode: settings.judge, host: 'none', selection: null, last: null };
   // Auto-discovery bookkeeping for the semantic layer (see startSemanticIndexer).
   const semanticMeta = { detected: false, probing: false, error: null };
+  // A key typed in the panel wins; the environment variable is the safer place
+  // for remote endpoints because panel-settings.json is a plain local file.
+  const semanticKey = () => settings.semanticApiKey || process.env.TABELLIO_SEMANTIC_API_KEY || '';
 
   // Optional panel channel: the browser memory tab reads status and reviews
   // candidates through this handler. The browser posts a `client-request` to
@@ -106,15 +109,21 @@ export function apply(ctx, config = {}) {
       getLastRecall: () => lastRecall,
       getJudgeState: () => judgeState,
       getSemanticState: () => Object.assign(
-        { mode: settings.semantic, endpoint: settings.semanticEndpoint, model: settings.semanticModel },
+        { mode: settings.semantic, endpoint: settings.semanticEndpoint, model: settings.semanticModel, apiKeySet: Boolean(semanticKey()) },
         semanticIndexer?.state ?? { ready: false, size: 0, error: null },
         { detected: semanticMeta.detected, probing: semanticMeta.probing, error: semanticIndexer?.state?.error ?? semanticMeta.error },
       ),
       getSettingsView: () => panelSettingsView(settings),
       updateSettings: (patch) => applyRuntimeSettings(patch),
-      testSemantic: () => probeEmbedding({
-        endpoint: settings.semanticEndpoint,
-        model: settings.semanticModel,
+      testSemantic: (payload) => probeEmbedding({
+        endpoint: String(payload?.endpoint ?? settings.semanticEndpoint),
+        model: String(payload?.model ?? settings.semanticModel),
+        apiKey: String(payload?.apiKey ?? semanticKey()),
+        timeoutMs: settings.semanticTimeoutMs,
+      }),
+      getSemanticModels: (payload) => listEmbeddingModels({
+        endpoint: String(payload?.endpoint ?? settings.semanticEndpoint),
+        apiKey: String(payload?.apiKey ?? semanticKey()),
         timeoutMs: settings.semanticTimeoutMs,
       }),
     });
@@ -454,6 +463,7 @@ export function apply(ctx, config = {}) {
         query,
         endpoint: settings.semanticEndpoint,
         model: settings.semanticModel,
+        apiKey: semanticKey(),
         top: settings.semanticTop,
         minSimilarity: settings.semanticMinSimilarity,
         timeoutMs: settings.semanticTimeoutMs,
@@ -478,6 +488,7 @@ export function apply(ctx, config = {}) {
       store: currentStore(),
       endpoint,
       model,
+      apiKey: semanticKey(),
       logger: ctx.logger,
     });
   };
@@ -504,6 +515,7 @@ export function apply(ctx, config = {}) {
     detectEmbedding({
       endpoint: settings.semanticEndpoint,
       model: settings.semanticModel,
+      apiKey: semanticKey(),
       timeoutMs: Math.min(settings.semanticTimeoutMs, 1500),
     }).then((found) => {
       if (generation !== semanticGeneration) return;
@@ -552,7 +564,7 @@ export function apply(ctx, config = {}) {
     Object.assign(settings, next);
     savePanelSettings(store, next);
     judgeState.mode = settings.judge;
-    if (['semantic', 'semanticEndpoint', 'semanticModel'].some((key) => key in next)) startSemanticIndexer();
+    if (['semantic', 'semanticEndpoint', 'semanticModel', 'semanticApiKey'].some((key) => key in next)) startSemanticIndexer();
     if ('consolidate' in next) startConsolidation();
     if (next.delivery === 'context' && settings.autoRecall) mountQuietContext();
     return panelSettingsView(settings);

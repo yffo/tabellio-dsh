@@ -136,6 +136,8 @@ dsh plugin --profile desktop add tabellio-dsh
 
 普通用户不用碰配置文件：面板里只决定一件事——**智能记忆**开不开（默认开）。开启后自动探测本机常见向量端口（llama-swap / Ollama / LM Studio 等），发现即用；没有任何向量服务时自动退回词面匹配，不会报错。地址、模型、捕获档位、投递方式、每轮条数、巩固节奏都在「进阶设置」里，保存即生效。这些写在记忆库目录的 `panel-settings.json`，可随库迁移，也不会动宿主配置。
 
+**用远程向量服务？** 在「进阶设置」里把服务地址指向任意 OpenAI 风格的 `/v1/embeddings`，点「获取模型」从服务端拉模型列表（也可以手填），再点「测试连接」确认维度和耗时；远程服务需要填 API Key（写进 `panel-settings.json`，明文本地文件），更推荐用环境变量 `TABELLIO_SEMANTIC_API_KEY`，面板里会显示「已设置」而不会回显 Key。
+
 留在配置里的只有进阶项：`recallMinRelevance`/`recallMinScore`/`recallMinCoverage`（召回阈值）、`recallBudgetTokens`、`storePath`、`shadow`、`refreshSeconds`。这些改错会直接影响召回质量或落库位置，所以没有放进面板；默认值已经适配普通用户。
 
 ## 隐私

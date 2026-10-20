@@ -53,6 +53,11 @@ export const DEFAULTS = Object.freeze({
   // endpoint/model; 'off' is pure BM25.
   semantic: 'auto',
   semanticEndpoint: 'http://127.0.0.1:8080/v1/embeddings',
+  // Optional bearer token for a remote OpenAI-compatible embedding endpoint.
+  // Prefer the TABELLIO_SEMANTIC_API_KEY environment variable; a key typed in
+  // the panel is stored in panel-settings.json next to the store (plain text,
+  // local file) and is never returned to the browser.
+  semanticApiKey: '',
   semanticModel: 'qwen3-embedding-0.6b',
   semanticMinSimilarity: 0.55,
   semanticTop: 8,

@@ -60,13 +60,17 @@ export function saveIndex(store, model, index) {
   }
 }
 
-export async function embedTexts({ endpoint = DEFAULT_ENDPOINT, model = DEFAULT_MODEL, inputs, timeoutMs = EMBED_TIMEOUT_MS }) {
+function authHeaders(apiKey) {
+  return apiKey ? { authorization: 'Bearer ' + apiKey } : {};
+}
+
+export async function embedTexts({ endpoint = DEFAULT_ENDPOINT, model = DEFAULT_MODEL, inputs, apiKey = '', timeoutMs = EMBED_TIMEOUT_MS }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: Object.assign({ 'content-type': 'application/json' }, authHeaders(apiKey)),
       body: JSON.stringify({ model, input: inputs }),
       signal: controller.signal,
     });
@@ -111,7 +115,7 @@ export function readNotes(store) {
   return notes;
 }
 
-export async function refreshIndex({ store, endpoint = DEFAULT_ENDPOINT, model = DEFAULT_MODEL, onProgress } = {}) {
+export async function refreshIndex({ store, endpoint = DEFAULT_ENDPOINT, model = DEFAULT_MODEL, apiKey = '', onProgress } = {}) {
   const index = loadIndex(store, model);
   const entries = readNotes(store);
   const alive = new Set(entries.map((entry) => entry.id));
@@ -123,7 +127,7 @@ export async function refreshIndex({ store, endpoint = DEFAULT_ENDPOINT, model =
       .slice(offset, offset + BATCH)
       .filter((entry) => index.get(entry.id)?.hash !== entry.hash);
     if (chunk.length === 0) continue;
-    const vectors = await embedTexts({ endpoint, model, inputs: chunk.map((entry) => entry.text) });
+    const vectors = await embedTexts({ endpoint, model, apiKey, inputs: chunk.map((entry) => entry.text) });
     chunk.forEach((entry, position) => index.set(entry.id, { hash: entry.hash, vector: vectors[position] }));
     changed += chunk.length;
     onProgress?.({ done: Math.min(entries.length, offset + BATCH), total: entries.length });
@@ -136,13 +140,13 @@ export async function refreshIndex({ store, endpoint = DEFAULT_ENDPOINT, model =
  * Build the index in the background. The returned state is what the recall path
  * reads; until `ready` is true the plugin behaves exactly like before.
  */
-export function startIndexer({ store, endpoint = DEFAULT_ENDPOINT, model = DEFAULT_MODEL, logger, delayMs = 2500 }) {
+export function startIndexer({ store, endpoint = DEFAULT_ENDPOINT, model = DEFAULT_MODEL, apiKey = '', logger, delayMs = 2500 }) {
   const state = { ready: false, size: 0, changed: 0, error: null, startedAt: Date.now() };
   let disposed = false;
   const run = async () => {
     if (disposed) return;
     try {
-      const result = await refreshIndex({ store, endpoint, model });
+      const result = await refreshIndex({ store, endpoint, model, apiKey });
       if (disposed) return;
       state.index = result.index;
       state.size = result.size;
@@ -164,9 +168,9 @@ export function startIndexer({ store, endpoint = DEFAULT_ENDPOINT, model = DEFAU
  * qwen3-embedding puts relevant pairs around 0.6–0.85 and unrelated text below
  * 0.55 on this corpus, so the caller's threshold does the filtering.
  */
-export async function semanticTop({ index, query, endpoint = DEFAULT_ENDPOINT, model = DEFAULT_MODEL, top = 8, minSimilarity = 0, timeoutMs = 2500 }) {
+export async function semanticTop({ index, query, endpoint = DEFAULT_ENDPOINT, model = DEFAULT_MODEL, apiKey = '', top = 8, minSimilarity = 0, timeoutMs = 2500 }) {
   if (!index || index.size === 0) return [];
-  const [queryVector] = await embedTexts({ endpoint, model, inputs: [query], timeoutMs });
+  const [queryVector] = await embedTexts({ endpoint, model, apiKey, inputs: [query], timeoutMs });
   const scored = [];
   for (const [id, entry] of index) {
     const similarity = cosine(queryVector, entry.vector);
@@ -214,9 +218,9 @@ export function mergeSemanticResult(result, { hits = [], readNote, maxNotes = 6 
  * embedding dimension and latency instead of throwing, so the caller can keep
  * the UI honest about whether semantic recall will actually work.
  */
-export async function probeEmbedding({ endpoint, model, timeoutMs = 2500 }) {
+export async function probeEmbedding({ endpoint, model, apiKey = '', timeoutMs = 2500 }) {
   const started = Date.now();
-  const vectors = await embedTexts({ endpoint, model, inputs: ['ping'], timeoutMs });
+  const vectors = await embedTexts({ endpoint, model, apiKey, inputs: ['ping'], timeoutMs });
   return { ok: true, dims: vectors[0].length, ms: Date.now() - started };
 }
 
@@ -233,10 +237,10 @@ export const EMBED_CANDIDATES = [
   { endpoint: 'http://127.0.0.1:8000/v1/embeddings', models: ['bge-m3', 'qwen3-embedding-0.6b'] },
 ];
 
-async function fetchEmbeddingModels(endpoint, timeoutMs) {
+async function fetchEmbeddingModels(endpoint, timeoutMs, apiKey = '') {
   try {
     const url = String(endpoint).replace(/\/embeddings\/?$/, '/models');
-    const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+    const response = await fetch(url, { headers: authHeaders(apiKey), signal: AbortSignal.timeout(timeoutMs) });
     if (!response.ok) return [];
     const data = await response.json();
     return (Array.isArray(data?.data) ? data.data : [])
@@ -252,17 +256,17 @@ async function fetchEmbeddingModels(endpoint, timeoutMs) {
  * `endpoint`/`model` narrow the search (explicitly configured values win);
  * otherwise every candidate is probed once. Returns null when nothing answers.
  */
-export async function detectEmbedding({ endpoint, model, timeoutMs = 1200, candidates = EMBED_CANDIDATES } = {}) {
+export async function detectEmbedding({ endpoint, model, apiKey = '', timeoutMs = 1200, candidates = EMBED_CANDIDATES } = {}) {
   if (endpoint && model) {
     try {
-      const probe = await probeEmbedding({ endpoint, model, timeoutMs });
+      const probe = await probeEmbedding({ endpoint, model, apiKey, timeoutMs });
       return { endpoint, model, dims: probe.dims };
     } catch {
       // fall through to discovery
     }
   }
   for (const candidate of candidates) {
-    const discovered = model ? [] : await fetchEmbeddingModels(candidate.endpoint, timeoutMs);
+    const discovered = model ? [] : await fetchEmbeddingModels(candidate.endpoint, timeoutMs, apiKey);
     const names = [...new Set([model, ...discovered, ...candidate.models].filter(Boolean))];
     for (const name of names) {
       try {
@@ -274,4 +278,12 @@ export async function detectEmbedding({ endpoint, model, timeoutMs = 1200, candi
     }
   }
   return null;
+}
+
+/**
+ * List the model ids an endpoint advertises. Used by the panel so users pick a
+ * model instead of typing one, including remote OpenAI-compatible endpoints.
+ */
+export async function listEmbeddingModels({ endpoint, apiKey = '', timeoutMs = 2500 } = {}) {
+  return fetchEmbeddingModels(endpoint, timeoutMs, apiKey);
 }

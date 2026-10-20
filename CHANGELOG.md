@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.1
+- 远程向量服务：`semanticApiKey`（面板填写，落 `panel-settings.json`；支持 `TABELLIO_SEMANTIC_API_KEY` 环境变量，面板只显示「已设置」，永不回显 Key）；嵌入与探测请求带 Bearer 头。
+- 面板「获取模型」：新增 `semantic.models` 端点，从 `/v1/models` 拉取列表供选择；「测试连接」改为显式按钮并显示维度与耗时。
+- 106 个单元测试 + 30 条验收。
+
 ## 0.12.0
 - 零配置：`semantic` 默认 `auto`，自动探测本机常见向量端点（llama-swap / Ollama / LM Studio / :8000）与 `/v1/models`，没有服务就静默退回词面匹配；`judge` 默认 `llm`，命中时用宿主当前默认模型做一次小裁决（失败放行）。
 - 面板设置收成一个「智能记忆」开关（开 = 语义 + 裁决，关 = 纯词面）；服务地址/模型、捕获、投递、每轮条数、巩固节奏收进「进阶设置」。

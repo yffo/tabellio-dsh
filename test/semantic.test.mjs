@@ -9,6 +9,8 @@ import { normalizeConfig } from '../src/config.js';
 import {
   cosine,
   detectEmbedding,
+  embedTexts,
+  listEmbeddingModels,
   loadIndex,
   mergeSemanticResult,
   refreshIndex,
@@ -156,4 +158,31 @@ test('auto-discovery returns null when nothing answers', async () => {
     timeoutMs: 300,
   });
   assert.equal(found, null);
+});
+
+
+test('remote embeddings carry the bearer key and expose model ids', async (t) => {
+  const seen = [];
+  const server = http.createServer((req, res) => {
+    seen.push({ url: req.url, auth: req.headers.authorization || '' });
+    if (req.url === '/v1/models') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ data: [{ id: 'text-embedding-3-small' }, { id: 'gpt-4o' }] }));
+      return;
+    }
+    let raw = '';
+    req.on('data', (chunk) => { raw += chunk; });
+    req.on('end', () => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ data: [{ embedding: [0.5, 0.25] }] }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => server.close());
+  const base = 'http://127.0.0.1:' + server.address().port + '/v1';
+  const vectors = await embedTexts({ endpoint: base + '/embeddings', model: 'text-embedding-3-small', apiKey: 'sk-test', inputs: ['hello'], timeoutMs: 1000 });
+  assert.deepEqual(vectors, [[0.5, 0.25]]);
+  const models = await listEmbeddingModels({ endpoint: base + '/embeddings', apiKey: 'sk-test', timeoutMs: 1000 });
+  assert.deepEqual(models, ['text-embedding-3-small']);
+  assert.equal(seen[0].auth, 'Bearer sk-test');
 });

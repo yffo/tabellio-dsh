@@ -39,6 +39,12 @@ window.__ModuleLoader__.load({
       settingsHint: '这里改的是存储目录里的 panel-settings.json，不用编辑宿主配置；保存后立即生效。',
       settingsSemanticLocal: '本地嵌入',
       settingsEndpoint: '服务地址',
+      settingsApiKey: 'API Key',
+      settingsApiKeySet: '已设置（留空保持不变）',
+      settingsApiKeyHint: '本地服务可留空；远程填服务商的 Key',
+      settingsFetchModels: '获取模型',
+      settingsModels: '模型列表',
+      settingsModelPick: '从服务端选择一个模型…',
       settingsModel: '模型',
       settingsTest: '测试连接',
       settingsTestOk: '连接成功：{dims} 维，{ms}ms',
@@ -222,6 +228,12 @@ window.__ModuleLoader__.load({
       settingsHint: 'These are stored in panel-settings.json inside the memory folder, not in host config, and apply immediately.',
       settingsSemanticLocal: 'Local embeddings',
       settingsEndpoint: 'Endpoint',
+      settingsApiKey: 'API key',
+      settingsApiKeySet: 'Set (leave blank to keep)',
+      settingsApiKeyHint: 'Blank for local services; paste the provider key for remote ones',
+      settingsFetchModels: 'Fetch models',
+      settingsModels: 'Models',
+      settingsModelPick: 'Pick a model the endpoint reports…',
       settingsModel: 'Model',
       settingsTest: 'Test connection',
       settingsTestOk: 'Connected: {dims} dims in {ms}ms',
@@ -721,6 +733,7 @@ window.__ModuleLoader__.load({
         padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(185, 28, 28, .35)',
         background: 'rgba(185, 28, 28, .06)', color: TONES.bad, fontSize: 12.5, overflowWrap: 'anywhere',
       },
+      fieldRow: { display: 'flex', gap: 8, alignItems: 'center', flex: 1 },
       testRow: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
       details: { marginTop: 4 },
       summary: { cursor: 'pointer', fontSize: 12.5, color: COLORS.dim, padding: '4px 0' },
@@ -781,6 +794,7 @@ window.__ModuleLoader__.load({
       const [settingsDraft, setSettingsDraft] = useState(null);
       const [settingsSaving, setSettingsSaving] = useState(false);
       const [semanticTest, setSemanticTest] = useState(null);
+      const [models, setModels] = useState({ loading: false, list: [], error: '' });
 
       const load = useCallback(async () => {
         setState((prev) => ({ ...prev, loading: true, error: null }));
@@ -819,6 +833,7 @@ window.__ModuleLoader__.load({
             const view = await rpcCall('settings.get', {});
             setSettingsView(view);
             setSettingsDraft({
+              semanticApiKey: '',
               semantic: view.semantic?.mode || 'off',
               semanticEndpoint: view.semantic?.endpoint || '',
               semanticModel: view.semantic?.model || '',
@@ -966,7 +981,11 @@ window.__ModuleLoader__.load({
         if (!settingsDraft) return;
         setSettingsSaving(true);
         try {
-          const view = await rpcCall('settings.set', { ...settingsDraft, recallMaxNotes: Number(settingsDraft.recallMaxNotes) || 6 });
+          const payload = { ...settingsDraft, recallMaxNotes: Number(settingsDraft.recallMaxNotes) || 6 };
+          // An empty key field means "keep whatever is stored"; only send a key
+          // the user actually typed in this session.
+          if (!payload.semanticApiKey) delete payload.semanticApiKey;
+          const view = await rpcCall('settings.set', payload);
           setSettingsView(view);
           setState((prev) => ({ ...prev, notice: t('settingsSaved'), error: null }));
           await load();
@@ -980,12 +999,29 @@ window.__ModuleLoader__.load({
       const runSemanticTest = useCallback(async () => {
         setSemanticTest({ loading: true });
         try {
-          const result = await rpcCall('semantic.test', {});
+          const result = await rpcCall('semantic.test', {
+            endpoint: settingsDraft?.semanticEndpoint || undefined,
+            model: settingsDraft?.semanticModel || undefined,
+            apiKey: settingsDraft?.semanticApiKey || undefined,
+          });
           setSemanticTest(result);
         } catch (error) {
           setSemanticTest({ ok: false, error: String(error?.message ?? error) });
         }
-      }, [rpcCall]);
+      }, [rpcCall, settingsDraft]);
+
+      const fetchModels = useCallback(async () => {
+        setModels({ loading: true, list: [], error: '' });
+        try {
+          const result = await rpcCall('semantic.models', {
+            endpoint: settingsDraft?.semanticEndpoint || undefined,
+            apiKey: settingsDraft?.semanticApiKey || undefined,
+          });
+          setModels({ loading: false, list: Array.isArray(result?.models) ? result.models : [], error: result?.error ? String(result.error) : '' });
+        } catch (error) {
+          setModels({ loading: false, list: [], error: String(error?.message ?? error) });
+        }
+      }, [rpcCall, settingsDraft]);
 
       // Review failures used to be silent: a >400-char candidate can never be
       // approved (the write gate answers too_long), so say it instead of
@@ -1327,14 +1363,22 @@ window.__ModuleLoader__.load({
               h('details', { style: ui.details },
                 h('summary', { style: ui.summary }, t('advancedSettings')),
                 control(t('settingsEndpoint'), h('input', { style: ui.input, value: settingsDraft.semanticEndpoint, onChange: setField('semanticEndpoint'), placeholder: t('settingsEndpointAuto') })),
-                control(t('settingsModel'), h('input', { style: ui.input, value: settingsDraft.semanticModel, onChange: setField('semanticModel'), placeholder: t('settingsModelAuto') })),
-                h('div', { style: ui.testRow },
-                  h('button', { type: 'button', style: ui.buttonGhost, disabled: semanticTest?.loading === true, onClick: runSemanticTest }, semanticTest?.loading ? t('loading') : t('settingsTest')),
+                control(t('settingsApiKey'), h('input', { style: ui.input, type: 'password', autoComplete: 'off', value: settingsDraft.semanticApiKey, onChange: setField('semanticApiKey'), placeholder: status?.semantic?.apiKeySet ? t('settingsApiKeySet') : t('settingsApiKeyHint') })),
+                control(t('settingsModel'), h('div', { style: ui.fieldRow },
+                  h('input', { style: ui.input, value: settingsDraft.semanticModel, onChange: setField('semanticModel'), placeholder: t('settingsModelAuto') }),
+                  h('button', { type: 'button', style: ui.buttonGhost, disabled: models.loading, onClick: fetchModels }, models.loading ? t('loading') : t('settingsFetchModels')))),
+                models.list.length > 0
+                  ? control(t('settingsModels'), h('select', { style: ui.select, value: '', onChange: (event) => { if (event.target.value) setSettingsDraft((prev) => ({ ...prev, semanticModel: event.target.value })); } },
+                    h('option', { value: '' }, t('settingsModelPick')),
+                    models.list.map((id) => h('option', { key: id, value: id }, id))))
+                  : models.error ? h('p', { style: ui.warnBox }, t('settingsTestFail').replace('{err}', models.error)) : null,
+                control(t('settingsTest'), h('div', { style: ui.testRow },
+                  h('button', { type: 'button', style: ui.buttonGhost, disabled: semanticTest?.loading === true, onClick: runSemanticTest }, icon('check', 14), h('span', null, semanticTest?.loading ? t('loading') : t('settingsTest'))),
                   semanticTest && !semanticTest.loading
                     ? h('span', { style: semanticTest.ok ? ui.okLine : ui.warnBox }, semanticTest.ok
                       ? t('settingsTestOk').replace('{dims}', String(semanticTest.dims)).replace('{ms}', String(semanticTest.ms))
                       : t('settingsTestFail').replace('{err}', String(semanticTest.error || '')))
-                    : null),
+                    : null)),
                 control(t('settingsJudgeModel'), h('input', { style: ui.input, value: settingsDraft.judgeModel, onChange: setField('judgeModel'), placeholder: t('settingsJudgeDefault') })),
                 control(t('settingsCapture'), h('select', { style: ui.select, value: settingsDraft.capture, onChange: setField('capture') },
                   h('option', { value: 'off' }, t('capOff')),
