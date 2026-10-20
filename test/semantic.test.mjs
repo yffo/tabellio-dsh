@@ -45,7 +45,7 @@ const tempStore = (t) => {
   return { dir, store: openStore(dir) };
 };
 
-test('mergeSemanticResult appends only unseen hits and trims to the note cap', () => {
+test('mergeSemanticResult fuses unseen hits by rank and trims to the note cap', () => {
   const readNote = (id) => ({ ok: true, id, title: 'note ' + id, body: 'body ' + id });
   const result = { items: [{ id: 'a', title: 'A', content: 'x', relevance: 0.9 }], tokens: 10, refused: false };
   const merged = mergeSemanticResult(result, {
