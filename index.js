@@ -15,7 +15,7 @@ import { addCandidate, listCandidates, openStore, read as readNote, recallQuery,
 import { normalizeConfig } from './src/config.js';
 import { delegationDepth, isHumanMessage, isChitchat, isLowInformationQuery, latestHuman, textOf, trimQuery, intentGateAllows } from './src/messages.js';
 import { extractAssistantConclusion, extractCandidates, hasSecretHint, looksLikeCredentialLeak } from './src/capture.js';
-import { createJudgeCache, filterByJudge, judgeCacheKey } from './src/judge.js';
+import { createJudgeCache, filterByJudge, judgeCacheKey, withDeadline } from './src/judge.js';
 import { appendJudgeEvent } from './src/judge-log.js';
 import { appendUsage } from './src/usage.js';
 import { maybeRecordCorrection } from './src/outcome.js';
@@ -29,8 +29,12 @@ import { findConflicts, writeConflictState } from './src/conflicts.js';
 import { readReflectNotes, reflectNotes, selectReflectNotes, writeReflections } from './src/reflect.js';
 import { appendAudit } from './src/audit.js';
 import { routeCandidate } from './src/approval.js';
-import { detectEmbedding, listEmbeddingModels, mergeSemanticResult, probeEmbedding, semanticTop, startIndexer } from './src/semantic.js';
+import { createVectorCache, detectEmbedding, listEmbeddingModels, mergeSemanticResult, probeEmbedding, queryVector, semanticTop, startIndexer } from './src/semantic.js';
 import { loadPanelSettings, panelSettingsView, pickPanelSettings, savePanelSettings } from './src/settings-file.js';
+
+// judge 失败（软截止、空回复、报错）时最多注入几条：召回集现在有 8 条，
+// 整包 fail-open 会比旧的 6 条默认更贵；失败不该悄悄放大上下文。
+const UNJUDGED_KEEP = 3;
 
 export const name = 'tabellio-dsh';
 
@@ -97,6 +101,9 @@ export function apply(ctx, config = {}) {
   // was created without this getter).
   const judgeState = { mode: settings.judge, host: 'none', selection: null, last: null };
   const judgeCache = settings.judgeCacheMinutes > 0 ? createJudgeCache({ ttlMs: settings.judgeCacheMinutes * 60 * 1000 }) : null;
+  // Query vectors are cheap but not free (~46ms locally), and the embedding
+  // request can start before the synchronous lexical recall (see pre-step).
+  const queryVectors = createVectorCache();
   const worthState = { mode: settings.writeJudge, last: null };
   const reflectState = { mode: settings.reflect, last: null };
   // Auto-discovery bookkeeping for the semantic layer (see startSemanticIndexer).
@@ -677,12 +684,35 @@ export function apply(ctx, config = {}) {
   // Optional local embedding supplement. It runs after the shadow branch so a
   // shadow A/B keeps measuring BM25 alone, and it only ever appends hits that
   // BM25 missed; a failure leaves the lexical result untouched.
-  const augmentWithSemantic = async (result, query) => {
+  // Start the embedding request before the (synchronous) lexical recall runs:
+  // the two are independent, so the HTTP round trip overlaps with the scan and
+  // BM25 instead of queueing behind it. Resolves to `null` on any failure, so
+  // the supplement simply falls back to embedding inline.
+  const prefetchQueryVector = (query) => {
+    if (settings.semantic === 'off' || !semanticIndexer?.state?.ready) return null;
+    return queryVector({
+      query,
+      endpoint: settings.semanticEndpoint,
+      model: settings.semanticModel,
+      apiKey: semanticKey(),
+      timeoutMs: settings.semanticTimeoutMs,
+      cache: queryVectors,
+    }).catch((error) => {
+      ctx.logger?.debug?.('tabellio-dsh: query embedding prefetch failed: ' + (error?.message ?? error));
+      return null;
+    });
+  };
+
+  const augmentWithSemantic = async (result, query, pendingVector = null) => {
     if (settings.semantic === 'off' || !semanticIndexer?.state?.ready) return result;
     try {
+      const vector = pendingVector ? await pendingVector : null;
       const hits = await semanticTop({
         index: semanticIndexer.state.index,
         query,
+        // A cache hit or a completed prefetch costs no network call here; a
+        // failed prefetch leaves `vector` null and semanticTop embeds inline.
+        vector: Array.isArray(vector) && vector.length > 0 ? vector : undefined,
         endpoint: settings.semanticEndpoint,
         model: settings.semanticModel,
         apiKey: semanticKey(),
@@ -694,6 +724,8 @@ export function apply(ctx, config = {}) {
         hits,
         maxNotes: settings.recallMaxNotes,
         allowedTrusts: settings.recallTrusts,
+        // 全库词法名次：RRF 分数只该看「全库第几」，不该看「这一批第几」。
+        lexRanks: new Map((result.scores ?? []).map((entry, index) => [String(entry.id), index + 1])),
         readNote: (id) => readNote(currentStore(), id),
       });
     } catch (error) {
@@ -843,6 +875,9 @@ export function apply(ctx, config = {}) {
 
     try {
       const recallStartedAt = Date.now();
+      // Kick the embedding off first: everything below until `augmentWithSemantic`
+      // is synchronous, so this request's latency is hidden rather than added.
+      const pendingVector = settings.shadow ? null : prefetchQueryVector(query);
       let result = recallQuery(currentStore(), query, {
         // Leave a little room for the wrapper and titles.
         budgetTokens: Math.max(100, settings.recallBudgetTokens - 64),
@@ -894,7 +929,7 @@ export function apply(ctx, config = {}) {
         return decision;
       }
 
-      result = await augmentWithSemantic(result, query);
+      result = await augmentWithSemantic(result, query, pendingVector);
 
       if (result?.refused || !Array.isArray(result?.items) || result.items.length === 0) {
         warnStoreHealthOnce('recall returned no items');
@@ -974,7 +1009,10 @@ export function apply(ctx, config = {}) {
           filtered = { judged: true, cached: true, items: beforeJudge.filter((item) => keptIds.has(item.id)) };
           judgeState.last = { at: Date.now(), stage: 'cache', kept: filtered.items.length, elapsedMs: Date.now() - judgeStartedAt };
         } else {
-          filtered = await filterByJudge({
+          // Soft deadline: a slow verdict must not hold the turn. The call keeps
+          // running; when it lands the verdict is cached for the next identical
+          // question, so a 3s model still filters — just not this turn.
+          const verdict = filterByJudge({
             ...runtime,
             query,
             items: result.items,
@@ -985,20 +1023,43 @@ export function apply(ctx, config = {}) {
             onReply: (text) => { judgeReply = text; },
             onError: (reason) => { judgeError = reason; },
           });
-          judgeState.last = filtered.judged
-            ? { at: Date.now(), stage: 'verdict', kept: filtered.items.length, elapsedMs: Date.now() - judgeStartedAt }
-            : {
+          filtered = await withDeadline(verdict, settings.judgeDeadlineMs, {
+            onLate: (late) => {
+              if (late?.judged && judgeCache) judgeCache.set(cacheKey, { kept: late.items.map((item) => item.id) });
+            },
+          });
+          if (filtered === null) {
+            judgeState.last = {
               at: Date.now(),
-              stage: 'no_verdict',
+              stage: 'deadline',
               notes: result.items.length,
               elapsedMs: Date.now() - judgeStartedAt,
-              // Keep the raw reply preview: a silent fail-open must be explainable.
-              preview: judgeReply.slice(0, 200),
-              chars: judgeReply.length,
-              error: judgeError || undefined,
+              deadlineMs: settings.judgeDeadlineMs,
             };
-          if (filtered.judged && judgeCache) {
-            judgeCache.set(cacheKey, { kept: filtered.items.map((item) => item.id) });
+            // A missed deadline must not become a full-size injection: the
+            // recalled set is now up to 8 notes / ~1.1k tokens, and injecting
+            // it unfiltered on every slow verdict would cost more context than
+            // the old 6-note default ever did. Keep the head of the ranking
+            // (it is already ordered by relevance) and drop the tail.
+            filtered = { judged: false, items: beforeJudge.slice(0, UNJUDGED_KEEP), deadline: true };
+          } else {
+            judgeState.last = filtered.judged
+            ? { at: Date.now(), stage: 'verdict', kept: filtered.items.length, elapsedMs: Date.now() - judgeStartedAt }
+              : {
+                at: Date.now(),
+                stage: 'no_verdict',
+                notes: result.items.length,
+                elapsedMs: Date.now() - judgeStartedAt,
+                // Keep the raw reply preview: a silent fail-open must be explainable.
+                preview: judgeReply.slice(0, 200),
+                chars: judgeReply.length,
+                error: judgeError || undefined,
+              };
+            if (filtered.judged && judgeCache) {
+              judgeCache.set(cacheKey, { kept: filtered.items.map((item) => item.id) });
+            }
+            // 空回复/报错同样走 fail-open，但只放行排名最前的几条。
+            if (!filtered.judged) filtered = { ...filtered, items: filtered.items.slice(0, UNJUDGED_KEEP), capped: true };
           }
         }
         judged = filtered.judged;

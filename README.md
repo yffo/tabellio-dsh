@@ -192,8 +192,8 @@ dsh plugin --profile desktop add tabellio-dsh
 | `autoRecall` | `true` | 每轮首个真人消息召回一次 |
 | `shadow` | `false` | 只写回执不注入，用于 A/B |
 | `delivery` | `notice` | `notice` 可见通知；`context` 静默上下文 |
-| `recallBudgetTokens` | `500` | 召回预算，100–4000 |
-| `recallMaxNotes` | `6` | 最多几条，1–20 |
+| `recallBudgetTokens` | `1200` | 召回预算，100–4000（太小时第 3 名以后的 gold 会被裁掉） |
+| `recallMaxNotes` | `8` | 最多几条，1–20 |
 | `injectMaxChars` | `1400` | 一轮注入的字符上限（约合 450 token），超出时只保留前几条全文 |
 | `injectFullNotes` | `2` | 前几条给全文；后续条目只给标题 + 120 字摘要，全文用 `tabellio_read` 取 |
 | `injectRepeat` | `session` | 同一会话里已经注入过的笔记不重复注入；`turn` 只压住紧挨着的一轮，`off` 关闭 |
@@ -205,7 +205,7 @@ dsh plugin --profile desktop add tabellio-dsh
 | `captureAssistant` | `false` | 每轮结束时把助手给出的结论/决定（含结论、以后、统一等线索）整理成一条候选，仍需你批准；默认关。 |
 | `outcomeFeedback` | `true` | 注入后下一轮你说「不对/不是…而是」且与被注入笔记有词面重叠时，记一条局部纠正信号，用于小幅降权（10 分钟窗口，不删笔记、不越过闸门） |
 | `recallTrusts` | `user_stated`、`system_derived` | 自动召回信任哪些来源；导入的文档（`external`）默认只参与搜索/面板，不自动注入 |
-| `recallMinCoverage` | `0.33` | 覆盖率闸；长问句会被稀释，默认按对话场景调松 |
+| `recallMinCoverage` | `0.2` | 覆盖率闸（噪声地板）；长问句会被稀释，拒答交给 judge 与答案模型 |
 | `recallMinScore` | `0.1` | 最低分 |
 | `recallMinRelevance` | `0.12` | 最低相关度 |
 | `includeCore` | `true` | 是否包含 core 笔记 |
@@ -222,7 +222,8 @@ dsh plugin --profile desktop add tabellio-dsh
 | `captureMaxSentenceChars` | `240` | 单句上限，40–1000 |
 | `judge` | `llm` | `llm` / `off` |
 | `judgeProvider` / `judgeModel` | 空 | 留空用宿主默认模型 |
-| `judgeTimeoutMs` | `4000` | 裁决超时，500–15000，超时回退词面命中 |
+| `judgeTimeoutMs` | `6000` | 裁决硬超时，500–15000，超时回退词面命中 |
+| `judgeDeadlineMs` | `1500` | 软截止：到点先注入未裁决的结果，裁决晚到就缓存给下一次；0 = 关闭 |
 | `judgeMinChars` | `6` | 短于这个字数的模糊问句不调 judge（省约 2s）；0 关闭 |
 | `judgeCacheMinutes` | `10` | 同一问题 + 同一批命中在多少分钟内复用裁决结果；`0` 关闭缓存 |
 

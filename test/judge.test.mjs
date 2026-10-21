@@ -6,7 +6,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { openStore, remember } from 'tabellio';
-import { buildJudgePrompt, createJudgeCache, filterByJudge, judgeCacheKey, judgeNotes, parseJudgeReply } from '../src/judge.js';
+import { buildJudgePrompt, createJudgeCache, filterByJudge, judgeCacheKey, judgeNotes, parseJudgeReply, withDeadline } from '../src/judge.js';
+import { normalizeConfig, DEFAULTS } from '../src/config.js';
 
 const streamOf = (parts) => ({
   stream() {
@@ -184,4 +185,40 @@ test('an empty judge reply is reported as empty, not as "keep nothing"', async (
 test('the default judge timeout leaves room for a reasoning model', async () => {
   const { normalizeConfig } = await import('../src/config.js');
   assert.equal(normalizeConfig({}).judgeTimeoutMs, 6000);
+});
+
+test('withDeadline gives up at the deadline but still reports the late verdict', async () => {
+  let resolveLate;
+  const slow = new Promise((resolve) => { resolveLate = resolve; });
+  let late = null;
+  const started = Date.now();
+  const out = await withDeadline(slow, 40, { onLate: (value) => { late = value; } });
+  assert.equal(out, null, 'deadline passes → caller keeps the unjudged items');
+  assert.ok(Date.now() - started < 1000, 'must not wait for the slow call');
+
+  resolveLate({ judged: true, items: [{ id: 'n1' }] });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(late, { judged: true, items: [{ id: 'n1' }] }, 'late verdict is still cached');
+});
+
+test('withDeadline passes a fast verdict through, and 0 disables the race', async () => {
+  assert.equal(await withDeadline(Promise.resolve(42), 1000), 42);
+  // 0 是「不设软截止」：慢调用也要等，行为和加这个函数之前一致。
+  assert.equal(await withDeadline(Promise.resolve(7), 0), 7);
+  assert.equal(await withDeadline(Promise.resolve(7), NaN), 7);
+});
+
+test('withDeadline leaves no unhandled rejection when the late call fails', async () => {
+  const slow = new Promise((resolve, reject) => {
+    setTimeout(() => reject(new Error('late boom')), 20);
+  });
+  assert.equal(await withDeadline(slow, 5, { onLate: () => {} }), null);
+  await new Promise((resolve) => setTimeout(resolve, 40));
+});
+
+test('judgeDeadlineMs defaults to 1500 and is clamped to 0..15000', () => {
+  assert.equal(DEFAULTS.judgeDeadlineMs, 1500);
+  assert.equal(normalizeConfig({}).judgeDeadlineMs, 1500);
+  assert.equal(normalizeConfig({ judgeDeadlineMs: 0 }).judgeDeadlineMs, 0);
+  assert.equal(normalizeConfig({ judgeDeadlineMs: 99999 }).judgeDeadlineMs, 15000);
 });

@@ -8,6 +8,7 @@
 //   - `startIndexer` refreshes the core index off the recall path;
 //   - any failure keeps the lexical result untouched (callers fail open).
 
+import { createHash } from 'node:crypto';
 import { indexSemantic, mergeSemanticItems, rankSemantic } from 'tabellio';
 
 export const DEFAULT_MODEL = 'qwen3-embedding-0.6b';
@@ -103,11 +104,69 @@ export function startIndexer({ store, endpoint = DEFAULT_ENDPOINT, model = DEFAU
 /**
  * Top semantic hits for one query. The in-memory index (built by startIndexer)
  * is passed in so a recall never re-reads the index file.
+ *
+ * `vector` lets the caller hand in an already-computed query vector: the plugin
+ * starts the embedding request *before* the (synchronous) lexical recall and
+ * awaits it here, so the two never sit on the same critical path. Passing the
+ * vector also means a cache hit costs no network call at all.
  */
-export async function semanticTop({ index, query, endpoint = DEFAULT_ENDPOINT, model = DEFAULT_MODEL, apiKey = '', top = 8, minSimilarity = 0, timeoutMs = 2500 }) {
+export async function semanticTop({ index, query, vector, endpoint = DEFAULT_ENDPOINT, model = DEFAULT_MODEL, apiKey = '', top = 8, minSimilarity = 0, timeoutMs = 2500 }) {
   if (!index || index.size === 0) return [];
-  const [queryVector] = await embedTexts({ endpoint, model, apiKey, inputs: [query], timeoutMs });
+  const queryVector = Array.isArray(vector) && vector.length > 0
+    ? vector
+    : (await embedTexts({ endpoint, model, apiKey, inputs: [query], timeoutMs }))[0];
   return rankSemantic(index, queryVector, { top, minSimilarity });
+}
+
+/** Cache key: the same words must not be embedded twice, two models must never share a space. */
+export function queryVectorKey(model, query) {
+  return createHash('sha1')
+    .update(String(model ?? '') + '\u0000' + String(query ?? '').trim())
+    .digest('hex')
+    .slice(0, 16);
+}
+
+/**
+ * Short-lived query-vector cache (same shape as the judge cache: TTL + LRU cap).
+ * The embedding call is ~46ms on the local service and repeat questions are
+ * common inside one session; `0` TTL disables it.
+ */
+export function createVectorCache({ ttlMs = 10 * 60 * 1000, now = () => Date.now(), max = 200 } = {}) {
+  const entries = new Map();
+  return {
+    get(key) {
+      const entry = entries.get(key);
+      if (!entry) return null;
+      if (now() - entry.at > ttlMs) {
+        entries.delete(key);
+        return null;
+      }
+      return entry.value;
+    },
+    set(key, value) {
+      entries.set(key, { at: now(), value });
+      while (entries.size > max) {
+        const oldest = entries.keys().next().value;
+        entries.delete(oldest);
+      }
+    },
+    get size() {
+      return entries.size;
+    },
+  };
+}
+
+/**
+ * One query vector, through the cache when possible. Never throws for the
+ * caller's benefit: the plugin wraps this in a promise it may abandon.
+ */
+export async function queryVector({ endpoint = DEFAULT_ENDPOINT, model = DEFAULT_MODEL, apiKey = '', query, timeoutMs = 2500, cache = null }) {
+  const key = queryVectorKey(model, query);
+  const cached = cache?.get(key);
+  if (cached) return cached;
+  const [vector] = await embedTexts({ endpoint, model, apiKey, inputs: [query], timeoutMs });
+  cache?.set(key, vector);
+  return vector;
 }
 
 /** Merge semantic hits back into a lexical result (pure core function). */

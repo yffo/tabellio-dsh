@@ -7,10 +7,12 @@ import path from 'node:path';
 import { openStore, remember } from 'tabellio';
 import { normalizeConfig } from '../src/config.js';
 import {
+  createVectorCache,
   detectEmbedding,
   embedTexts,
   listEmbeddingModels,
   mergeSemanticResult,
+  queryVector,
   refreshIndex,
   semanticTop,
   startIndexer,
@@ -221,4 +223,64 @@ test('remote embeddings carry the bearer key and expose model ids', async (t) =>
   const models = await listEmbeddingModels({ endpoint: base + '/embeddings', apiKey: 'sk-test', timeoutMs: 1000 });
   assert.deepEqual(models, ['text-embedding-3-small']);
   assert.equal(seen[0].auth, 'Bearer sk-test');
+});
+
+test('semanticTop takes a precomputed vector and never calls the server', async (t) => {
+  const { store } = await tempStore(t);
+  const ctx = openStore(store.store);
+  remember(ctx, { content: '发布流程：推 tag 由 GitHub Actions OIDC 发布。', title: '发布流程' });
+  const endpoint = await fakeEmbeddingServer(t);
+  const built = await refreshIndex({ store, endpoint, model: 'fake-model' });
+
+  // Nothing listens on port 9: if semanticTop embedded the query itself this throws.
+  const hits = await semanticTop({
+    index: built.index,
+    query: '发布流程',
+    vector: vectorFor('发布流程'),
+    endpoint: 'http://127.0.0.1:9/v1/embeddings',
+    model: 'fake-model',
+    top: 1,
+  });
+  assert.equal(hits.length, 1);
+  assert.ok(hits[0].similarity > 0.9, 'vector path still ranks the note first');
+});
+
+test('queryVector embeds once and then answers from the cache', async (t) => {
+  let calls = 0;
+  const server = http.createServer((req, res) => {
+    calls += 1;
+    let raw = '';
+    req.on('data', (chunk) => { raw += chunk; });
+    req.on('end', () => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ data: [{ embedding: [1, 2, 3] }] }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => server.close());
+  const endpoint = 'http://127.0.0.1:' + server.address().port + '/v1/embeddings';
+  const cache = createVectorCache();
+
+  const first = await queryVector({ endpoint, model: 'm', query: '同一个问题', timeoutMs: 1000, cache });
+  const second = await queryVector({ endpoint, model: 'm', query: '同一个问题 ', timeoutMs: 1000, cache });
+  assert.deepEqual(first, second);
+  assert.equal(calls, 1, 'a repeat query must not pay for a second embedding call');
+  // A different model is a different vector space: never share the cached vector.
+  await queryVector({ endpoint, model: 'other', query: '同一个问题', timeoutMs: 1000, cache });
+  assert.equal(calls, 2);
+});
+
+test('createVectorCache expires by TTL and evicts the oldest entry', () => {
+  let clock = 0;
+  const cache = createVectorCache({ ttlMs: 100, max: 2, now: () => clock });
+  cache.set('a', [1]);
+  clock = 50;
+  cache.set('b', [2]);
+  assert.deepEqual(cache.get('a'), [1]);
+  clock = 151; // 50 + 101 > ttl, so `b` is stale
+  assert.equal(cache.get('b'), null, 'entry past its TTL is gone');
+  cache.set('c', [3]);
+  cache.set('d', [4]);
+  assert.equal(cache.size, 2);
+  assert.equal(cache.get('a'), null, 'oldest key is evicted once the cap is hit');
 });

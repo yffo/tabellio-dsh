@@ -160,13 +160,13 @@ Ordinary users never touch a config file: the panel asks one question — is **S
 | `autoRecall` | `true` | Recall once per turn on the first human message |
 | `shadow` | `false` | Write receipts only, never inject; useful for A/B |
 | `delivery` | `notice` | `notice` shows a visible message; `context` injects silently |
-| `recallBudgetTokens` | `500` | Recall budget, 100–4000 |
-| `recallMaxNotes` | `6` | Maximum notes, 1–20 |
+| `recallBudgetTokens` | `1200` | Recall budget, 100–4000 (too small cuts gold below rank 2) |
+| `recallMaxNotes` | `8` | Maximum notes, 1–20 |
 | `recallIntentGate` | `true` | Do not inject when the question has no memory intent |
 | `recallConfidentRelevance` | `0.9` | Bypass the intent gate when the top hit is at least this relevant |
 | `feedbackRanking` | `true` | Apply small ranking nudges from helpful / wrong feedback (never adds or removes notes) |
 | `recallTrusts` | `user_stated`, `system_derived` | Which sources auto-recall trusts; imported docs (`external`) stay searchable but are never injected by default |
-| `recallMinCoverage` | `0.33` | Coverage gate; long questions dilute it, tuned for chat |
+| `recallMinCoverage` | `0.2` | Coverage gate (noise floor); abstention is left to the judge and the answer model |
 | `recallMinScore` | `0.1` | Minimum score |
 | `recallMinRelevance` | `0.12` | Minimum relevance |
 | `includeCore` | `true` | Whether core notes are included |
@@ -183,7 +183,8 @@ Ordinary users never touch a config file: the panel asks one question — is **S
 | `judge` | `llm` | `llm` / `off` |
 | `judgeProvider` / `judgeModel` | empty | Leave empty to use the host default model |
 | `judgeCacheMinutes` | `10` | Reuse a verdict for the same question and recall set within this window; `0` disables |
-| `judgeTimeoutMs` | `4000` | Judge timeout, 500–15000; falls back to lexical matching |
+| `judgeTimeoutMs` | `6000` | Hard judge timeout, 500–15000; falls back to lexical matching |
+| `judgeDeadlineMs` | `1500` | Soft deadline: inject unjudged hits at the deadline, cache a late verdict for next time; 0 = off |
 
 ### Tests and evaluation
 

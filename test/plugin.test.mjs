@@ -32,14 +32,14 @@ const agent = (id = 'agent-1', depth = 0) => ({
   options: {},
 });
 
-const fakeHost = () => {
+const fakeHost = (services = {}) => {
   const handlers = new Map();
   const tools = [];
   const contexts = [];
   const warns = [];
   const prompt = { context(definition) { contexts.push(definition); } };
   const ctx = {
-    get(name) { return name === 'systemPrompt' ? prompt : undefined; },
+    get(name) { return name === 'systemPrompt' ? prompt : services[name]; },
     tools: { register(definition) { tools.push(definition); } },
     on(event, handler) {
       if (!handlers.has(event)) handlers.set(event, []);
@@ -105,7 +105,7 @@ test('plugin metadata and config normalization are safe', () => {
   assert.equal(clamped.refreshSeconds, 3600);
   assert.equal(clamped.maxCandidatesPerTurn, 5);
   assert.equal(clamped.captureMaxSentenceChars, 40);
-  assert.equal(normalizeConfig({}).recallMinCoverage, 0.33);
+  assert.equal(normalizeConfig({}).recallMinCoverage, 0.2);
   assert.equal(normalizeConfig({ recallMinCoverage: 0.3 }).recallMinCoverage, 0.3);
   assert.equal(normalizeConfig({ recallMinCoverage: 3 }).recallMinCoverage, 1);
   assert.equal(normalizeConfig({ recallMinScore: -1 }).recallMinScore, 0);
@@ -292,6 +292,75 @@ test('auto recall injects one budgeted notice per user message and dedupes', asy
 
   const chitchat = await runPre(host.handlers, who, [human('m2', '继续')]);
   assert.equal(chitchat.messages.length, 1);
+});
+
+test('a slow judge releases the turn at judgeDeadlineMs instead of holding it', async (t) => {
+  const dir = temp(t);
+  const store = openStore(dir);
+  remember(store, { text: '# 项目代号\n\n项目代号是青鸟。' });
+
+  // 一个永不返回的 judge：模拟宿主模型慢到 3 秒以上。
+  let judgeStarted = false;
+  const never = {
+    stream() {
+      judgeStarted = true;
+      return (async function* () { await new Promise(() => {}); })();
+    },
+  };
+  const host = fakeHost({
+    agentDefaultModel: { currentSelection: () => ({ provider: 'deepseek', model: 'flash' }) },
+    llm: never,
+  });
+  apply(host.ctx, {
+    storePath: dir,
+    autoRecall: true,
+    capture: 'off',
+    refreshSeconds: 0,
+    judgeDeadlineMs: 60,
+    judgeTimeoutMs: 200,
+  });
+
+  const began = Date.now();
+  const out = await runPre(host.handlers, agent(), [human('m1', '项目代号是什么？')]);
+  const elapsed = Date.now() - began;
+
+  assert.equal(judgeStarted, true, 'judge 确实被调用了，不是提前跳过');
+  assert.ok(elapsed < 1500, '这一轮不能等模型：实际 ' + elapsed + 'ms');
+  assert.equal(out.messages.length, 2, '赶不上截止就把未裁决的记忆照常注入');
+  assert.match(out.messages[1].content[0].text, /青鸟/);
+});
+
+test('a missed judge deadline injects only the head of the ranking', async (t) => {
+  const dir = temp(t);
+  const store = openStore(dir);
+  // 5 篇同主题笔记 + 5 篇无关笔记：只留同主题的会触发 BM25 的高频词过滤（df 饱和），
+  // 召回直接拒绝；掺一半噪声才能让这 5 篇进候选。
+  for (let i = 1; i <= 5; i += 1) {
+    remember(store, { text: `# 部署记录 ${i}\n\n青鸟服务的部署步骤第 ${i} 条：先备份，再切流量。` });
+  }
+  for (let i = 1; i <= 5; i += 1) {
+    remember(store, { text: `# 菜谱 ${i}\n\n西红柿炒蛋第 ${i} 版：先炒蛋，再下西红柿。` });
+  }
+  const never = { stream() { return (async function* () { await new Promise(() => {}); })(); } };
+  const host = fakeHost({
+    agentDefaultModel: { currentSelection: () => ({ provider: 'deepseek', model: 'flash' }) },
+    llm: never,
+  });
+  apply(host.ctx, {
+    storePath: dir,
+    autoRecall: true,
+    capture: 'off',
+    refreshSeconds: 0,
+    judgeDeadlineMs: 50,
+    judgeTimeoutMs: 200,
+    injectMaxChars: 4000,
+  });
+  const out = await runPre(host.handlers, agent(), [human('m1', '我们之前定的青鸟服务部署步骤有哪些？')]);
+  const text = out.messages[1].content[0].text;
+  // 只数条目标题：正文里也带 `# 部署记录 N`，直接数关键词会翻倍。
+  const injected = (text.match(/^### 部署记录/gm) || []).length;
+  assert.ok(injected > 0, '未裁决时仍要注入，不能因为慢就不给记忆');
+  assert.ok(injected <= 3, '错过截止只许注入排名最前的 3 条，实际 ' + injected + ' 条');
 });
 
 test('memory-intent gate suppresses lexically-matched but off-topic recall', async (t) => {
@@ -715,6 +784,34 @@ test('rendered recall keeps the injected block inside its character budget', () 
   const roomy = formatRecall({ items: items.slice(0, 2), tokens: 100 }, { maxChars: 1400, fullNotes: 2 });
   assert.ok(roomy.includes(long), 'the first notes keep their body when there is room');
   assert.equal(roomy.match(/\n### /g).length, 2);
+});
+
+test('a single oversized note is degraded, never cut mid-sentence', () => {
+  const huge = '这是一段很长的记忆。'.repeat(400);
+  const out = formatRecall({ items: [{ id: 'big', title: '大笔记', content: huge }], tokens: 400 }, { maxChars: 500 });
+  assert.ok(out.length <= 500, 'block must respect the cap: ' + out.length);
+  assert.ok(out.trimEnd().endsWith('</tabellio-memory>'));
+  assert.ok(!out.includes('这是一段很长的记忆。'.repeat(60)), 'no half note body');
+  assert.match(out, /…/, 'a degraded note ends with the snippet marker');
+});
+
+test('trimming drops the tail, never the first note body', () => {
+  // 实测里最贵的一条 bug：块只超预算几十个字符时，旧逻辑先把**第一条**
+  // （最相关的那条）降成只有标题，再丢尾条 —— 答案往往就在被降级的那几十字里。
+  const first = {
+    id: '01A',
+    title: '猫洗澡步骤',
+    content: '# 猫洗澡步骤\n\n给豆豆洗澡，水温调到 38 度左右，用宠物沐浴露，别用人用的。洗完马上吹干，小档，耳朵用棉球擦。',
+  };
+  const rest = Array.from({ length: 7 }, (_, index) => ({
+    id: '01N' + index,
+    title: '长笔记' + index,
+    content: '甲乙丙丁'.repeat(40),
+  }));
+  const out = formatRecall({ items: [first, ...rest], tokens: 600 }, { maxChars: 1250, fullNotes: 4, snippetChars: 200 });
+  assert.ok(out.length <= 1250, 'block must respect the cap: ' + out.length);
+  assert.ok(out.includes('38 度'), 'the most relevant note keeps its body');
+  assert.match(out, /另有 [1-7] 条在库里/, 'the tail is what gets dropped');
 });
 
 test('a note already injected in this session is not injected again', async (t) => {

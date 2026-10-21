@@ -12,8 +12,11 @@ export const DEFAULTS = Object.freeze({
   // Summarize the assistant's own conclusions into candidates (opt-in: a wrong
   // summary costs review time, so the default keeps the user in charge).
   captureAssistant: false,
-  recallBudgetTokens: 500,
-  recallMaxNotes: 6,
+  // 2026-10-22 A/B（151 篇模拟用户库、120 题、真模型作答）：6 条 / 436 token
+  // 只答对 63.7%，8 条 / ~1130 token（再由 injectMaxChars 截断）答对 76.3%。
+  // 预算太小不是「省上下文」，是把第 3 名以后的 gold 直接裁掉。
+  recallBudgetTokens: 1200,
+  recallMaxNotes: 8,
   // Context is a budget: only the first N notes carry their body, the rest
   // become pointers, and the rendered block stops at injectMaxChars.
   injectMaxChars: 1400,
@@ -26,11 +29,13 @@ export const DEFAULTS = Object.freeze({
   // The plugin default is tuned for auto-injection into ordinary conversation,
   // not for short CLI queries: a 796-note store answered 1/12 realistic
   // questions at coverage 0.6 but 6/12 at 0.3, because long natural questions
-  // dilute the query-coverage ratio and get silently refused. These looser
-  // values are then covered by the intent gate and the optional LLM judge.
+  // dilute the query-coverage ratio and get silently refused.
+  // 2026-10-22 用 151 篇、5 个领域的模拟用户库 + 120 题端到端复测：0.33 仍然在
+  // 杀 gold（gold 排第 1、coverage 0.2435 也会被排除），0.2 的命中率 85.0%。
+  // 放出来的噪声由 judge（默认开）与答案模型负责，不再让覆盖率闸承担拒答。
   recallMinRelevance: 0.12,
   recallMinScore: 0.1,
-  recallMinCoverage: 0.33,
+  recallMinCoverage: 0.2,
   includeCore: true,
   minQueryChars: 4,
   queryChars: 400,
@@ -63,6 +68,7 @@ export const DEFAULTS = Object.freeze({
   judgeProvider: '',
   judgeModel: '',
   judgeTimeoutMs: 6000,
+  judgeDeadlineMs: 1500,
   judgeCacheMinutes: 10,
   writeJudge: 'off',
   writeJudgeTimeoutMs: 2500,
@@ -181,6 +187,8 @@ export function normalizeConfig(config = {}) {
     judgeProvider,
     judgeModel,
     judgeTimeoutMs: int(raw.judgeTimeoutMs, DEFAULTS.judgeTimeoutMs, 500, 15000),
+    // 0 = 不设软截止，等价于一直等到 judgeTimeoutMs 硬超时。
+    judgeDeadlineMs: int(raw.judgeDeadlineMs, DEFAULTS.judgeDeadlineMs, 0, 15000),
     judgeCacheMinutes: int(raw.judgeCacheMinutes, DEFAULTS.judgeCacheMinutes, 0, 1440),
     writeJudge: raw.writeJudge === 'llm' || raw.writeJudge === true ? 'llm' : 'off',
     writeJudgeTimeoutMs: int(raw.writeJudgeTimeoutMs, DEFAULTS.writeJudgeTimeoutMs, 500, 15000),

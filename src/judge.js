@@ -13,6 +13,30 @@ export const JUDGE_TIMEOUT_MS = 6000;
 export const JUDGE_MAX_NOTES = 4;
 const SNIPPET_CHARS = 200;
 
+/**
+ * Give a judge call at most `ms` to answer.
+ *
+ * Why a deadline instead of just a shorter timeout: aborting the call throws
+ * away everything it did, while a slow verdict is still useful for the *next*
+ * identical question. So the race returns `null` at the deadline, the call
+ * keeps running, and `onLate` gets the verdict whenever it lands (the caller
+ * caches it). `ms <= 0` disables the race and behaves like a plain await.
+ */
+export function withDeadline(promise, ms, { onLate } = {}) {
+  const limit = Number(ms);
+  if (!Number.isFinite(limit) || limit <= 0) return promise;
+  if (typeof onLate === 'function') {
+    // Attach eagerly: a late verdict must not become an unhandled rejection.
+    promise.then(onLate, () => {});
+  }
+  let timer;
+  const deadline = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(null), limit);
+    if (typeof timer?.unref === 'function') timer.unref();
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
+
 /** The prompt is intentionally tiny: a yes/no list beats free-form reasoning. */
 export function buildJudgePrompt(query, notes) {
   const lines = notes.map((note, index) => {
