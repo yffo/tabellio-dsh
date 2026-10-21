@@ -57,7 +57,7 @@
     "dsh": ">=0.2.1-rc.2 <0.3.0"
   },
   "dependencies": {
-    "tabellio": "^0.1.13"
+    "tabellio": "^0.1.14"
   },
   "scripts": {
     "test": "node --test test/*.test.mjs",

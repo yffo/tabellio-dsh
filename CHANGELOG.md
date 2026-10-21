@@ -1,4 +1,4 @@
-## 0.39.2（未发布）
+## 0.39.2（2026-10-22）
 
 - **安装补丁不再钉死召回预算**（`cordis.patch.yml`）：0.39.0/0.39.1 的 bundle patch 还写着 `recallBudgetTokens: 500`、`recallMaxNotes: 6`、`recallMinCoverage: 0.33`。DSH 的 patch 是整段替换 config，所以**每个新装用户拿到的都是 A/B 之前的召回配置**——120 题模拟用户库端到端答对 63.7%，而 0.39.x 的库默认是 76.3%。这和宿主 profile 里钉死旧值（2026-10-22 早先修过的那个坑）是同一个根因：配置在两个地方各写一份，升级只动了一处。
   现在补丁只保留产品选择（`capture: assist`、`delivery: context`），预算/阈值/judge/semantic 一律跟随 `src/config.js`。
