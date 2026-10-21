@@ -30,9 +30,12 @@ export function withDeadline(promise, ms, { onLate } = {}) {
     promise.then(onLate, () => {});
   }
   let timer;
+  // 不 unref：这个定时器是 `race` 的唯一活跃句柄。unref 之后事件循环会把它
+  // 当成「可以退出」，Node 22/24 的测试跑器直接报
+  // `Promise resolution is still pending but the event loop has already resolved`。
+  // `finally` 里一定会 clearTimeout，所以它不会把进程吊住。
   const deadline = new Promise((resolve) => {
     timer = setTimeout(() => resolve(null), limit);
-    if (typeof timer?.unref === 'function') timer.unref();
   });
   return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
 }

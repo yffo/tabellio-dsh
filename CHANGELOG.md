@@ -1,3 +1,7 @@
+## 0.39.1（2026-10-22）
+
+- **修 `withDeadline` 的 deadline 定时器不 `unref`**：0.39.0 里 `setTimeout` 被 `unref()`，在 Node 20/22/24 的 `node:test` 下这个定时器是 race 的唯一活跃句柄，跑器会报 `Promise resolution is still pending but the event loop has already resolved` 并有后续用例被取消。生产宿主还有其他句柄所以看不出来，测试一跑就露。`finally` 已经保证 `clearTimeout`，不需要 unref。
+
 ## 0.39.0（2026-10-22）
 
 - **judge 软截止**：新增 `judgeDeadlineMs`（默认 1500ms）。到点这一轮先注入未裁决的召回结果，裁决调用继续跑；晚到的裁决进缓存，下一次同样的问题直接用它。硬超时 `judgeTimeoutMs` 仍保留（6000ms）作为兜底。
