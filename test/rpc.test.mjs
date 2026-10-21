@@ -543,3 +543,23 @@ test('weekly.report returns the aggregate the panel renders', async (t) => {
   assert.equal(Array.isArray(result.value.judgeTrend), true);
   assert.equal(result.value.judgeTrend.length, 4);
 });
+
+test('status carries the effective recall tuning and flags values pinned at old defaults', async (t) => {
+  const { dir, store } = await tempStore(t);
+  const fresh = await handlerFor(dir, store)('status', {});
+  assert.deepEqual(fresh.value.config, { recallBudgetTokens: 1200, recallMaxNotes: 8, recallMinCoverage: 0.2 });
+  assert.equal(fresh.value.warnings.some((w) => w.includes('旧默认')), false);
+
+  const pinned = await handlerFor(dir, store, {
+    recallBudgetTokens: 500,
+    recallMaxNotes: 6,
+    recallMinCoverage: 0.33,
+  })('status', {});
+  assert.deepEqual(pinned.value.config, { recallBudgetTokens: 500, recallMaxNotes: 6, recallMinCoverage: 0.33 });
+  assert.equal(pinned.value.warnings.filter((w) => w.includes('旧默认')).length, 1);
+  assert.match(pinned.value.warnings.join('\n'), /1200 \/ 8 \/ 0\.2/);
+
+  // 只刻意调一个键（覆盖率高一点）不该被当成整组被钉住。
+  const one = await handlerFor(dir, store, { recallMinCoverage: 0.33 })('status', {});
+  assert.equal(one.value.warnings.some((w) => w.includes('旧默认')), false);
+});

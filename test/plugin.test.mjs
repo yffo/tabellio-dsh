@@ -926,6 +926,30 @@ test('a host whose ctx.get throws does not lose the plugin', (t) => {
   assert.equal(handlers.has('agent/pre-step'), true);
 });
 
+test('apply warns once when the recall tuning still matches the pre-0.39.0 defaults', (t) => {
+  const dir = temp(t);
+  const host = fakeHost();
+  apply(host.ctx, {
+    storePath: dir,
+    autoRecall: true,
+    capture: 'off',
+    refreshSeconds: 0,
+    recallBudgetTokens: 500,
+    recallMaxNotes: 6,
+    recallMinCoverage: 0.33,
+  });
+  const hits = host.warns.filter((line) => line.includes('旧默认'));
+  assert.equal(hits.length, 1);
+  assert.match(hits[0], /1200 \/ 8 \/ 0\.2/);
+});
+
+test('apply stays quiet about recall tuning when values are the current defaults', (t) => {
+  const dir = temp(t);
+  const host = fakeHost();
+  apply(host.ctx, { storePath: dir, autoRecall: true, capture: 'off', refreshSeconds: 0 });
+  assert.equal(host.warns.some((line) => line.includes('旧默认')), false);
+});
+
 test('an empty storePath falls back to the expanded default, not a literal tilde', () => {
   const configured = normalizeConfig({ storePath: '' });
   assert.ok(configured.storePath.startsWith(os.homedir()));

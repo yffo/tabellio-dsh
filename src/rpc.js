@@ -2,6 +2,7 @@
 // reject, and search the store. Every endpoint is a thin projection of the
 // tabellio API — the panel never writes memory directly, it only exercises the
 // same approval gate the `tabellio inbox` CLI uses.
+import { configWarnings } from './config.js';
 import { applyContentConsolidation, consolidate, listCandidates, listProposals, proposeConsolidation, read, remember, reviewCandidates, reviewProposals, search, status, recordFeedback, feedbackSummary } from 'tabellio';
 import { buildNotesPage, buildReport } from './report.js';
 import { findConflicts, readConflictState } from './conflicts.js';
@@ -70,6 +71,7 @@ function judgeView(state) {
 
 function statusView(settings, store, lastRecall, judgeState, semanticState, worthState, reflectState) {
   const result = status(store);
+  const tuningWarnings = configWarnings(settings);
   return {
     feedback: summarizeFeedback(store),
     outcome: outcomeSummary(store),
@@ -80,7 +82,15 @@ function statusView(settings, store, lastRecall, judgeState, semanticState, wort
     proposals: Number(result.proposals) || 0,
     indexExists: Boolean(result.indexExists),
     indexStale: Boolean(result.indexStale),
-    warnings: Array.isArray(result.warnings) ? result.warnings.map(String) : [],
+    warnings: [
+      ...(Array.isArray(result.warnings) ? result.warnings.map(String) : []),
+      ...tuningWarnings,
+    ],
+    config: {
+      recallBudgetTokens: settings.recallBudgetTokens,
+      recallMaxNotes: settings.recallMaxNotes,
+      recallMinCoverage: settings.recallMinCoverage,
+    },
     mode: modeOf(settings),
     capture: settings.capture,
     delivery: settings.shadow ? 'shadow' : settings.delivery,

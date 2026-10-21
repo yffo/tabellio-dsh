@@ -12,7 +12,7 @@
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { addCandidate, listCandidates, openStore, read as readNote, recallQuery, remember, status as storeStatus } from 'tabellio';
-import { normalizeConfig } from './src/config.js';
+import { configWarnings, normalizeConfig } from './src/config.js';
 import { delegationDepth, isHumanMessage, isChitchat, isLowInformationQuery, latestHuman, textOf, trimQuery, intentGateAllows } from './src/messages.js';
 import { extractAssistantConclusion, extractCandidates, hasSecretHint, looksLikeCredentialLeak } from './src/capture.js';
 import { createJudgeCache, filterByJudge, judgeCacheKey, withDeadline } from './src/judge.js';
@@ -48,6 +48,8 @@ const MAX_CAPTURED_MESSAGES = 200;
 
 export function apply(ctx, config = {}) {
   const settings = normalizeConfig(config);
+  // 用户拿到的实际配置若还是历史旧默认，启动时就要说一次；静默漂移是 2026-10-22 的两次事故根因。
+  for (const warning of configWarnings(settings)) ctx.logger?.warn?.('tabellio-dsh: ' + warning);
   if (!settings.enabled) return;
   if (!settings.storePath || !settings.storePath.trim()) {
     ctx.logger?.warn?.('tabellio-dsh: storePath is empty; plugin disabled');

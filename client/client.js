@@ -258,6 +258,9 @@ window.__ModuleLoader__.load({
       lrTitles: '用到的记忆',
       judgedTag: '已裁决',
       judgeLabel: '模型裁决',
+      recallLabel: '召回预算',
+      notesUnit: '条',
+      coverageShort: '覆盖率',
       consolidateLabel: '后台巩固',
       consDaily: '每日',
       consWeekly: '每周',
@@ -568,6 +571,9 @@ window.__ModuleLoader__.load({
       lrTitles: 'Memories used',
       judgedTag: 'judged',
       judgeLabel: 'LLM judge',
+      recallLabel: 'Recall budget',
+      notesUnit: 'notes',
+      coverageShort: 'coverage',
       judgeOff: 'Off',
       judgeReady: 'Enabled',
       judgeNoSelection: 'No default model selection',
@@ -2028,6 +2034,9 @@ window.__ModuleLoader__.load({
 
             )),
             card(t('advancedTitle'), h('div', { style: ui.kvList },
+              kv(t('recallLabel'), status && status.config
+                ? String(status.config.recallBudgetTokens) + ' token · ' + String(status.config.recallMaxNotes) + ' ' + t('notesUnit') + ' · ' + t('coverageShort') + ' ' + String(status.config.recallMinCoverage)
+                : '—'),
               kv(t('judgeLabel'), judgeLabel(status && status.judge)),
               kv(t('consolidateLabel'), consolidateLabel(status && status.consolidate)),
               kv(t('semLabel'), semState + (sem && sem.model ? ' · ' + String(sem.model) : '')),

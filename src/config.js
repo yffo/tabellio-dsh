@@ -99,6 +99,31 @@ export const DEFAULTS = Object.freeze({
   semanticRefreshMinutes: 5,
 });
 
+// 2026-10-22：同一天发生两次同根因的配置漂移（宿主 profile patch、随包 bundle patch），
+// 都是「src/config.js 的默认值改了，用户实际拿到的还是旧值」，而且没有任何日志或面板
+// 能看出来。这里不做配置来源系统，只认一条：设置值是否仍然等于历史发布过的旧默认。
+// 命中就提醒，认不出就沉默——猜错了比不提醒更糟。
+export const LEGACY_TUNING = Object.freeze([
+  {
+    id: 'pre-0.39.0-recall',
+    keys: Object.freeze({ recallBudgetTokens: 500, recallMaxNotes: 6, recallMinCoverage: 0.33 }),
+    message:
+      '召回看起来仍是被钉住的旧默认（500 token / 6 条 / 覆盖率 0.33）；0.39.2 起默认是 1200 / 8 / 0.2。'
+      + '删掉宿主 patch（~/.dsh/profiles/<name>/cordis.patch.yml）里的 recallBudgetTokens / recallMaxNotes / recallMinCoverage 这三行，让它跟随默认。',
+  },
+]);
+
+export function configWarnings(settings = {}) {
+  const warnings = [];
+  for (const legacy of LEGACY_TUNING) {
+    const keys = Object.keys(legacy.keys);
+    const matching = keys.filter((key) => Number(settings[key]) === legacy.keys[key]);
+    // 单个键可能是刻意调的值；两个以上同时等于旧默认，才像「整组被钉住」。
+    if (matching.length >= 2) warnings.push(legacy.message);
+  }
+  return warnings;
+}
+
 export function expandHome(value) {
   const text = String(value ?? '').trim();
   // With an unset HOME, `homedir()` is empty; returning '' lets the caller
