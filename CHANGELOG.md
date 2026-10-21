@@ -1,3 +1,11 @@
+## 0.39.2（未发布）
+
+- **安装补丁不再钉死召回预算**（`cordis.patch.yml`）：0.39.0/0.39.1 的 bundle patch 还写着 `recallBudgetTokens: 500`、`recallMaxNotes: 6`、`recallMinCoverage: 0.33`。DSH 的 patch 是整段替换 config，所以**每个新装用户拿到的都是 A/B 之前的召回配置**——120 题模拟用户库端到端答对 63.7%，而 0.39.x 的库默认是 76.3%。这和宿主 profile 里钉死旧值（2026-10-22 早先修过的那个坑）是同一个根因：配置在两个地方各写一份，升级只动了一处。
+  现在补丁只保留产品选择（`capture: assist`、`delivery: context`），预算/阈值/judge/semantic 一律跟随 `src/config.js`。
+- 新增 `test/patch.test.mjs`：解析 bundle patch，强制「每个键要么等于库默认，要么在白名单里」，并显式禁止再钉召回六项（`recallBudgetTokens` / `recallMaxNotes` / `recallMinCoverage` / `recallMinRelevance` / `recallMinScore` / `recallConfidentRelevance`）。以后再调默认值只改一处、发一次版，所有新装用户跟着走。
+- 从旧版升级的用户：如果你的 profile patch（`~/.dsh/profiles/<name>/cordis.patch.yml`）里手抄过 `recallBudgetTokens: 500` / `recallMaxNotes: 6` / `recallMinCoverage: 0.33`，删掉这三行让它跟随默认；不删就会继续用旧预算（面板/日志里看不出来）。
+- 197 测试（+4）。
+
 ## 0.39.1（2026-10-22）
 
 - **修 `withDeadline` 的 deadline 定时器不 `unref`**：0.39.0 里 `setTimeout` 被 `unref()`，在 Node 20/22/24 的 `node:test` 下这个定时器是 race 的唯一活跃句柄，跑器会报 `Promise resolution is still pending but the event loop has already resolved` 并有后续用例被取消。生产宿主还有其他句柄所以看不出来，测试一跑就露。`finally` 已经保证 `clearTimeout`，不需要 unref。

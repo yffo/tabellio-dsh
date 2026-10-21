@@ -44,6 +44,8 @@ dsh plugin --profile desktop add tabellio-dsh
 
 装完**重启 DSH**。打开「设置 → 记忆」，能看到笔记数、候选数和库路径就成功了。
 
+> **从 0.39.1 及更早升级？** 那些版本的安装补丁把召回预算钉在 `500 token / 6 条 / 覆盖率 0.33`。如果你的 `~/.dsh/profiles/<name>/cordis.patch.yml` 里也有这三行（`recallBudgetTokens`、`recallMaxNotes`、`recallMinCoverage`），删掉让它们跟随 0.39.2 的默认（`1200 / 8 / 0.2`）；不删会继续用旧预算，面板上看不出来。
+
 > 还在开发版？用本地目录安装：`dsh plugin --profile desktop add /path/to/tabellio-dsh`。
 
 ## 第一次用，只做三件事
@@ -98,7 +100,7 @@ dsh plugin --profile desktop add tabellio-dsh
 能。设置里把 `capture` 改成 `off`，或只保留 `explicit`（必须说出「记住」才记）。
 
 **Q：会不会拖慢对话？**
-召回只在每轮第一条真人消息时做一次，有 500 token 预算和 6 条上限；闲聊直接跳过。
+召回只在每轮第一条真人消息时做一次，默认 1200 token 预算、最多 8 条（2026-10-22 由 500/6 复测上调：太小等于把第 3 名以后的 gold 直接裁掉）；闲聊直接跳过。
 
 **Q：支持 Claude Code / Cursor 吗？**
 核心库和命令行工具支持多个宿主；DSH 插件目前只适配 DSH。其他宿主的适配在路线图上。

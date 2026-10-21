@@ -44,6 +44,8 @@ dsh plugin --profile desktop add tabellio-dsh
 
 **Restart DSH** afterwards. Open "Settings → Memory": if you can see the note count, candidate count and store path, it is working.
 
+> **Upgrading from 0.39.1 or earlier?** Those releases pinned the recall budget at `500 tokens / 6 notes / coverage 0.33` in the bundle patch. If your `~/.dsh/profiles/<name>/cordis.patch.yml` carries `recallBudgetTokens`, `recallMaxNotes` or `recallMinCoverage`, delete those lines so they follow 0.39.2 defaults (`1200 / 8 / 0.2`); otherwise the old budget keeps winning and nothing in the panel shows it.
+
 > On a development build? Install from a local directory: `dsh plugin --profile desktop add /path/to/tabellio-dsh`.
 
 ## First run: three things to do
@@ -96,7 +98,7 @@ Candidates leave the inbox only after you approve or dismiss them. The agent nev
 Yes. Set `capture` to `off` in Settings, or keep only `explicit` (it records only when you actually say "remember").
 
 **Q: Does it slow conversations down?**
-Recall runs once per turn, on the first human message, with a 500-token budget and a cap of 6 notes; small talk is skipped entirely.
+Recall runs once per turn, on the first human message, with a 1200-token budget and a cap of 8 notes (raised from 500/6 on 2026-10-22: too small a budget simply cuts gold below rank 2); small talk is skipped entirely.
 
 **Q: Does it work with Claude Code / Cursor?**
 The core library and CLI support multiple hosts; the DSH plugin currently adapts DSH only. Other host adapters are on the roadmap.

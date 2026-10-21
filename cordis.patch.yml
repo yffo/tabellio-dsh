@@ -7,44 +7,24 @@
 #
 # Everything is local: it only talks to a local embedding service, no cloud and no
 # daemon of its own. Judge uses the host's current default model (opt-out with `judge: off`).
+#
+# 这里只钉「产品选择」，不钉「库默认值」。
+# DSH 的 patch 是整段替换 config：写在这儿的每个键都会盖掉 src/config.js 的默认，
+# 而且写下的旧值不会随插件升级自动更新。2026-10-22 就因为这里钉了
+# recallBudgetTokens: 500 / recallMaxNotes: 6 / recallMinCoverage: 0.33，
+# 所有新装用户拿到的是 A/B 之前的召回配置（120 题模拟用户库答对 63.7%），
+# 而插件 0.39.x 的默认是 76.3%。
+# 所以预算、阈值、judge、semantic 一律不写；test/patch.test.mjs 会强制检查
+# 「这里只能是库默认值，或白名单里的产品选择」。
 - insert:
     - id: tabellio
       name: tabellio-dsh
       config:
         enabled: true
-        storePath: ~/memory/tabellio
-        # Append one budgeted recall block to the first step of each user turn.
-        autoRecall: true
-        recallBudgetTokens: 500
-        recallMaxNotes: 6
-        # Explicit clues + corrections + stated conventions ("from now on...",
-        # "我一般...", "记住..."). Captured text goes to notes/candidates/ and
-        # needs `tabellio inbox` (or the settings panel) to become memory.
+        # 显式线索 + 纠正类线索 + 陈述式约定（「我一般…」「记住…」），仍只写候选，
+        # 批准后才入库。库默认 `explicit` 更窄；「装完即用」的产品档位选 assist。
+        # 数据位置跟库默认：~/memory/tabellio（安装后在「设置 → 记忆」可见）。
         capture: assist
-        maxCandidatesPerTurn: 2
-        # Silent delivery: recalled notes ride in the runtime context
-        # (`<tabellio-memory>`) instead of a visible chat message.
+        # 静默投递：命中的笔记作为运行时上下文进入 system prompt，不往对话里插插件消息。
+        # 想看到「这次想起了什么」再切 `notice`（面板可改，不用重启）。
         delivery: context
-        shadow: false
-        # Off by default: one small host-model call per recall when enabled.
-        judge: llm
-        recallIntentGate: true
-        # Background near-duplicate sweep: off | daily | weekly. It only writes
-        # merge proposals; approval still happens in the panel.
-        consolidate: off
-        # Optional local embedding supplement. 'local' needs an OpenAI-style
-        # /v1/embeddings endpoint (e.g. llama-swap + qwen3-embedding-0.6b);
-        # anything unreachable falls back to lexical recall silently.
-        semantic: auto
-        # Preferred endpoint/model; `semantic: auto` also probes other common
-        # local ports and falls back to lexical recall when none answers.
-        semanticEndpoint: http://127.0.0.1:8080/v1/embeddings
-        semanticModel: qwen3-embedding-0.6b
-        semanticMinSimilarity: 0.55
-        semanticTop: 8
-        semanticTimeoutMs: 2500
-        # Tuned for auto-injection into ordinary conversation (see src/config.js).
-        recallMinRelevance: 0.12
-        recallMinScore: 0.1
-        recallMinCoverage: 0.33
-        recallConfidentRelevance: 0.9
