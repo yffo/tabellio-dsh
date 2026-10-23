@@ -653,19 +653,20 @@ window.__ModuleLoader__.load({
       }
     };
 
-    // Prefer the host's real theme tokens (`--dsw-alias-*`), keep the older
-    // `--dsh-*` names as a second fallback for older shells, and only then a
-    // light-mode literal. A missing token must never leave `background:
-    // undefined` in a style object.
+    // Every colour is a live host token (`--dsw-alias-*`) so the panel follows
+    // the app's light/dark theme instead of guessing. The literal after each
+    // comma is only a last-resort fallback: a missing token must never leave
+    // `background: undefined` in a style object.
     const COLORS = {
-      text: 'var(--dsw-alias-label-primary, var(--dsh-text-primary, #1f2328))',
-      dim: 'var(--dsw-alias-label-secondary, var(--dsh-text-secondary, #6b7280))',
-      border: 'var(--dsw-alias-border-l1, var(--dsh-border-color, rgba(127,127,127,0.28)))',
-      card: 'var(--dsw-alias-bg-layer-2, var(--dsh-fill-secondary, rgba(127,127,127,0.08)))',
+      text: 'var(--dsw-alias-label-primary, #1f2328)',
+      dim: 'var(--dsw-alias-label-secondary, #6b7280)',
+      border: 'var(--dsw-alias-border-l1, rgba(127,127,127,0.28))',
+      stroke: 'var(--dsw-alias-border-l2, rgba(127,127,127,0.35))',
+      card: 'var(--dsw-alias-bg-layer-2, rgba(127,127,127,0.08))',
       bg: 'var(--dsw-alias-bg-layer-1, #ffffff)',
       surface: 'var(--dsw-alias-bg-layer-2, #ffffff)',
-      input: 'var(--dsw-alias-bg-overlay, #ffffff)',
-      accent: 'var(--dsw-alias-brand-primary, var(--dsh-accent-color, #4f6ef7))',
+      input: 'var(--dsw-alias-bg-layer-2, #ffffff)',
+      accent: 'var(--dsw-alias-state-business-primary, #4f6ef7)',
       good: 'var(--dsw-alias-state-success-primary, #15803D)',
       warn: 'var(--dsw-alias-state-warn-primary, #B45309)',
       bad: 'var(--dsw-alias-state-error-primary, #B91C1C)',
@@ -684,7 +685,7 @@ window.__ModuleLoader__.load({
       root: { padding: '4px 2px', color: COLORS.text, fontSize: 13, lineHeight: 1.55 },
       head: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
       title: { fontSize: 16, fontWeight: 600, margin: 0 },
-      recallTitles: { margin: '2px 0 0', fontSize: 11, color: 'var(--dsw-alias-text-secondary)' },
+      recallTitles: { margin: '2px 0 0', fontSize: 11, color: COLORS.dim },
   sub: { color: COLORS.dim, fontSize: 12, margin: '2px 0 12px' },
       button: {
         border: '1px solid ' + COLORS.border,
@@ -697,8 +698,8 @@ window.__ModuleLoader__.load({
       },
       primary: {
         border: '1px solid transparent',
-        background: COLORS.accent,
-        color: '#fff',
+        background: 'var(--dsw-alias-button-primary-fill)',
+        color: 'var(--dsw-alias-label-primary-foreground)',
         borderRadius: 7,
         padding: '3px 10px',
         fontSize: 12,
@@ -723,9 +724,9 @@ window.__ModuleLoader__.load({
       cardTitle: { fontSize: 13, fontWeight: 600, margin: '0 0 3px', overflowWrap: 'anywhere' },
       cardMeta: { color: COLORS.dim, fontSize: 11, marginBottom: 7, overflowWrap: 'anywhere' },
       actions: { display: 'flex', gap: 8 },
-      firstRun: { border: '1px solid var(--dsh-border, #d9d9d9)', borderRadius: 8, padding: '10px 12px', background: 'var(--dsh-surface-2, rgba(127,127,127,0.06))', fontSize: 13, lineHeight: 1.6 },
+      firstRun: { border: '1px solid ' + COLORS.stroke, borderRadius: 8, padding: '10px 12px', background: COLORS.card, fontSize: 13, lineHeight: 1.6 },
     notice: { fontSize: 12, color: COLORS.dim, margin: '8px 0' },
-      error: { fontSize: 12, color: '#d1242f', margin: '8px 0', overflowWrap: 'anywhere' },
+      error: { fontSize: 12, color: COLORS.bad, margin: '8px 0', overflowWrap: 'anywhere' },
       footer: { color: COLORS.dim, fontSize: 11, marginTop: 10, borderTop: '1px solid ' + COLORS.border, paddingTop: 8 },
       code: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11 },
       searchRow: { display: 'flex', gap: 8, margin: '12px 0 4px' },
@@ -751,9 +752,9 @@ window.__ModuleLoader__.load({
       hitScore: { color: COLORS.dim, flexShrink: 0, fontVariantNumeric: 'tabular-nums' },
       weeklyList: { margin: '2px 0 6px', paddingLeft: 18, fontSize: 13, lineHeight: 1.6 },
       filters: { display: 'flex', gap: '8px', margin: '0 0 6px' },
-      select: { fontSize: 12, padding: '3px 6px', borderRadius: 6, border: '1px solid #d4d4d8', background: '#fff', color: '#18181b' },
+      select: { fontSize: 12, padding: '3px 6px', borderRadius: 6, border: '1px solid ' + COLORS.stroke, background: COLORS.card, color: COLORS.text },
       weeklyItem: { overflowWrap: 'anywhere' },
-      auditMode: { color: '#1E3A5F', fontWeight: 600 },
+      auditMode: { color: COLORS.text, fontWeight: 600 },
       writeBox: { margin: '10px 0 4px' },
       textarea: {
         width: '100%',
@@ -789,12 +790,12 @@ window.__ModuleLoader__.load({
     // is a working surface inside the app, not a marketing page: borders carry the
     // structure, color is reserved for state and the single primary action.
     const TONES = {
-      neutral: 'var(--dsh-text-secondary, #78716c)',
-      good: '#15803D',
-      warn: '#B45309',
-      bad: '#B91C1C',
-      info: '#1D4ED8',
-      accent: '#C2410C',
+      neutral: COLORS.dim,
+      good: COLORS.good,
+      warn: COLORS.warn,
+      bad: COLORS.bad,
+      info: 'var(--dsw-alias-state-business-primary, #1D4ED8)',
+      accent: 'var(--dsw-alias-state-business-primary, #C2410C)',
     };
 
     const ICON_PATHS = {
@@ -831,20 +832,20 @@ window.__ModuleLoader__.load({
       style.setAttribute('data-tabellio-dsh', 'styles');
       style.textContent = [
         '@keyframes tbFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }',
-        '[data-tabellio-panel] ::selection { background: rgba(194, 65, 12, 0.18); }',
+        '[data-tabellio-panel] ::selection { background: var(--dsw-alias-bg-document-selection); }',
         '[data-tabellio-panel] button { transition: background .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease, transform .06s ease; }',
         '[data-tabellio-panel] button:active:not(:disabled) { transform: translateY(1px); }',
         '[data-tabellio-panel] button:disabled { opacity: .55; cursor: default; }',
-        '[data-tabellio-panel] :focus-visible { outline: 2px solid rgba(194, 65, 12, .45); outline-offset: 2px; border-radius: 6px; }',
+        '[data-tabellio-panel] :focus-visible { outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-alias-state-business-primary); outline-offset: 2px; border-radius: 6px; }',
         '[data-tabellio-panel] details > summary { list-style: none; }',
         '[data-tabellio-panel] details > summary::-webkit-details-marker { display: none; }',
         '[data-tabellio-panel] details > summary svg { transition: transform .16s ease; }',
         '[data-tabellio-panel] details[open] > summary svg { transform: rotate(180deg); }',
         '[data-tabellio-panel] input, [data-tabellio-panel] select, [data-tabellio-panel] textarea { transition: border-color .15s ease, box-shadow .15s ease; }',
-        '[data-tabellio-panel] input:focus, [data-tabellio-panel] select:focus, [data-tabellio-panel] textarea:focus { border-color: rgba(194, 65, 12, .55); }',
+        '[data-tabellio-panel] input:focus, [data-tabellio-panel] select:focus, [data-tabellio-panel] textarea:focus { border-color: var(--dsw-alias-state-business-primary); }',
         '[data-tabellio-panel] ::-webkit-scrollbar { width: 10px; height: 10px; }',
-        '[data-tabellio-panel] ::-webkit-scrollbar-thumb { background: rgba(120, 113, 108, .28); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }',
-        '[data-tabellio-panel] ::-webkit-scrollbar-thumb:hover { background: rgba(120, 113, 108, .45); background-clip: padding-box; }',
+        '[data-tabellio-panel] ::-webkit-scrollbar-thumb { background: var(--dsw-alias-scrollbar-bg-l1); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }',
+        '[data-tabellio-panel] ::-webkit-scrollbar-thumb:hover { background: var(--dsw-alias-scrollbar-hover-l1); background-clip: padding-box; }',
       ].join('\n');
       document.head.appendChild(style);
     }
@@ -876,12 +877,12 @@ window.__ModuleLoader__.load({
         color: COLORS.dim, fontSize: 13, cursor: 'pointer', borderRadius: '8px 8px 0 0',
       },
       tabActive: {
-        color: TONES.accent, borderBottomColor: TONES.accent,
-        background: 'rgba(194, 65, 12, 0.06)', fontWeight: 600,
+        color: COLORS.text, borderBottomColor: COLORS.text,
+        background: 'var(--dsw-alias-interactive-bg-hover)', fontWeight: 600,
       },
       tabBadge: {
-        minWidth: 16, height: 16, padding: '0 5px', borderRadius: 999, background: TONES.accent,
-        color: '#fff', fontSize: 10.5, lineHeight: '16px', textAlign: 'center', fontWeight: 600,
+        minWidth: 16, height: 16, padding: '0 5px', borderRadius: 999, background: 'var(--dsw-alias-label-primary)',
+        color: 'var(--dsw-alias-bg-layer-1)', fontSize: 10.5, lineHeight: '16px', textAlign: 'center', fontWeight: 600,
       },
       tabBody: { display: 'flex', flexDirection: 'column', gap: 14, animation: 'tbFade .18s ease-out' },
       stats: {
@@ -957,7 +958,7 @@ window.__ModuleLoader__.load({
       },
       buttonPrimary: {
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-        border: '1px solid transparent', background: TONES.accent, color: '#fff',
+        border: '1px solid transparent', background: 'var(--dsw-alias-button-primary-fill)', color: 'var(--dsw-alias-label-primary-foreground)',
         borderRadius: 9, padding: '6px 12px', fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap',
       },
       buttonGhost: {
@@ -1041,12 +1042,12 @@ window.__ModuleLoader__.load({
       okLine: { display: 'flex', alignItems: 'center', gap: 6, color: TONES.good, fontSize: 12.5 },
       warnBox: {
         display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 12px',
-        border: '1px solid rgba(180, 83, 9, .35)', borderRadius: 10,
-        background: 'rgba(180, 83, 9, .06)', color: TONES.warn, fontSize: 12,
+        border: '1px solid var(--dsw-alias-state-warn-tertiary)', borderRadius: 10,
+        background: 'var(--dsw-alias-state-warn-tertiary)', color: TONES.warn, fontSize: 12,
       },
       errorBanner: {
-        padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(185, 28, 28, .35)',
-        background: 'rgba(185, 28, 28, .06)', color: TONES.bad, fontSize: 12.5, overflowWrap: 'anywhere',
+        padding: '10px 12px', borderRadius: 10, border: '1px solid var(--dsw-alias-code-diff-deleted)',
+        background: 'var(--dsw-alias-code-diff-deleted)', color: TONES.bad, fontSize: 12.5, overflowWrap: 'anywhere',
       },
       fieldRow: { display: 'flex', gap: 8, alignItems: 'center', flex: 1 },
       testRow: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
@@ -1065,11 +1066,11 @@ window.__ModuleLoader__.load({
         position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 16,
         width: 'min(560px, calc(100vw - 40px))', padding: '20px 22px 18px',
         border: '1px solid ' + COLORS.border, borderRadius: 16, background: COLORS.card,
-        boxShadow: '0 18px 50px rgba(28, 25, 23, .22)',
+        boxShadow: 'var(--dsw-elevation-prominent)',
       },
       wizardHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
       wizardDots: { display: 'flex', gap: 6 },
-      wizardDot: { width: 6, height: 6, borderRadius: 999, background: 'rgba(120, 113, 108, .28)' },
+      wizardDot: { width: 6, height: 6, borderRadius: 999, background: 'var(--dsw-alias-border-l3)' },
       wizardDotActive: { width: 18, height: 6, borderRadius: 999, background: TONES.accent, transition: 'width .18s ease' },
       wizardTitle: { margin: 0, fontSize: 17, fontWeight: 650, letterSpacing: '-0.01em' },
       wizardText: { margin: 0, color: COLORS.dim, fontSize: 13, lineHeight: 1.65 },
@@ -1079,7 +1080,7 @@ window.__ModuleLoader__.load({
         border: '1px solid ' + COLORS.border, background: 'transparent', color: COLORS.text,
         cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 6,
       },
-      choiceActive: { borderColor: 'rgba(194, 65, 12, .5)', background: 'rgba(194, 65, 12, .06)' },
+      choiceActive: { borderColor: 'var(--dsw-alias-state-business-primary)', background: 'var(--dsw-alias-interactive-bg-hover)' },
       choiceTitle: { fontSize: 13.5, fontWeight: 600 },
       choiceText: { fontSize: 12, color: COLORS.dim, lineHeight: 1.55 },
       wizardFoot: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingTop: 6 },
@@ -1087,18 +1088,18 @@ window.__ModuleLoader__.load({
       smartText: { display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 },
       smartTitle: { fontSize: 13.5, fontWeight: 620 },
       chips: { display: 'flex', flexWrap: 'wrap', gap: 8, padding: '2px 0 2px' },
-      sectPanel: { display: 'flex', flexDirection: 'column', gap: 12, padding: '14px 16px', marginTop: 12, border: '1px solid ' + COLORS.border, borderRadius: 12, background: 'rgba(120, 113, 108, .045)' },
+      sectPanel: { display: 'flex', flexDirection: 'column', gap: 12, padding: '14px 16px', marginTop: 12, border: '1px solid ' + COLORS.border, borderRadius: 12, background: COLORS.card },
       kvList: { display: 'flex', flexDirection: 'column', gap: 9, padding: '14px 16px' },
       kvRow: { display: 'grid', gridTemplateColumns: '96px minmax(0, 1fr)', gap: 12, alignItems: 'baseline', fontSize: 12.5 },
       kvLabel: { color: COLORS.dim, fontSize: 12 },
       toast: {
         position: 'sticky', top: 0, zIndex: 30, alignSelf: 'center', padding: '6px 14px',
-        borderRadius: 999, background: 'rgba(28, 25, 23, .92)', color: '#fff', fontSize: 12,
-        boxShadow: '0 6px 18px rgba(0,0,0,.18)',
+        borderRadius: 999, background: 'var(--dsw-alias-toast-bg)', color: 'var(--dsw-alias-toast-label)', fontSize: 12,
+        boxShadow: 'var(--dsw-shadow-lv2)',
       },
       skeleton: { display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' },
       skeletonRow: {
-        height: 14, borderRadius: 6, background: 'rgba(120,113,108,.16)',
+        height: 14, borderRadius: 6, background: 'var(--dsw-alias-bg-skeleton)',
         animation: 'tbFade .9s ease-in-out infinite alternate',
       },
       overlayInline: {
@@ -1132,13 +1133,13 @@ window.__ModuleLoader__.load({
       },
       overlay: { position: 'fixed', inset: 0, zIndex: 1000 },
       overlayMask: {
-        position: 'fixed', inset: 0, background: 'rgba(20, 18, 16, .38)', zIndex: 1000,
+        position: 'fixed', inset: 0, background: 'var(--dsw-alias-bg-mask-1)', zIndex: 1000,
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
       },
       overlayPanel: {
         width: '100%', maxWidth: 720, maxHeight: '82vh', borderRadius: 16, overflow: 'hidden',
-        display: 'flex', flexDirection: 'column', background: 'var(--dsh-surface, #fff)',
-        border: '1px solid ' + COLORS.border, boxShadow: '0 24px 60px rgba(0,0,0,.22)',
+        display: 'flex', flexDirection: 'column', background: COLORS.bg,
+        border: '1px solid ' + COLORS.stroke, boxShadow: 'var(--dsw-elevation-prominent)',
       },
       overlayHead: {
         flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
@@ -2337,45 +2338,56 @@ window.__ModuleLoader__.load({
 
     const indicatorStyles = {
       chip: {
-        display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px',
-        borderRadius: '999px', border: '1px solid var(--dsh-border, #e5e1d8)',
-        background: 'transparent', color: 'inherit', fontSize: '12px', cursor: 'pointer',
+        display: 'grid', placeItems: 'center', width: '28px', height: '28px', padding: '0',
+        borderRadius: '999px', border: 'none', background: 'transparent',
+        color: 'var(--dsw-alias-label-tertiary, #81858C)', cursor: 'pointer', flex: 'none',
       },
-      dot: { width: '7px', height: '7px', borderRadius: '50%', background: '#E4572E', display: 'inline-block' },
+      chipHover: {
+        display: 'grid', placeItems: 'center', width: '28px', height: '28px', padding: '0',
+        borderRadius: '999px', border: 'none', background: 'var(--dsw-alias-interactive-bg-hover)',
+        color: 'var(--dsw-alias-label-secondary, #C6CBCE)', cursor: 'pointer', flex: 'none',
+      },
+      chipDot: {
+        position: 'absolute', top: '3px', right: '3px', width: '6px', height: '6px',
+        borderRadius: '50%', background: 'var(--dsw-alias-state-warn-primary, #E4572E)',
+        pointerEvents: 'none',
+      },
+      dot: { width: '7px', height: '7px', borderRadius: '50%', background: 'var(--dsw-alias-state-warn-primary)', display: 'inline-block' },
       wrap: { position: 'relative', display: 'inline-flex' },
       backdrop: { position: 'fixed', inset: 0, zIndex: 40 },
       pop: {
-        position: 'absolute', right: 0, top: '30px', zIndex: 41, width: '300px',
-        border: '1px solid var(--dsh-border, #e5e1d8)', borderRadius: '10px',
-        background: 'var(--dsh-surface, #fff)', boxShadow: '0 8px 24px rgba(0,0,0,.12)', padding: '10px',
+        position: 'absolute', right: 0, top: '32px', zIndex: 41, width: '300px',
+        border: '1px solid ' + COLORS.stroke, borderRadius: 'var(--dsw-radius-md, 12px)',
+        background: COLORS.bg, boxShadow: 'var(--dsw-elevation-prominent)', padding: '10px',
+        color: COLORS.text,
       },
       popTitle: { fontSize: '12px', fontWeight: 600, marginBottom: '6px' },
-      row: { borderTop: '1px solid var(--dsh-border-soft, #f0ece2)', padding: '8px 0', fontSize: '13px' },
+      row: { borderTop: '1px solid ' + COLORS.border, padding: '8px 0', fontSize: '13px' },
       rowTitle: { marginBottom: '4px', lineHeight: 1.4 },
-      small: { fontSize: '12px', color: 'var(--dsh-muted, #8a8478)', padding: '4px 0' },
+      small: { fontSize: '12px', color: COLORS.dim, padding: '4px 0' },
       rowActions: { display: 'flex', gap: '6px' },
       jump: {
         marginTop: '8px', padding: 0, border: 'none', background: 'transparent',
-        color: 'var(--dsh-accent, #2563eb)', fontSize: '12px', cursor: 'pointer',
+        color: 'var(--dsw-alias-link, #2563eb)', fontSize: '12px', cursor: 'pointer',
         textDecoration: 'underline', textUnderlineOffset: '2px',
       },
       overlay: { position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-      overlayMask: { position: 'absolute', inset: 0, background: 'rgba(20, 18, 14, 0.32)' },
+      overlayMask: { position: 'absolute', inset: 0, background: 'var(--dsw-alias-bg-mask-1)' },
       overlayPanel: {
         position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column',
         width: 'min(880px, calc(100vw - 48px))', height: 'min(720px, calc(100vh - 64px))',
-        border: '1px solid var(--dsh-border, #e5e1d8)', borderRadius: '12px',
-        background: 'var(--dsh-surface, #fff)', boxShadow: '0 16px 48px rgba(0,0,0,.18)',
+        border: '1px solid ' + COLORS.stroke, borderRadius: 'var(--dsw-radius-lg, 16px)',
+        background: COLORS.bg, boxShadow: 'var(--dsw-elevation-prominent)',
         overflow: 'hidden',
       },
       overlayHeader: {
         flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 16px', borderBottom: '1px solid var(--dsh-border-soft, #f0ece2)',
+        padding: '14px 16px', borderBottom: '1px solid ' + COLORS.border,
         fontSize: '14px', fontWeight: 600,
       },
       overlayClose: {
         border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px',
-        lineHeight: 1, color: 'var(--dsh-muted, #8a8478)', padding: '4px 6px',
+        lineHeight: 1, color: COLORS.dim, padding: '4px 6px',
       },
       overlayBody: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 20px 20px' },
     };
@@ -2388,6 +2400,7 @@ window.__ModuleLoader__.load({
       const [busyId, setBusyId] = React.useState('');
       const [error, setError] = React.useState('');
       const [panelOpen, setPanelOpen] = React.useState(false);
+      const [hovered, setHovered] = React.useState(false);
 
       const refresh = React.useCallback(async () => {
         try {
@@ -2443,11 +2456,31 @@ window.__ModuleLoader__.load({
 
       const total = counts.candidates + counts.proposals;
       return h('div', { style: indicatorStyles.wrap },
-        h('button', { type: 'button', style: indicatorStyles.chip, onClick: toggle, title: t('memChipTitle') },
-          total > 0 ? h('span', { style: indicatorStyles.dot }) : null,
-          t('memChipLabel'),
-          counts.notes > 0 ? ' ' + counts.notes : '',
-          total > 0 ? ' · ' + t('memChipPending').replace('{n}', String(total)) : '',
+        h('button', {
+          type: 'button',
+          style: hovered ? indicatorStyles.chipHover : indicatorStyles.chip,
+          onClick: toggle,
+          onMouseEnter: () => setHovered(true),
+          onMouseLeave: () => setHovered(false),
+          title: t('memChipTitle'),
+          'aria-label': t('memChipTitle'),
+          'aria-haspopup': 'dialog',
+          'aria-expanded': open,
+        },
+          h('svg', {
+            width: '16', height: '16', viewBox: '0 0 14 14', fill: 'none',
+            'aria-hidden': 'true', style: { display: 'block' },
+          },
+            h('path', {
+              d: 'M9.5 13.5V11h2a1 1 0 0 0 1-1V6a5.5 5.5 0 1 0-8 4.9v2.6',
+              stroke: 'currentColor', strokeWidth: 1.3, strokeLinecap: 'round', strokeLinejoin: 'round',
+            }),
+            h('path', {
+              d: 'M5.5 3.312a3.25 3.25 0 0 0-1.436 3.9c.12.335.48.503.824.412c1.737-.46 3.505-1.705 4.58-2.675c.285-.257.343-.687.09-.975A3.25 3.25 0 0 0 5.5 3.312',
+              stroke: 'currentColor', strokeWidth: 1.3, strokeLinecap: 'round', strokeLinejoin: 'round',
+            }),
+          ),
+          total > 0 ? h('span', { style: indicatorStyles.chipDot }) : null,
         ),
         open ? h('div', { style: indicatorStyles.backdrop, onClick: () => setOpen(false) }) : null,
         open ? h('div', { style: indicatorStyles.pop },
