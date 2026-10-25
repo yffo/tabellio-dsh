@@ -1,3 +1,10 @@
+## 0.39.4（2026-10-26）
+
+- **头部入口改为 28×28 图标按钮**：与 DSH header 原生控件同规格（`--dsw-alias-label-tertiary` 描边色、hover 用 `--dsw-alias-interactive-bg-hover`），待批候选改为右上角 6px 圆点，计数变化不再挤动布局。图标按钮保留完整无障碍名称（笔记数 + 待批数）。
+- **面板与弹层改用真实的 DSH 主题 token**：原代码取 `--dsh-border` / `--dsh-surface` / `--dsh-muted` / `--dsh-accent` 等，这些名字在 DSH 里不存在，全部解析失败后落到硬编码浅色兜底，深色主题下面板仍是白底。现在统一走 `--dsw-alias-*` / `--dsw-elevation-*` / `--dsw-radius-*`，随主题切换。
+- 合并后补两处：警告条/错误条的边框与背景不再使用同一个 token（同色等于没边框，改用 `state-*-secondary` 画线）；图标按钮的 `aria-label` 把笔记数与待批数拼回去，读屏信息不倒退。
+- 贡献者：[@wha4up](https://github.com/wha4up)（PR [#1](https://github.com/yffo/tabellio-dsh/pull/1)）。203 测试。
+
 ## 0.39.3（2026-10-22）
 
 - **启动时认出「被钉住的旧召回值」**：设置解析后比对历史发布过的旧默认（`500 token / 6 条 / 覆盖率 0.33`），命中两个以上就在日志和面板「高级状态」里说一次，并给出删掉宿主 patch 那三行的做法。不做配置来源系统、不猜来源，认不出就沉默。
