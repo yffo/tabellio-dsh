@@ -1042,11 +1042,11 @@ window.__ModuleLoader__.load({
       okLine: { display: 'flex', alignItems: 'center', gap: 6, color: TONES.good, fontSize: 12.5 },
       warnBox: {
         display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 12px',
-        border: '1px solid var(--dsw-alias-state-warn-tertiary)', borderRadius: 10,
+        border: '1px solid var(--dsw-alias-state-warn-secondary)', borderRadius: 10,
         background: 'var(--dsw-alias-state-warn-tertiary)', color: TONES.warn, fontSize: 12,
       },
       errorBanner: {
-        padding: '10px 12px', borderRadius: 10, border: '1px solid var(--dsw-alias-code-diff-deleted)',
+        padding: '10px 12px', borderRadius: 10, border: '1px solid var(--dsw-alias-state-error-secondary)',
         background: 'var(--dsw-alias-code-diff-deleted)', color: TONES.bad, fontSize: 12.5, overflowWrap: 'anywhere',
       },
       fieldRow: { display: 'flex', gap: 8, alignItems: 'center', flex: 1 },
@@ -2463,7 +2463,10 @@ window.__ModuleLoader__.load({
           onMouseEnter: () => setHovered(true),
           onMouseLeave: () => setHovered(false),
           title: t('memChipTitle'),
-          'aria-label': t('memChipTitle'),
+          // The chip is icon-only now, so keep the old label's information in the
+          // accessible name (screen readers otherwise lose counts.notes/pending).
+          'aria-label': t('memChipTitle') + (counts.notes > 0 ? ' ' + counts.notes : '')
+            + (total > 0 ? ' · ' + t('memChipPending').replace('{n}', String(total)) : ''),
           'aria-haspopup': 'dialog',
           'aria-expanded': open,
         },
