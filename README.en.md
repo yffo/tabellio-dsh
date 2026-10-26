@@ -179,6 +179,7 @@ Ordinary users never touch a config file: the panel asks one question — is **S
 | `semantic` | `auto` | `auto` / `local` / `off`: `auto` discovers a local embedding service, `local` pins the configured one, `off` is lexical |
 | `semanticEndpoint` / `semanticModel` | `http://127.0.0.1:8080/v1/embeddings` / `qwen3-embedding-0.6b` | Preferred endpoint and model (`auto` keeps probing other common ports when it fails) |
 | `semanticMinSimilarity` | `0.55` | Semantic hits below this cosine similarity are not added |
+| `semanticTimeoutMs` | `800` | Per-embed timeout; a cold start (~2.5s after the model was unloaded) falls back to lexical instead of stretching the turn |
 | `consolidate` | `off` | Background sweep: `daily`/`weekly` writes merge proposals for near-duplicate notes (proposals only; approval stays in the panel) |
 | `maxCandidatesPerTurn` | `2` | Candidates per turn, 1–5 |
 | `captureMaxSentenceChars` | `240` | Per-sentence cap, 40–1000 |
@@ -186,7 +187,7 @@ Ordinary users never touch a config file: the panel asks one question — is **S
 | `judgeProvider` / `judgeModel` | empty | Leave empty to use the host default model |
 | `judgeCacheMinutes` | `10` | Reuse a verdict for the same question and recall set within this window; `0` disables |
 | `judgeTimeoutMs` | `6000` | Hard judge timeout, 500–15000; falls back to lexical matching |
-| `judgeDeadlineMs` | `1500` | Soft deadline: inject unjudged hits at the deadline, cache a late verdict for next time; 0 = off |
+| `judgeDeadlineMs` | `400` | Soft deadline: inject unjudged hits at the deadline, cache a late verdict for next time; 0 = wait for `judgeTimeoutMs`. Measured: <15% of verdicts land in 1.5s and 19/19 late verdicts kept at least one note, so the default is now 400ms |
 
 ### Tests and evaluation
 

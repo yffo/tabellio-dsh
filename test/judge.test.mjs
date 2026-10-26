@@ -216,9 +216,9 @@ test('withDeadline leaves no unhandled rejection when the late call fails', asyn
   await new Promise((resolve) => setTimeout(resolve, 40));
 });
 
-test('judgeDeadlineMs defaults to 1500 and is clamped to 0..15000', () => {
-  assert.equal(DEFAULTS.judgeDeadlineMs, 1500);
-  assert.equal(normalizeConfig({}).judgeDeadlineMs, 1500);
+test('judgeDeadlineMs defaults to 400 and is clamped to 0..15000', () => {
+  assert.equal(DEFAULTS.judgeDeadlineMs, 400);
+  assert.equal(normalizeConfig({}).judgeDeadlineMs, 400);
   assert.equal(normalizeConfig({ judgeDeadlineMs: 0 }).judgeDeadlineMs, 0);
   assert.equal(normalizeConfig({ judgeDeadlineMs: 99999 }).judgeDeadlineMs, 15000);
 });

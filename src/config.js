@@ -68,7 +68,10 @@ export const DEFAULTS = Object.freeze({
   judgeProvider: '',
   judgeModel: '',
   judgeTimeoutMs: 6000,
-  judgeDeadlineMs: 1500,
+  // 2026-10-26：真实审计（10-19→26）里 judge 在 1.5s 内完成的只有 3/28 次，
+  // 迟到裁决 19/19 都保留了至少一条（0 次清空召回）⇒ 多等的 1.5s 没买到质量，
+  // 却让每次注入型召回稳定多 1.1s。400ms 只给「确实快的宿主模型」留机会。
+  judgeDeadlineMs: 400,
   judgeCacheMinutes: 10,
   writeJudge: 'off',
   writeJudgeTimeoutMs: 2500,
@@ -95,7 +98,9 @@ export const DEFAULTS = Object.freeze({
   semanticModel: 'qwen3-embedding-0.6b',
   semanticMinSimilarity: 0.55,
   semanticTop: 8,
-  semanticTimeoutMs: 2500,
+  // 暖态本地嵌入 17–55ms；冷启动（llama-swap 卸载后首问）要 ~2.5s。
+  // 800ms 让冷启动这一轮退回纯词法，而不是把整轮拖到 2–3s；下一轮模型已热。
+  semanticTimeoutMs: 800,
   semanticRefreshMinutes: 5,
 });
 

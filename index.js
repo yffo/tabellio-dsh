@@ -709,11 +709,20 @@ export function apply(ctx, config = {}) {
     if (settings.semantic === 'off' || !semanticIndexer?.state?.ready) return result;
     try {
       const vector = pendingVector ? await pendingVector : null;
+      // A prefetch that was started but produced no vector has already spent
+      // the embedding timeout (cold llama-swap load is ~2.5s). Retrying inline
+      // would pay that budget twice on the same turn, which is exactly the
+      // 2.5–3.2s tail seen in the 2026-10 audit. Skip semantic this turn; the
+      // lexical result is already good enough and the next turn is warm.
+      if (pendingVector && !(Array.isArray(vector) && vector.length > 0)) {
+        ctx.logger?.debug?.('tabellio-dsh: semantic skipped, prefetch produced no vector');
+        return result;
+      }
       const hits = await semanticTop({
         index: semanticIndexer.state.index,
         query,
-        // A cache hit or a completed prefetch costs no network call here; a
-        // failed prefetch leaves `vector` null and semanticTop embeds inline.
+        // Without a prefetch (e.g. no index yet at prefetch time) this embeds
+        // inline; a completed prefetch or cache hit passes the vector through.
         vector: Array.isArray(vector) && vector.length > 0 ? vector : undefined,
         endpoint: settings.semanticEndpoint,
         model: settings.semanticModel,

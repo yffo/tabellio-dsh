@@ -219,13 +219,14 @@ dsh plugin --profile desktop add tabellio-dsh
 | `semanticEndpoint` / `semanticModel` | `http://127.0.0.1:8080/v1/embeddings` / `qwen3-embedding-0.6b` | 首选地址与模型（`auto` 失败时会继续探测其他常见端口） |
 | `semanticRefreshMinutes` | `5` | 语义索引增量刷新间隔（分钟）；`0` 关闭，只在新笔记写入后的下次重启索引 |
 | `semanticMinSimilarity` | `0.55` | 低于这个余弦相似度的语义命中不加进召回 |
+| `semanticTimeoutMs` | `800` | 单次嵌入超时；冷启动（模型被卸载后首问约 2.5s）就退回纯词面，不再把整轮拖长 |
 | `consolidate` | `off` | 后台巩固：`daily`/`weekly` 时定时扫近似重复笔记并写合并提案，同时扫一遍「说法冲突」的笔记对并把结果写进 `runs/conflict-state.json`（只产提案/提示，批准仍在面板） |
 | `maxCandidatesPerTurn` | `2` | 每轮候选上限，1–5 |
 | `captureMaxSentenceChars` | `240` | 单句上限，40–1000 |
 | `judge` | `llm` | `llm` / `off` |
 | `judgeProvider` / `judgeModel` | 空 | 留空用宿主默认模型 |
 | `judgeTimeoutMs` | `6000` | 裁决硬超时，500–15000，超时回退词面命中 |
-| `judgeDeadlineMs` | `1500` | 软截止：到点先注入未裁决的结果，裁决晚到就缓存给下一次；0 = 关闭 |
+| `judgeDeadlineMs` | `400` | 软截止：到点先注入未裁决的结果，裁决晚到就缓存给下一次；0 = 关闭（等 `judgeTimeoutMs`）。实测 1.5s 内完成的裁决 <15%，迟到裁决 19/19 都没删条目，所以默认压到 400ms |
 | `judgeMinChars` | `6` | 短于这个字数的模糊问句不调 judge（省约 2s）；0 关闭 |
 | `judgeCacheMinutes` | `10` | 同一问题 + 同一批命中在多少分钟内复用裁决结果；`0` 关闭缓存 |
 
