@@ -48,10 +48,14 @@ function conflictReason(store, text) {
     // An empty/uninitialised store has no notes to conflict with; only a real
     // read failure is treated as "cannot verify".
     if (typeof store.exists === 'function' && !store.exists()) return null;
-    for (const entry of store.scan()) {
+    // store.scan() returns a summary object ({ store, files, notes, ... }),
+    // not an iterable — iterate the notes array when present.
+    const scan = store.scan();
+    const entries = Array.isArray(scan) ? scan : Array.isArray(scan?.notes) ? scan.notes : [];
+    for (const entry of entries) {
       if (entry.note?.status && entry.note.status !== 'active') continue;
       if (entry.note?.trust === 'external') continue;
-      const other = new Set(tokensOf(entry.note?.body ?? ''));
+      const other = new Set(tokensOf(entry.body ?? entry.note?.body ?? entry.text ?? ''));
       if (other.size < 4) continue;
       let shared = 0;
       for (const token of tokens) if (other.has(token)) shared += 1;

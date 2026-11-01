@@ -435,6 +435,10 @@ async function runMatrixCase(combo) {
     recallIntentGate: combo.gate,
     refreshSeconds: 0,
     minQueryChars: 4,
+    // The matrix pins the capture wiring, not the 0.40 T0 auto-approve
+    // default; keep every captured item in the candidate queue here.
+    autoApprove: 'off',
+    writeJudge: 'off',
   });
 
   const who = makeAgent(combo.id);

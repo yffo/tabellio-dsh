@@ -109,3 +109,13 @@ test('integration: an enabled T0 statement is stored, a one-off stays a candidat
   assert.equal(view.notes, 1);
   assert.equal(view.candidates, 1);
 });
+
+test('t0 classification tolerates the store scan summary shape', (t) => {
+  const dir = temp(t);
+  const store = openStore(dir);
+  assert.equal(remember(store, { text: '# 发版流程\n\n发版走 tag 和 CI，不手动上传。' }).ok, true);
+  const text = '记住：项目代号是青鸟，所有文档都用这个代号。';
+  const result = classifyText(text, { store });
+  assert.equal(result.tier, 't0');
+  assert.deepEqual(result.reasons, []);
+});

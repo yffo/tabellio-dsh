@@ -1,3 +1,12 @@
+## 0.40.1（2026-11-02）
+
+0.40.0 上线后第一次真机验证发现的 T0 自动入库失效，两个都是「本地测试用假 store、线上用真 store」的接缝：
+
+- **`store.scan()` 返回的是汇总对象而非可迭代数组**：`conflictReason` 里 `for (const entry of store.scan())` 在真库上直接抛 `TypeError`，被 catch 成 `conflict check unavailable` → 所有 T0 都被降级成候选。改成显式取 `scan.notes`，并兼容假 store 直接返回数组的形状。
+- **笔记正文在 `entry.body`，不在 `entry.note.body`**：冲突检测一直读到空串，两条语义几乎相同（重叠 0.94）的约定也不会被判为 T2。改为 `entry.body ?? entry.note?.body ?? entry.text`。
+- 验收矩阵显式钉 `autoApprove: 'off'`：矩阵测的是 capture 接线，不是 0.40 的自动入库默认值。
+- 测试 210 + 30 验收（本地与 `TZ=UTC`）。
+
 ## 0.40.0（2026-11-02）
 
 一周真实使用的两条反馈，各对应一个改动：
