@@ -6,7 +6,8 @@
 - **新窗口接续（bootstrap）**：会话第一条是「继续/开工」这类无主题话时，注入最近 1–2 条项目/核心笔记（每会话一次，最多 900 字），不再从空白开始。只对纯接续语触发；「今天天气怎么样？」这类短文问题不会误触发；shadow 模式跳过。
 - 判定辅助：`isContinuation`（messages.js）区分「继续/开干」与普通短问句；`bootstrapCandidates` 只取 `kind: core`、未归档/未被取代、非 external、`valid_from` 在窗口内的笔记，不足时回退到最近的非 external 笔记。
 - 安全闸复核：自动入库仍要求 `routeCandidate` 判 T0 **且** `filterCandidatesByWorth` 的 `judged:true`；未拿到裁决一律候选。
-- 文档：README 的「先草稿后记忆」口径改为「默认只自动记低风险」，补 4 个 bootstrap 配置项；面板 FAQ 同步。209 测试 + 30 验收。
+- **周报跨月窗口修复**：`readAuditSince` 以前只读「本月 + 32 天前所在月」两个文件，月初（UTC CI 里尤其明显）会漏掉上个月的记录；现在按窗口覆盖的每个月逐一读取。
+- 文档：README 的「先草稿后记忆」口径改为「默认只自动记低风险」，补 4 个 bootstrap 配置项；面板 FAQ 同步。209 测试 + 30 验收（本地与 `TZ=UTC` 均通过）。
 
 ## 0.39.5（2026-10-26）
 

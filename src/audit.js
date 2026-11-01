@@ -94,7 +94,19 @@ export function readAuditSince(store, sinceMs, { max = 1000 } = {}) {
   const cap = Math.max(1, Math.min(5000, Number(max) || 1000));
   const now = Date.now();
   const entries = [];
-  for (const at of [now, now - 1000 * 60 * 60 * 24 * 32]) {
+  // Audit files are bucketed by local month. Walk every month the window
+  // touches instead of guessing two fixed anchors: around a month boundary a
+  // -1 day record can live in the previous month while "now" is already in the
+  // next one (the old two-file scan missed exactly that case in UTC CI).
+  const months = new Set();
+  const start = new Date(Math.min(sinceMs, now));
+  const end = new Date(now);
+  const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+  while (cursor <= end) {
+    months.add(cursor.getTime());
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  for (const at of months) {
     try {
       const file = auditPath(store, at);
       if (!existsSync(file)) continue;
