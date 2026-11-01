@@ -13,7 +13,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { addCandidate, listCandidates, openStore, read as readNote, recallQuery, remember, status as storeStatus } from 'tabellio';
 import { configWarnings, normalizeConfig } from './src/config.js';
-import { delegationDepth, isHumanMessage, isChitchat, isLowInformationQuery, latestHuman, textOf, trimQuery, intentGateAllows } from './src/messages.js';
+import { delegationDepth, isHumanMessage, isChitchat, isContinuation, isLowInformationQuery, latestHuman, textOf, trimQuery, intentGateAllows } from './src/messages.js';
 import { extractAssistantConclusion, extractCandidates, hasSecretHint, looksLikeCredentialLeak } from './src/capture.js';
 import { createJudgeCache, filterByJudge, judgeCacheKey, withDeadline } from './src/judge.js';
 import { appendJudgeEvent } from './src/judge-log.js';
@@ -94,7 +94,45 @@ export function apply(ctx, config = {}) {
     ? value.items.slice(0, 3).map((item) => String(item.title ?? item.id ?? '').slice(0, 40)).filter(Boolean)
     : []);
 
-  registerTools(ctx, { settings, getStore: currentStore, getLastRecall: () => lastRecall });
+  // Tools get the same narrow auto-approval path as turn-end capture: only the
+  // T0 class, only with a real write-judge verdict. Anything else stays a
+  // candidate. Called by tabellio_capture before it writes.
+  const approveCapture = async ({ text, source, tags }) => {
+    if (settings.autoApprove !== 't0' || settings.writeJudge !== 'llm') return null;
+    const body = String(text ?? '');
+    if (!body) return null;
+    const route = routeCandidate(body, { store: currentStore(), autoApprove: settings.autoApprove });
+    if (route.action !== 'auto') return null;
+    const judged = await filterCandidatesByWorth({
+      llm: judgeHost?.llm ?? null,
+      selection: judgeHost?.currentSelection?.() ?? null,
+      candidates: [{ sentence: body, body, title: '' }],
+      timeoutMs: settings.writeJudgeTimeoutMs,
+    });
+    if (!judged.judged || judged.candidates.length === 0) return null;
+    const result = remember(
+      currentStore(),
+      { content: body },
+      {
+        kind: 'semantic',
+        trust: 'user_stated',
+        tags: ['dsh', 'auto-approve', ...(Array.isArray(tags) ? tags : [])],
+        writtenBy: 'auto:dsh',
+        sourceRef: source,
+      },
+    );
+    if (!result?.ok) return null;
+    appendAudit(currentStore(), {
+      query: body.slice(0, 120),
+      mode: 'auto_approve',
+      refused: false,
+      count: 1,
+      reason: route.reasons.join('; ') || 't0',
+      titles: [result.title ?? ''],
+    });
+    return result;
+  };
+  registerTools(ctx, { settings, getStore: currentStore, getLastRecall: () => lastRecall, approveCapture });
 
   // Diagnostics for the panel: why the judge did or did not run. Declared
   // before the panel channel so the RPC handler always reads the live object;
@@ -357,6 +395,7 @@ export function apply(ctx, config = {}) {
         lastUser: null,
         lastInjectedKey: '',
         lastInjectionMode: '',
+        bootstrapDone: false,
         injectedIds: [],
         injectedAt: 0,
         injectedQuery: '',
@@ -499,7 +538,7 @@ export function apply(ctx, config = {}) {
     return sessionId ? 'dsh:session:' + sessionId : 'dsh:agent:' + (agent?.id ?? 'unknown');
   };
 
-  const writeCandidates = (candidates, source, where) => {
+  const writeCandidates = (candidates, source, where, { judgeVerified = false } = {}) => {
     let written = 0;
     let autoApproved = 0;
     const failedItems = [];
@@ -523,7 +562,7 @@ export function apply(ctx, config = {}) {
       // rules that disable tests/backups/HTTPS pass any lexical envelope), so
       // an automatic write also requires the write-side model judgment. Without
       // that service the sentence stays a candidate.
-      if (route.action === 'auto' && settings.writeJudge === 'llm') {
+      if (route.action === 'auto' && settings.writeJudge === 'llm' && judgeVerified) {
         try {
           const result = remember(
             currentStore(),
@@ -641,6 +680,7 @@ export function apply(ctx, config = {}) {
     }
 
     let keep = found;
+    let judgeVerified = false;
     if (settings.writeJudge === 'llm') {
       const started = Date.now();
       const selection = judgeHost?.currentSelection?.() ?? null;
@@ -658,7 +698,10 @@ export function apply(ctx, config = {}) {
         elapsedMs: Date.now() - started,
         model: selection ? String(selection.model ?? '') : '',
       };
-      if (filtered.judged) keep = filtered.candidates;
+      if (filtered.judged) {
+        keep = filtered.candidates;
+        judgeVerified = true;
+      }
     }
     if (keep.length === 0) {
       state.captured.add(messageId);
@@ -666,7 +709,7 @@ export function apply(ctx, config = {}) {
       return written;
     }
 
-    const result = writeCandidates(keep, source, where);
+    const result = writeCandidates(keep, source, where, { judgeVerified });
     written += result.written;
     if (result.failedItems.length > 0) {
       state.pendingCandidates = result.failedItems;
@@ -837,6 +880,128 @@ export function apply(ctx, config = {}) {
     return panelSettingsView(settings);
   }
 
+
+  // A new conversation usually starts with "继续" / "开工" — exactly the words
+  // that cannot match a stored note. On the first turn of a session, if that
+  // turn carries no topic, inject the most recently updated project notes so
+  // the window starts with the current state instead of a blank slate.
+  const bootstrapCandidates = () => {
+    try {
+      const scan = currentStore().scan({ fresh: false });
+      const rows = Array.isArray(scan?.notes) ? scan.notes : [];
+      const since = Date.now() - settings.bootstrapDays * 86400000;
+      const usable = [];
+      for (const entry of rows) {
+        const note = entry?.note ?? {};
+        if (note.valid_to || note.superseded_by) continue;
+        if (note.trust === 'external') continue;
+        if (note.kind !== 'core') continue;
+        const at = Date.parse(note.valid_from ?? '') || 0;
+        if (!at || at < since) continue;
+        usable.push({ id: entry.id, title: entry.title ?? '', body: entry.body ?? '', at });
+      }
+      if (usable.length === 0) {
+        // No recently updated project notes: fall back to the newest notes the
+        // user wrote or the system derived, so the window still has something.
+        for (const entry of rows) {
+          const note = entry?.note ?? {};
+          if (note.valid_to || note.superseded_by) continue;
+          if (note.trust === 'external') continue;
+          const at = Date.parse(note.valid_from ?? '') || 0;
+          if (!at || at < since) continue;
+          usable.push({ id: entry.id, title: entry.title ?? '', body: entry.body ?? '', at });
+        }
+      }
+      usable.sort((left, right) => right.at - left.at || (left.id < right.id ? -1 : 1));
+      return usable.slice(0, settings.bootstrapNotes);
+    } catch (error) {
+      ctx.logger?.debug?.('tabellio-dsh: bootstrap scan skipped: ' + (error?.message ?? error));
+      return [];
+    }
+  };
+
+  const bootstrapRecall = (agent, state, raw, decision) => {
+    if (!settings.bootstrapRecall || settings.shadow) return null;
+    if (state.bootstrapDone) return null;
+    // Only a genuine "keep going" line boots a session. A short content
+    // question ("今天天气怎么样？") must not inherit stale project notes just
+    // because it is short.
+    if (!isContinuation(raw) && !isChitchat(raw)) return null;
+    // A short question can still carry memory intent ("上次召回"); those must
+    // go through the normal recall path, not the continuation bootstrap.
+    if (intentGateAllows(raw).allowed) return null;
+    state.bootstrapDone = true;
+    const notes = bootstrapCandidates();
+    if (notes.length === 0) return null;
+    const items = notes.map((note) => ({ id: note.id, title: note.title, content: note.body }));
+    const renderOptions = {
+      maxChars: Math.min(settings.injectMaxChars, settings.bootstrapMaxChars),
+      fullNotes: 1,
+      snippetChars: 160,
+    };
+    // Two passes so the header's token estimate matches what actually fits in
+    // the budget (the first pass reveals how many notes survive the cap).
+    let text = formatRecall({ items, tokens: 0 }, renderOptions);
+    if (!text) return null;
+    text = formatRecall({ items, tokens: Math.ceil(text.length / 2) }, renderOptions);
+    const renderedCount = (text.match(/^### /gm) || []).length || items.length;
+    const keptIds = items.slice(0, renderedCount);
+    const key = 'bootstrap:' + keptIds.map((item) => item.id).join('\u0000');
+    const titles = keptIds.map((item) => item.title).slice(0, 6);
+    const quietOk = settings.delivery === 'context' && quietDeliveryAllowed(agent);
+    const at = Date.now();
+    lastRecall = recordRecall({
+      at,
+      query: String(raw ?? '').slice(0, 120),
+      mode: quietOk ? 'context' : 'notice',
+      refused: false,
+      count: renderedCount,
+      reason: 'session_bootstrap',
+      titles,
+      chars: text.length,
+      elapsedMs: 0,
+      receiptPath: null,
+    });
+    appendUsage(currentStore(), {
+      at,
+      mode: quietOk ? 'context' : 'notice',
+      chars: text.length,
+      semantic: 0,
+      judge: 0,
+      notes: renderedCount,
+    });
+    state.lastInjectedKey = key;
+    state.lastInjectionMode = quietOk ? 'context' : 'notice';
+    state.injectedIds = keptIds.map((item) => item.id).slice(0, 6);
+    state.injectedAt = at;
+    state.injectedQuery = '';
+    if (quietOk) {
+      latestRecallText = text;
+      ctx.logger?.info?.('tabellio-dsh: session bootstrap injected ' + renderedCount + ' recent note(s) into the quiet context');
+      return decision;
+    }
+    // Multi-session hosts cannot share the quiet slot; put the bootstrap in a
+    // per-session notice instead of dropping it.
+    latestRecallText = '';
+    ctx.logger?.info?.('tabellio-dsh: session bootstrap delivered as a notice (' + renderedCount + ' note(s))');
+    return {
+      ...decision,
+      messages: [
+        ...decision.messages,
+        {
+          id: randomUUID(),
+          role: 'user',
+          content: [{ type: 'text', text }],
+          source: {
+            kind: 'plugin:' + PRODUCER,
+            form: 'notice',
+            summary: 'tabellio 会话接续 ' + renderedCount + ' 条',
+          },
+        },
+      ],
+    };
+  };
+
   ctx.on('agent/pre-step', async (payload, next) => {
     const decision = await next();
     if (decision?.kind !== 'enter' || !Array.isArray(decision.messages)) return decision;
@@ -880,6 +1045,12 @@ export function apply(ctx, config = {}) {
     }
 
     if (!settings.autoRecall) return decision;
+
+    // New-window continuity: a topic-less "继续" on the first turn would be
+    // dropped by the gates below; instead give the session its recent project
+    // notes once. Only runs on the first turn and only without a topic.
+    const bootstrapped = bootstrapRecall(payload?.agent, state, raw, decision);
+    if (bootstrapped) return bootstrapped;
 
     const query = trimQuery(raw, settings.queryChars);
     if (!query || [...query].length < settings.minQueryChars || isChitchat(query)) return decision;

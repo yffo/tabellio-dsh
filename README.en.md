@@ -10,7 +10,7 @@ English | [简体中文](README.md)
 
 **Memory for DeepSeek Harness that remembers — and still lets you decide.**
 
-It watches the conversation for agreements and preferences worth keeping, drops them into a *candidate inbox*, and only stores them after you approve. Days later, ask "how did we decide that?" and it remembers on its own.
+It watches the conversation for agreements and preferences worth keeping: a narrow T0 class (an explicit "remember this / from now on" that is durable and single-topic) is stored after one write-side check; everything else lands in the *candidate inbox* for you to approve. Days later, ask "how did we decide that?" and it remembers on its own.
 
 Everything lives in plain Markdown files on your own machine. Nothing is uploaded; network traffic stays on loopback — discovering a local embedding service (`semantic: auto`) and one small relevant/not-relevant judge call with the host's current model (`judge: llm`, can be turned off).
 
@@ -26,11 +26,11 @@ Open a new conversation and the agent has amnesia: the preferences you mentioned
 
 Most memory plugins go one of two ways: remember nothing, or dump entire conversations into a memory store. Either way you end up with noise: irrelevant hits bleed into answers, or nothing useful comes back at all.
 
-tabellio-dsh takes a third path: **draft first, memory second.** It only turns things that look worth keeping into candidates; nothing enters the real store until you approve it. Every stored memory keeps its provenance, and recall has a budget and a cap so it never floods the conversation.
+tabellio-dsh takes a third path: **low-risk memory is automatic, everything else is draft-first.** Explicit durable conventions (T0) are checked on the write side and stored; one-offs, credentials and conflicts go to the candidate inbox. Every stored memory keeps its provenance, and recall has a budget and a cap so it never floods the conversation.
 
 ## What makes it different from other memory plugins
 
-- **You approve, it remembers.** Auto-capture only writes candidates; it never touches the real store. Deleting and editing stay in your hands.
+- **Default: only low-risk memory is automatic.** T0 explicit conventions are stored after a write-side check; one-offs, credentials, conflicts and opinions stay candidates until you approve them. Deleting and editing stay in your hands.
 - **Recall is visible and explainable.** The Memory page under Settings tells you why the last turn recalled something — or why it did not.
 - **Local and plain text.** Memory is just Markdown under `~/memory/tabellio`, readable in any editor and portable to another machine.
 
@@ -51,7 +51,7 @@ dsh plugin --profile desktop add tabellio-dsh
 ## First run: three things to do
 
 1. **Chat normally.** Say "run the tests before every release" or "I don't like long answers".
-2. **Open "Settings → Memory"** and click "Approve" on the candidate.
+2. **Open "Settings → Memory"**: a T0 convention is already stored; remaining candidates wait for your **Approve**.
 3. **Ask about it a few days later**: "what do we usually do before a release?" — it remembers.
 
 That is all. No "please remember this" every time, no configuration required.

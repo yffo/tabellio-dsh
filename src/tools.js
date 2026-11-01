@@ -59,7 +59,7 @@ const asOfMs = (value) => {
  * Build the native tool definitions. They are thin projections over the same
  * tabellio API the CLI/MCP use, so budgets, refusal and gates cannot drift.
  */
-export function createToolDefinitions({ settings, getStore, getLastRecall = () => null }) {
+export function createToolDefinitions({ settings, getStore, getLastRecall = () => null, approveCapture = null }) {
   const lastRecallView = () => {
     const last = getLastRecall?.();
     if (!last || typeof last !== 'object') return { mode: 'none', at: 0, query: '', count: 0, reason: '', titles: [] };
@@ -369,10 +369,10 @@ export function createToolDefinitions({ settings, getStore, getLastRecall = () =
     {
       name: 'tabellio_capture',
       description:
-        'Propose something for long-term memory. This writes a candidate under notes/candidates/ only; it does NOT enter formal memory ' +
-        'and does NOT affect recall until a human runs tabellio inbox and approves it. Use it for stable preferences, decisions, ' +
-        'conventions or facts the user explicitly wants remembered. Do not capture speculation, secrets, or every conversational detail. ' +
-        'Text mentioning credentials (password/token/API key/private key) is rejected.',
+        'Save something the user explicitly wants remembered. A narrow T0 class (explicit "remember this" + durable + single topic + ' +
+        'no credential/conflict/authority) is auto-approved after one write-side model check; everything else lands in the candidate ' +
+        'queue for a human to approve. Use it for stable preferences, decisions, conventions or facts. Do not capture speculation, ' +
+        'secrets, or every conversational detail. Text mentioning credentials (password/token/API key/private key) is rejected.',
       parameters: {
         type: 'object',
         properties: {
@@ -428,6 +428,29 @@ export function createToolDefinitions({ settings, getStore, getLastRecall = () =
           return invalid('too_long', '内容 ' + [...content].length + ' 字，超过单条笔记上限 400 字；请拆成多条分别记住（一条事实一个文件）。');
         }
         try {
+          // Auto-approval (default T0) is broker-side: the host only hands back
+          // a note when the narrow rule and the write judge both agreed.
+          if (typeof approveCapture === 'function') {
+            try {
+              const approved = await approveCapture({ text: content, source, tags });
+              if (approved?.ok) {
+                return {
+                  ok: true,
+                  reason: 'auto_approved',
+                  id: String(approved.id ?? ''),
+                  title: String(approved.title ?? ''),
+                  chars: [...content].length,
+                  source,
+                  path: String(approved.path ?? ''),
+                  message: '已自动入库（显式记忆 + 写侧裁决通过，跳过审批）。',
+                };
+              }
+            } catch (error) {
+              // Fall through to the candidate path: the tool must not fail just
+              // because the optional broker is unavailable.
+              settings?.logger?.debug?.('tabellio-dsh: capture auto-approve skipped: ' + (error?.message ?? error));
+            }
+          }
           const result = addCandidate(
             getStore(),
             { text: content, source, kind: 'semantic', tags: ['dsh', ...tags] },

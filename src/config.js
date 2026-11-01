@@ -53,10 +53,19 @@ export const DEFAULTS = Object.freeze({
   // stated or the system derived — otherwise 600+ docs drown ordinary chat.
   recallTrusts: ['user_stated', 'system_derived'],
   capture: 'explicit',
-  // Auto-approval of the narrow T0 class (explicit "remember this" + durable +
-  // single topic + no credential/conflict/authority). Off by default: the
-  // adversarial corpus showed a naive version admitting 60.8% wrong memories.
-  autoApprove: 'off',
+  // A fresh session often starts with "继续"/"开始做吧" instead of the words
+  // that would match a memory. On that first turn, inject the most recently
+  // updated project notes (bounded, capped) so a new window does not start
+  // blind. Once per session, never in shadow mode.
+  bootstrapRecall: true,
+  bootstrapNotes: 2,
+  bootstrapDays: 30,
+  bootstrapMaxChars: 900,
+  // 2026-11-02：真实使用反馈——候选审批没人看就永远进不了正式记忆。
+  // T0（「记住/以后都」+ 持久 + 单主题 + 无凭据/冲突/权威）默认自动入库，
+  // 但**必须**同时有 write-side 模型裁决（writeJudge=== 'llm' 且真拿到裁决）。
+  // T1/T2 仍然只产候选；凭据/冲突/权威冒充永远不自动入库。
+  autoApprove: 't0',
   // How a recall reaches the model: 'notice' appends one visible user notice;
   // 'context' registers it as quiet runtime context in the system prompt.
   delivery: 'notice',
@@ -73,7 +82,9 @@ export const DEFAULTS = Object.freeze({
   // 却让每次注入型召回稳定多 1.1s。400ms 只给「确实快的宿主模型」留机会。
   judgeDeadlineMs: 400,
   judgeCacheMinutes: 10,
-  writeJudge: 'off',
+  // 写侧「值得记吗」裁决：默认开，配合 autoApprove 让显式记忆零审批；
+  // 模型不可用/超时时 fail-open（保留候选），绝不悄悄丢弃。
+  writeJudge: 'llm',
   writeJudgeTimeoutMs: 2500,
   reflect: 'off',
   reflectDays: 14,
@@ -210,7 +221,11 @@ export function normalizeConfig(config = {}) {
     decayDays: int(raw.decayDays, DEFAULTS.decayDays, 0, 3650),
     decayFloor: ratio(raw.decayFloor, DEFAULTS.decayFloor),
     recallTrusts: trusts(raw.recallTrusts),
-    autoApprove: raw.autoApprove === 't0' ? 't0' : 'off',
+    autoApprove: raw.autoApprove === false ? 'off' : raw.autoApprove === 't0' || raw.autoApprove === true ? 't0' : DEFAULTS.autoApprove,
+    bootstrapRecall: raw.bootstrapRecall === undefined ? DEFAULTS.bootstrapRecall : raw.bootstrapRecall === true,
+    bootstrapNotes: int(raw.bootstrapNotes, DEFAULTS.bootstrapNotes, 1, 4),
+    bootstrapDays: int(raw.bootstrapDays, DEFAULTS.bootstrapDays, 1, 365),
+    bootstrapMaxChars: int(raw.bootstrapMaxChars, DEFAULTS.bootstrapMaxChars, 200, 2000),
     capture,
     delivery: raw.delivery === 'context' ? 'context' : 'notice',
     judge,
@@ -220,7 +235,7 @@ export function normalizeConfig(config = {}) {
     // 0 = 不设软截止，等价于一直等到 judgeTimeoutMs 硬超时。
     judgeDeadlineMs: int(raw.judgeDeadlineMs, DEFAULTS.judgeDeadlineMs, 0, 15000),
     judgeCacheMinutes: int(raw.judgeCacheMinutes, DEFAULTS.judgeCacheMinutes, 0, 1440),
-    writeJudge: raw.writeJudge === 'llm' || raw.writeJudge === true ? 'llm' : 'off',
+    writeJudge: raw.writeJudge === false ? 'off' : raw.writeJudge === 'off' ? 'off' : 'llm',
     writeJudgeTimeoutMs: int(raw.writeJudgeTimeoutMs, DEFAULTS.writeJudgeTimeoutMs, 500, 15000),
     reflect: raw.reflect === 'llm' || raw.reflect === true ? 'llm' : 'off',
     reflectDays: int(raw.reflectDays, DEFAULTS.reflectDays, 1, 90),

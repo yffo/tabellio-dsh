@@ -24,7 +24,16 @@ const fakeHost = () => {
   const ctx = {
     logger: { info() {}, warn: (message) => warns.push(message), debug() {}, error() {} },
     on(event, handler) { handlers.set(event, handler); },
-    inject(_deps, callback) { callback?.({ effect(fn) { fn(); return () => {}; } }); },
+    inject(_deps, callback) {
+      callback?.({
+        llm: { async *stream() { yield { type: 'text-delta', index: 0, text: '{"keep":[1]}' }; yield { type: 'finish' }; } },
+        agentDefaultModel: { currentSelection: () => ({ provider: 'test-provider', model: 'test-model' }) },
+        effect(fn) { fn(); return () => {}; },
+        get: () => undefined,
+        logger: ctx.logger,
+        tools: ctx.tools,
+      });
+    },
     effect(fn) { fn(); return () => {}; },
     get() { return undefined; },
     tools: { register() {} },
@@ -63,16 +72,18 @@ test('autoApprove only routes T0 to the store', () => {
   assert.equal(routeCandidate('记住，明天用飞书发版。', { autoApprove: 't0' }).action, 'candidate');
 });
 
-test('config keeps auto-approval off unless explicitly t0', () => {
-  assert.equal(normalizeConfig({}).autoApprove, 'off');
+test('config defaults to narrow T0 auto-approval, with an escape hatch', () => {
+  assert.equal(normalizeConfig({}).autoApprove, 't0');
   assert.equal(normalizeConfig({ autoApprove: 't0' }).autoApprove, 't0');
-  assert.equal(normalizeConfig({ autoApprove: true }).autoApprove, 'off');
+  assert.equal(normalizeConfig({ autoApprove: true }).autoApprove, 't0');
+  assert.equal(normalizeConfig({ autoApprove: false }).autoApprove, 'off');
+  assert.equal(normalizeConfig({ writeJudge: false }).writeJudge, 'off');
 });
 
 test('integration: auto-approval needs the write judge, otherwise it stays a candidate', async (t) => {
   const dir = temp(t);
   const host = fakeHost();
-  apply(host.ctx, { storePath: dir, autoRecall: false, capture: 'explicit', autoApprove: 't0' });
+  apply(host.ctx, { storePath: dir, autoRecall: false, capture: 'explicit', autoApprove: 't0', writeJudge: 'off' });
   const who = agent();
   await runPre(host.handlers, who, [human('m1', '记住，以后都用 pnpm。')]);
   await runSerial(host.handlers, 'agent/turn-stopping', { agent: who, turn: {}, signal: null });

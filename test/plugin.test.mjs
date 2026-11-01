@@ -273,7 +273,7 @@ test('auto recall injects one budgeted notice per user message and dedupes', asy
   const store = openStore(dir);
   remember(store, { text: '# 项目代号\n\n项目代号是青鸟。' });
   const host = fakeHost();
-  apply(host.ctx, { storePath: dir, autoRecall: true, capture: 'off', refreshSeconds: 0 });
+  apply(host.ctx, { storePath: dir, autoRecall: true, capture: 'off', refreshSeconds: 0, bootstrapRecall: false });
 
   const who = agent();
   const first = await runPre(host.handlers, who, [human('m1', '项目代号是什么？')]);
@@ -368,7 +368,7 @@ test('memory-intent gate suppresses lexically-matched but off-topic recall', asy
   const store = openStore(dir);
   remember(store, { text: '# 天气记录\n\n今天天气不错，适合发布。' });
   const host = fakeHost();
-  apply(host.ctx, { storePath: dir, autoRecall: true, capture: 'off', refreshSeconds: 0 });
+  apply(host.ctx, { storePath: dir, autoRecall: true, capture: 'off', refreshSeconds: 0, bootstrapRecall: false });
 
   const weather = await runPre(host.handlers, agent(), [human('m1', '今天天气怎么样？')]);
   assert.equal(weather.messages.length, 1);
@@ -377,7 +377,7 @@ test('memory-intent gate suppresses lexically-matched but off-topic recall', asy
   const store2 = openStore(dir2);
   remember(store2, { text: '# 天气记录\n\n今天天气不错，适合发布。' });
   const host2 = fakeHost();
-  apply(host2.ctx, { storePath: dir2, autoRecall: true, recallIntentGate: false, capture: 'off', refreshSeconds: 0 });
+  apply(host2.ctx, { storePath: dir2, autoRecall: true, recallIntentGate: false, capture: 'off', refreshSeconds: 0, bootstrapRecall: false });
   const ungated = await runPre(host2.handlers, agent('agent-2'), [human('m1', '今天天气怎么样？')]);
   assert.equal(ungated.messages.length, 2);
 
@@ -415,7 +415,7 @@ test('delegated agents neither recall nor write recall receipts', async (t) => {
   const store = openStore(dir);
   remember(store, { text: '# 项目代号\n\n项目代号是青鸟。' });
   const host = fakeHost();
-  apply(host.ctx, { storePath: dir, autoRecall: true, capture: 'off', refreshSeconds: 0 });
+  apply(host.ctx, { storePath: dir, autoRecall: true, capture: 'off', refreshSeconds: 0, bootstrapRecall: false });
 
   const scout = agent();
   scout.options = { subagentDepth: 1 };
@@ -525,7 +525,7 @@ test('an unreadable store is reported instead of looking like an empty memory', 
   fs.mkdirSync(path.join(dir, 'notes'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'notes', 'broken.md'), 'no frontmatter at all\n', 'utf8');
   const host = fakeHost();
-  apply(host.ctx, { storePath: dir, autoRecall: true, capture: 'off', refreshSeconds: 0 });
+  apply(host.ctx, { storePath: dir, autoRecall: true, capture: 'off', refreshSeconds: 0, bootstrapRecall: false });
   await runPre(host.handlers, agent(), [human('m1', '项目代号是什么？')]);
   assert.ok(host.warns.some((line) => /store issues/.test(String(line))), 'expected a store health warning, got: ' + JSON.stringify(host.warns));
 });
@@ -533,7 +533,7 @@ test('an unreadable store is reported instead of looking like an empty memory', 
 test('auto recall stays silent in an empty store and when disabled', async (t) => {
   const dir = temp(t);
   const host = fakeHost();
-  apply(host.ctx, { storePath: dir, autoRecall: true, capture: 'off', refreshSeconds: 0 });
+  apply(host.ctx, { storePath: dir, autoRecall: true, capture: 'off', refreshSeconds: 0, bootstrapRecall: false });
   const who = agent();
   const result = await runPre(host.handlers, who, [human('m1', '项目代号是什么？')]);
   assert.equal(result.messages.length, 1);
@@ -946,7 +946,7 @@ test('apply warns once when the recall tuning still matches the pre-0.39.0 defau
 test('apply stays quiet about recall tuning when values are the current defaults', (t) => {
   const dir = temp(t);
   const host = fakeHost();
-  apply(host.ctx, { storePath: dir, autoRecall: true, capture: 'off', refreshSeconds: 0 });
+  apply(host.ctx, { storePath: dir, autoRecall: true, capture: 'off', refreshSeconds: 0, bootstrapRecall: false });
   assert.equal(host.warns.some((line) => line.includes('旧默认')), false);
 });
 

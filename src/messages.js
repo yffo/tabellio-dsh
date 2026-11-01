@@ -24,6 +24,13 @@ export function latestHuman(messages) {
   return null;
 }
 
+/** A topic-less "keep going" line: the only first turn that gets a bootstrap. */
+const CONTINUATION = /^(继续|接着做|接着|开始做|开始|开工|开干|动手|做吧|来吧|走起|开整|往下做|下一步|next|continue|go)[^。！？!?]{0,4}$/i;
+
+export function isContinuation(text) {
+  return CONTINUATION.test(String(text ?? '').trim());
+}
+
 export function isChitchat(text) {
   return CHITCHAT.test(String(text ?? '').trim());
 }
