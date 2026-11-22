@@ -1,3 +1,12 @@
+> **已退役（2026-11-22）。** 本项目不再维护，也不建议在新环境安装。
+> 日常记忆请改用 [`dsh-prime-memory`](https://www.npmjs.com/package/dsh-prime-memory)（全自动蒸馏 + 自动召回，无需审批），
+> 或 [`meow-memory`](https://www.npmjs.com/package/meow-memory)、[`dsh-lite-memory`](https://www.npmjs.com/package/dsh-lite-memory)。
+> 核心 `tabellio` 仍作为个人实验保留；数据留在 `~/memory/tabellio`，未删除。
+>
+> **Retired (2026-11-22).** No longer maintained. Use `dsh-prime-memory`, `meow-memory`
+> or `dsh-lite-memory` instead. The `tabellio` core stays as a personal experiment;
+> existing data under `~/memory/tabellio` is untouched.
+
 # tabellio-dsh 🧠
 
 <p>

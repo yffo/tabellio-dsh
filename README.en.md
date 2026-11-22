@@ -1,3 +1,5 @@
+> **Retired (2026-11-22).** No longer maintained; use `dsh-prime-memory`, `meow-memory` or `dsh-lite-memory`. The `tabellio` core remains a personal experiment; data under `~/memory/tabellio` is untouched.
+
 # tabellio-dsh 🧠
 
 <p>
